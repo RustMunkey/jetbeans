@@ -4,7 +4,24 @@
 	"tasks": {
 		"build": {
 			"dependsOn": ["^build"],
-			"outputs": [".next/**", "!.next/cache/**"]
+			"outputs": [".next/**", "!.next/cache/**"],
+			"env": [
+				"DATABASE_URL",
+				"REDIS_URL",
+				"BETTER_AUTH_SECRET",
+				"BETTER_AUTH_URL",
+				"GOOGLE_CLIENT_ID",
+				"GOOGLE_CLIENT_SECRET",
+				"INITIAL_ADMIN_EMAILS",
+				"SKIP_ENV_VALIDATION",
+				"PUSHER_APP_ID",
+				"PUSHER_KEY",
+				"PUSHER_SECRET",
+				"PUSHER_CLUSTER",
+				"NEXT_PUBLIC_ADMIN_URL",
+				"NEXT_PUBLIC_PUSHER_KEY",
+				"NEXT_PUBLIC_PUSHER_CLUSTER"
+			]
 		},
 		"dev": {
 			"cache": false,
