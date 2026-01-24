@@ -1,0 +1,320 @@
+"use server"
+
+import { headers } from "next/headers"
+import { eq, and, like, desc, sql, count, ilike, inArray } from "@jetbeans/db/drizzle"
+import { db } from "@jetbeans/db/client"
+import { products, productVariants, categories, inventory } from "@jetbeans/db/schema"
+import { auth } from "@/lib/auth"
+import { logAudit } from "@/lib/audit"
+import { slugify } from "@/lib/format"
+
+async function requireAdmin() {
+	const session = await auth.api.getSession({ headers: await headers() })
+	if (!session) throw new Error("Not authenticated")
+	if (session.user.role !== "owner" && session.user.role !== "admin") {
+		throw new Error("Insufficient permissions")
+	}
+	return session.user
+}
+
+interface GetProductsParams {
+	page?: number
+	pageSize?: number
+	search?: string
+	category?: string
+	status?: string
+}
+
+export async function getProducts(params: GetProductsParams = {}) {
+	const { page = 1, pageSize = 20, search, category, status } = params
+	const offset = (page - 1) * pageSize
+
+	const conditions = []
+	if (search) {
+		conditions.push(ilike(products.name, `%${search}%`))
+	}
+	if (category) {
+		conditions.push(eq(products.categoryId, category))
+	}
+	if (status === "active") {
+		conditions.push(eq(products.isActive, true))
+	} else if (status === "inactive") {
+		conditions.push(eq(products.isActive, false))
+	}
+
+	const where = conditions.length > 0 ? and(...conditions) : undefined
+
+	const [items, [total]] = await Promise.all([
+		db
+			.select({
+				id: products.id,
+				name: products.name,
+				slug: products.slug,
+				price: products.price,
+				thumbnail: products.thumbnail,
+				isActive: products.isActive,
+				isFeatured: products.isFeatured,
+				categoryId: products.categoryId,
+				categoryName: categories.name,
+				createdAt: products.createdAt,
+			})
+			.from(products)
+			.leftJoin(categories, eq(products.categoryId, categories.id))
+			.where(where)
+			.orderBy(desc(products.createdAt))
+			.limit(pageSize)
+			.offset(offset),
+		db.select({ count: count() }).from(products).where(where),
+	])
+
+	return { items, totalCount: Number(total.count) }
+}
+
+export async function getProduct(id: string) {
+	const [product] = await db
+		.select()
+		.from(products)
+		.where(eq(products.id, id))
+		.limit(1)
+
+	if (!product) throw new Error("Product not found")
+
+	const variants = await db
+		.select({
+			id: productVariants.id,
+			name: productVariants.name,
+			sku: productVariants.sku,
+			price: productVariants.price,
+			attributes: productVariants.attributes,
+			isActive: productVariants.isActive,
+			quantity: inventory.quantity,
+			reservedQuantity: inventory.reservedQuantity,
+			lowStockThreshold: inventory.lowStockThreshold,
+		})
+		.from(productVariants)
+		.leftJoin(inventory, eq(inventory.variantId, productVariants.id))
+		.where(eq(productVariants.productId, id))
+
+	return { ...product, variants }
+}
+
+export async function getCategories() {
+	return db.select().from(categories).orderBy(categories.sortOrder)
+}
+
+interface ProductData {
+	name: string
+	slug?: string
+	description?: string
+	shortDescription?: string
+	price: string
+	compareAtPrice?: string
+	costPrice?: string
+	sourceType?: string
+	categoryId?: string
+	tags?: string[]
+	images?: string[]
+	thumbnail?: string
+	isActive?: boolean
+	isSubscribable?: boolean
+	isFeatured?: boolean
+	weight?: string
+	weightUnit?: string
+	metaTitle?: string
+	metaDescription?: string
+}
+
+export async function createProduct(data: ProductData) {
+	const user = await requireAdmin()
+
+	const slug = data.slug || slugify(data.name)
+
+	const [product] = await db
+		.insert(products)
+		.values({
+			name: data.name,
+			slug,
+			description: data.description || null,
+			shortDescription: data.shortDescription || null,
+			price: data.price,
+			compareAtPrice: data.compareAtPrice || null,
+			costPrice: data.costPrice || null,
+			sourceType: data.sourceType || "owned",
+			categoryId: data.categoryId || null,
+			tags: data.tags || [],
+			images: data.images || [],
+			thumbnail: data.thumbnail || null,
+			isActive: data.isActive ?? true,
+			isSubscribable: data.isSubscribable ?? false,
+			isFeatured: data.isFeatured ?? false,
+			weight: data.weight || null,
+			weightUnit: data.weightUnit || "oz",
+			metaTitle: data.metaTitle || null,
+			metaDescription: data.metaDescription || null,
+		})
+		.returning()
+
+	await logAudit({
+		action: "product.created",
+		targetType: "product",
+		targetId: product.id,
+		targetLabel: product.name,
+	})
+
+	return product
+}
+
+export async function updateProduct(id: string, data: Partial<ProductData>) {
+	const user = await requireAdmin()
+
+	const updates: Record<string, unknown> = { updatedAt: new Date() }
+	if (data.name !== undefined) updates.name = data.name
+	if (data.slug !== undefined) updates.slug = data.slug
+	if (data.description !== undefined) updates.description = data.description || null
+	if (data.shortDescription !== undefined) updates.shortDescription = data.shortDescription || null
+	if (data.price !== undefined) updates.price = data.price
+	if (data.compareAtPrice !== undefined) updates.compareAtPrice = data.compareAtPrice || null
+	if (data.costPrice !== undefined) updates.costPrice = data.costPrice || null
+	if (data.sourceType !== undefined) updates.sourceType = data.sourceType
+	if (data.categoryId !== undefined) updates.categoryId = data.categoryId || null
+	if (data.tags !== undefined) updates.tags = data.tags
+	if (data.images !== undefined) updates.images = data.images
+	if (data.thumbnail !== undefined) updates.thumbnail = data.thumbnail || null
+	if (data.isActive !== undefined) updates.isActive = data.isActive
+	if (data.isSubscribable !== undefined) updates.isSubscribable = data.isSubscribable
+	if (data.isFeatured !== undefined) updates.isFeatured = data.isFeatured
+	if (data.weight !== undefined) updates.weight = data.weight || null
+	if (data.weightUnit !== undefined) updates.weightUnit = data.weightUnit
+	if (data.metaTitle !== undefined) updates.metaTitle = data.metaTitle || null
+	if (data.metaDescription !== undefined) updates.metaDescription = data.metaDescription || null
+
+	const [product] = await db
+		.update(products)
+		.set(updates)
+		.where(eq(products.id, id))
+		.returning()
+
+	await logAudit({
+		action: "product.updated",
+		targetType: "product",
+		targetId: id,
+		targetLabel: product.name,
+	})
+
+	return product
+}
+
+export async function deleteProduct(id: string) {
+	const user = await requireAdmin()
+
+	const [product] = await db
+		.select({ name: products.name })
+		.from(products)
+		.where(eq(products.id, id))
+		.limit(1)
+
+	await db.delete(products).where(eq(products.id, id))
+
+	await logAudit({
+		action: "product.deleted",
+		targetType: "product",
+		targetId: id,
+		targetLabel: product?.name,
+	})
+}
+
+export async function bulkUpdateProducts(ids: string[], action: "activate" | "deactivate" | "delete") {
+	const user = await requireAdmin()
+
+	if (action === "delete") {
+		await db.delete(products).where(inArray(products.id, ids))
+		await logAudit({
+			action: "product.deleted",
+			targetType: "product",
+			metadata: { count: ids.length, bulk: true },
+		})
+	} else {
+		const isActive = action === "activate"
+		await db
+			.update(products)
+			.set({ isActive, updatedAt: new Date() })
+			.where(inArray(products.id, ids))
+		await logAudit({
+			action: "product.updated",
+			targetType: "product",
+			metadata: { count: ids.length, bulk: true, action },
+		})
+	}
+}
+
+interface VariantData {
+	name: string
+	sku: string
+	price?: string
+	attributes?: Record<string, string>
+	isActive?: boolean
+	quantity?: number
+}
+
+export async function createVariant(productId: string, data: VariantData) {
+	const user = await requireAdmin()
+
+	const [variant] = await db
+		.insert(productVariants)
+		.values({
+			productId,
+			name: data.name,
+			sku: data.sku,
+			price: data.price || null,
+			attributes: data.attributes || {},
+			isActive: data.isActive ?? true,
+		})
+		.returning()
+
+	// Create inventory record
+	await db.insert(inventory).values({
+		variantId: variant.id,
+		quantity: data.quantity ?? 0,
+	})
+
+	await logAudit({
+		action: "product.updated",
+		targetType: "variant",
+		targetId: variant.id,
+		targetLabel: `${data.name} (${data.sku})`,
+		metadata: { action: "variant_added", productId },
+	})
+
+	return variant
+}
+
+export async function updateVariant(id: string, data: Partial<VariantData>) {
+	const user = await requireAdmin()
+
+	const updates: Record<string, unknown> = {}
+	if (data.name !== undefined) updates.name = data.name
+	if (data.sku !== undefined) updates.sku = data.sku
+	if (data.price !== undefined) updates.price = data.price || null
+	if (data.attributes !== undefined) updates.attributes = data.attributes
+	if (data.isActive !== undefined) updates.isActive = data.isActive
+
+	const [variant] = await db
+		.update(productVariants)
+		.set(updates)
+		.where(eq(productVariants.id, id))
+		.returning()
+
+	if (data.quantity !== undefined) {
+		await db
+			.update(inventory)
+			.set({ quantity: data.quantity, updatedAt: new Date() })
+			.where(eq(inventory.variantId, id))
+	}
+
+	return variant
+}
+
+export async function deleteVariant(id: string) {
+	const user = await requireAdmin()
+	await db.delete(productVariants).where(eq(productVariants.id, id))
+}

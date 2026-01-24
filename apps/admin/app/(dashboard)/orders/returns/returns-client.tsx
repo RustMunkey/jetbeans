@@ -1,0 +1,84 @@
+"use client"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { DataTable, type Column } from "@/components/data-table"
+import { StatusBadge } from "@/components/status-badge"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { formatCurrency, formatDate } from "@/lib/format"
+
+interface Order {
+	id: string
+	orderNumber: string
+	status: string
+	total: string
+	customerName: string | null
+	trackingNumber: string | null
+	createdAt: Date
+}
+
+const columns: Column<Order>[] = [
+	{
+		key: "orderNumber",
+		header: "Order",
+		cell: (row) => <span className="font-medium">#{row.orderNumber}</span>,
+	},
+	{
+		key: "customer",
+		header: "Customer",
+		cell: (row) => <span className="text-sm">{row.customerName ?? "—"}</span>,
+	},
+	{
+		key: "status",
+		header: "Status",
+		cell: (row) => <StatusBadge status={row.status} type="order" />,
+	},
+	{
+		key: "total",
+		header: "Total",
+		cell: (row) => formatCurrency(row.total),
+	},
+	{
+		key: "createdAt",
+		header: "Date",
+		cell: (row) => (
+			<span className="text-xs text-muted-foreground">
+				{formatDate(row.createdAt)}
+			</span>
+		),
+	},
+]
+
+export function ReturnsClient({ orders }: { orders: Order[] }) {
+	const router = useRouter()
+	const [statusFilter, setStatusFilter] = useState("all")
+
+	const filtered = statusFilter === "all"
+		? orders
+		: orders.filter((o) => o.status === statusFilter)
+
+	return (
+		<DataTable
+			columns={columns}
+			data={filtered}
+			searchPlaceholder="Search returns..."
+			getId={(row) => row.id}
+			onRowClick={(row) => router.push(`/orders/${row.id}`)}
+			emptyMessage="No returns or refunds"
+			emptyDescription="Refunded and returned orders will appear here."
+			filters={
+				<Select value={statusFilter} onValueChange={setStatusFilter}>
+					<SelectTrigger className="h-9 w-full sm:w-[160px]">
+						<SelectValue placeholder="All Statuses" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="all">All Statuses</SelectItem>
+						<SelectItem value="refunded">Refunded</SelectItem>
+						<SelectItem value="partially_refunded">Partially Refunded</SelectItem>
+						<SelectItem value="returned">Returned</SelectItem>
+					</SelectContent>
+				</Select>
+			}
+		/>
+	)
+}
