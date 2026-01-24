@@ -108,6 +108,25 @@ function ChatSidebar({
 	)
 }
 
+const CHAT_STATE_KEY = "jetbeans_chat_state"
+
+function loadChatState(): Conversation | null {
+	if (typeof window === "undefined") return null
+	try {
+		const stored = localStorage.getItem(CHAT_STATE_KEY)
+		return stored ? JSON.parse(stored) : null
+	} catch {
+		return null
+	}
+}
+
+function saveChatState(conversation: Conversation) {
+	if (typeof window === "undefined") return
+	try {
+		localStorage.setItem(CHAT_STATE_KEY, JSON.stringify(conversation))
+	} catch {}
+}
+
 export function ChatTab({
 	messages: initialMessages,
 	userId,
@@ -122,7 +141,10 @@ export function ChatTab({
 	teamMembers: TeamMember[]
 }) {
 	const [messages, setMessages] = useState<TeamMessage[]>(initialMessages)
-	const [active, setActive] = useState<Conversation>({ type: "channel", id: "general", label: "#general" })
+	const [active, setActive] = useState<Conversation>(() => {
+		const saved = loadChatState()
+		return saved || { type: "channel", id: "general", label: "#general" }
+	})
 	const [body, setBody] = useState("")
 	const [sending, setSending] = useState(false)
 	const [sheetOpen, setSheetOpen] = useState(false)
@@ -203,6 +225,7 @@ export function ChatTab({
 
 	function handleSelectConversation(c: Conversation) {
 		setActive(c)
+		saveChatState(c)
 		setSheetOpen(false)
 		for (const msg of messages.filter((m) => !m.readAt && m.channel === c.id && m.senderId !== userId)) {
 			markMessageRead(msg.id)

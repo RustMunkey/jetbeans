@@ -243,7 +243,10 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
             <span className="flex-1 text-left">Search...</span>
           </button>
         </SidebarHeader>
-        <SidebarContent>
+        <SidebarContent
+          onScrollPosition={sidebarState.setScrollPosition}
+          initialScrollTop={sidebarState.scrollPosition}
+        >
           <SidebarGroup className="group-data-[collapsible=icon]:hidden">
             <SidebarMenu>
               <SidebarMenuItem>

@@ -13,9 +13,18 @@ export async function GET() {
     return NextResponse.json({ openItems: [] }, { status: 401 })
   }
 
-  const raw = await redis.get(getKey(session.user.id))
-  const openItems: string[] = raw ? JSON.parse(raw) : []
-  return NextResponse.json({ openItems })
+  // Return empty if Redis not available (client will use localStorage)
+  if (!redis) {
+    return NextResponse.json({ openItems: [], useLocalStorage: true })
+  }
+
+  try {
+    const raw = await redis.get(getKey(session.user.id))
+    const openItems: string[] = raw ? JSON.parse(raw) : []
+    return NextResponse.json({ openItems })
+  } catch {
+    return NextResponse.json({ openItems: [], useLocalStorage: true })
+  }
 }
 
 export async function POST(request: Request) {
@@ -24,9 +33,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
+  // Skip if Redis not available (client will use localStorage)
+  if (!redis) {
+    return NextResponse.json({ ok: true, useLocalStorage: true })
+  }
+
   const body = await request.json()
   const openItems: string[] = body.openItems ?? []
 
-  await redis.set(getKey(session.user.id), JSON.stringify(openItems), "EX", 60 * 60 * 24 * 90) // 90 day expiry
-  return NextResponse.json({ ok: true })
+  try {
+    await redis.set(getKey(session.user.id), JSON.stringify(openItems), "EX", 60 * 60 * 24 * 90) // 90 day expiry
+    return NextResponse.json({ ok: true })
+  } catch {
+    return NextResponse.json({ ok: true, useLocalStorage: true })
+  }
 }

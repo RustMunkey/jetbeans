@@ -368,15 +368,38 @@ function SidebarSeparator({
   )
 }
 
-function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
+function SidebarContent({
+  className,
+  onScrollPosition,
+  initialScrollTop,
+  ...props
+}: React.ComponentProps<"div"> & {
+  onScrollPosition?: (scrollTop: number) => void
+  initialScrollTop?: number
+}) {
+  const ref = React.useRef<HTMLDivElement>(null)
+
+  // Restore scroll position on mount
+  React.useEffect(() => {
+    if (ref.current && initialScrollTop && initialScrollTop > 0) {
+      ref.current.scrollTop = initialScrollTop
+    }
+  }, [initialScrollTop])
+
+  const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    onScrollPosition?.(e.currentTarget.scrollTop)
+  }, [onScrollPosition])
+
   return (
     <div
+      ref={ref}
       data-slot="sidebar-content"
       data-sidebar="content"
       className={cn(
         "flex min-h-0 flex-1 flex-col gap-2 overflow-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden group-data-[collapsible=icon]:overflow-hidden",
         className
       )}
+      onScroll={handleScroll}
       {...props}
     />
   )

@@ -1,9 +1,28 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { ChatTab } from "./chat-tab"
 import { InboxTab } from "./inbox-tab"
 import type { TeamMessage, TeamMember, InboxEmail } from "./types"
+
+const MESSAGES_TAB_KEY = "jetbeans_messages_tab"
+
+function loadTab(): string {
+	if (typeof window === "undefined") return "chat"
+	try {
+		return localStorage.getItem(MESSAGES_TAB_KEY) || "chat"
+	} catch {
+		return "chat"
+	}
+}
+
+function saveTab(tab: string) {
+	if (typeof window === "undefined") return
+	try {
+		localStorage.setItem(MESSAGES_TAB_KEY, tab)
+	} catch {}
+}
 
 export function MessagesClient({
 	messages,
@@ -20,6 +39,17 @@ export function MessagesClient({
 	teamMembers: TeamMember[]
 	inboxEmails: InboxEmail[]
 }) {
+	const [activeTab, setActiveTab] = useState("chat")
+
+	useEffect(() => {
+		setActiveTab(loadTab())
+	}, [])
+
+	function handleTabChange(value: string) {
+		setActiveTab(value)
+		saveTab(value)
+	}
+
 	return (
 		<div className="space-y-4">
 			<div>
@@ -29,7 +59,7 @@ export function MessagesClient({
 				</p>
 			</div>
 
-			<Tabs defaultValue="chat">
+			<Tabs value={activeTab} onValueChange={handleTabChange}>
 				<TabsList>
 					<TabsTrigger value="chat">Chat</TabsTrigger>
 					<TabsTrigger value="inbox">Inbox</TabsTrigger>
