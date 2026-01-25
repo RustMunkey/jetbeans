@@ -9,7 +9,8 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePusher } from "@/components/pusher-provider"
-import { sendTeamMessage, markMessageRead, getMessageReadStatus, clearConversationMessages } from "./actions"
+import { CallButtonGroup } from "@/components/calls"
+import { sendTeamMessage, markMessageRead, getMessageReadStatus, clearConversationMessages, getTeamMessages } from "./actions"
 import type { TeamMessage, TeamMember, Conversation } from "./types"
 import { CHANNELS } from "./types"
 
@@ -172,14 +173,32 @@ export function ChatTab({
 	const { pusher } = usePusher()
 	const searchParams = useSearchParams()
 
-	// Function to highlight a message
-	const highlightMessage = useCallback((messageId: string, channel: string) => {
+	// Function to highlight a message - refetches from DB if message not found
+	const highlightMessage = useCallback(async (messageId: string, channel: string) => {
+		// Check if message exists in current state
+		let msg = messages.find(m => m.id === messageId)
+
+		// If not found, refetch messages from database
+		if (!msg) {
+			try {
+				const freshMessages = await getTeamMessages(userId)
+				const formattedMessages = freshMessages.map((m) => ({
+					...m,
+					createdAt: m.createdAt.toISOString(),
+					readAt: m.readAt?.toISOString() || null,
+				}))
+				setMessages(formattedMessages)
+				msg = formattedMessages.find(m => m.id === messageId)
+			} catch {
+				// Ignore fetch errors, continue with highlight attempt
+			}
+		}
+
 		setHighlightedId(messageId)
+
 		// Switch to the correct channel/conversation
 		if (channel && channel !== active.id) {
 			if (channel === "dm") {
-				// For DMs, find the message to get the other person's ID
-				const msg = messages.find(m => m.id === messageId)
 				if (msg) {
 					const otherId = msg.senderId === userId ? active.id : msg.senderId
 					const member = teamMembers.find(m => m.id === otherId)
@@ -191,13 +210,18 @@ export function ChatTab({
 				setActive({ type: "channel", id: channel, label: `#${channel}` })
 			}
 		}
-		// Scroll to the message after a short delay
+
+		// Scroll to the message after a short delay (give time for state update)
 		setTimeout(() => {
 			const el = document.querySelector(`[data-message-id="${messageId}"]`)
-			el?.scrollIntoView({ behavior: "smooth", block: "center" })
-		}, 100)
+			if (el) {
+				el.scrollIntoView({ behavior: "smooth", block: "center" })
+			}
+		}, 150)
+
 		// Clear highlight after animation
 		setTimeout(() => setHighlightedId(null), 2000)
+
 		// Clear URL params
 		window.history.replaceState({}, "", "/notifications/messages")
 	}, [active.id, messages, userId, teamMembers])
@@ -343,7 +367,16 @@ export function ChatTab({
 
 		try {
 			const recipientIds = active.type === "dm" ? [active.id] : undefined
-			await sendTeamMessage({ body: messageBody, channel, recipientIds })
+			const realMessage = await sendTeamMessage({ body: messageBody, channel, recipientIds })
+			// Replace optimistic message with real one from database
+			const createdAt = typeof realMessage.createdAt === "string"
+				? realMessage.createdAt
+				: realMessage.createdAt.toISOString()
+			setMessages((prev) => prev.map((m) =>
+				m.id === optimisticId
+					? { ...m, id: realMessage.id, createdAt }
+					: m
+			))
 		} catch {
 			// Remove optimistic message on failure
 			setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
@@ -452,6 +485,16 @@ export function ChatTab({
 							— {active.id === "general" ? "Team-wide chat" : `${active.id} updates`}
 						</span>
 					)}
+					{/* Call buttons */}
+					<CallButtonGroup
+						participantIds={
+							active.type === "dm"
+								? [active.id]
+								: teamMembers.filter((m) => m.id !== userId).map((m) => m.id)
+						}
+						chatChannel={active.type === "channel" ? active.id : undefined}
+						className="flex items-center"
+					/>
 					<div className="ml-auto flex items-center gap-2">
 						{filteredMessages.length > 0 && (
 							<Button

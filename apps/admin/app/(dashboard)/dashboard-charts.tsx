@@ -7,6 +7,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
+import { useAccentTheme } from "@/components/accent-theme-provider"
 
 type RevenueDataPoint = {
   date: string
@@ -16,7 +17,7 @@ type RevenueDataPoint = {
 const chartConfig = {
   revenue: {
     label: "Revenue",
-    color: "oklch(0.55 0.15 35)",
+    color: "var(--chart-1)",
   },
 } satisfies ChartConfig
 
@@ -26,6 +27,8 @@ function formatDateTick(dateStr: string) {
 }
 
 export function RevenueChart({ data }: { data: RevenueDataPoint[] }) {
+  const { accentTheme } = useAccentTheme()
+
   if (data.length === 0) {
     return (
       <div className="flex h-[250px] items-center justify-center">
@@ -35,7 +38,7 @@ export function RevenueChart({ data }: { data: RevenueDataPoint[] }) {
   }
 
   return (
-    <ChartContainer config={chartConfig} className="h-[280px] sm:h-[250px] w-full">
+    <ChartContainer key={accentTheme} config={chartConfig} className="h-[280px] sm:h-[250px] w-full">
       <AreaChart
         data={data}
         margin={{ top: 8, right: 8, bottom: 4, left: -8 }}

@@ -69,6 +69,7 @@
 }
 
 :root {
+	color-scheme: light;
 	--background: oklch(0.960 0.016 60);
 	--foreground: oklch(0.240 0.04 42);
 	--card: oklch(0.975 0.012 60);
@@ -111,7 +112,8 @@
 	--heatmap-5: oklch(0.40 0.12 40);
 }
 
-.dark {
+html.dark, .dark {
+	color-scheme: dark;
 	--background: oklch(0.160 0.018 38);
 	--foreground: oklch(0.930 0.010 80);
 	--card: oklch(0.195 0.020 38);

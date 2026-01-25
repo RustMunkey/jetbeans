@@ -13,11 +13,12 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
+import { useAccentTheme } from "@/components/accent-theme-provider"
 
 type VisitorsPoint = { date: string; visitors: number }
 
 const visitorsConfig = {
-  visitors: { label: "Visitors", color: "oklch(0.55 0.15 35)" },
+  visitors: { label: "Visitors", color: "var(--chart-1)" },
 } satisfies ChartConfig
 
 function formatDateTick(dateStr: string) {
@@ -26,6 +27,8 @@ function formatDateTick(dateStr: string) {
 }
 
 export function VisitorsChart({ data }: { data: VisitorsPoint[] }) {
+  const { accentTheme } = useAccentTheme()
+
   if (data.length === 0) {
     return (
       <div className="rounded-xl border bg-card p-4 min-w-0 overflow-hidden">
@@ -41,7 +44,7 @@ export function VisitorsChart({ data }: { data: VisitorsPoint[] }) {
   }
 
   return (
-    <div className="rounded-xl border bg-card p-4 min-w-0 overflow-hidden">
+    <div className="rounded-xl border bg-card p-4 min-w-0 overflow-hidden" key={accentTheme}>
       <div className="mb-4">
         <h3 className="text-sm font-medium">Visitors Over Time</h3>
         <p className="text-xs text-muted-foreground">Daily unique visitors</p>

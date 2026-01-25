@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useTheme } from "next-themes"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +12,34 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { updateProfile } from "./actions"
+import { themePresets } from "@/components/accent-theme-provider"
+
+const themeOptions = [
+	// Row 1: Warm tones
+	{ id: "coffee", name: "Coffee", description: "Warm brown classic" },
+	{ id: "cherry", name: "Cherry", description: "Bold red warmth" },
+	{ id: "rose", name: "Rose", description: "Soft pink blush" },
+	{ id: "peach", name: "Peach", description: "Gentle coral glow" },
+	{ id: "sunset", name: "Sunset", description: "Amber orange hues" },
+	// Row 2: Earth & nature
+	{ id: "honey", name: "Honey", description: "Golden amber light" },
+	{ id: "tea", name: "Tea", description: "Yellow-green zen" },
+	{ id: "matcha", name: "Matcha", description: "Fresh green energy" },
+	{ id: "sage", name: "Sage", description: "Earthy green calm" },
+	{ id: "forest", name: "Forest", description: "Deep woodland" },
+	// Row 3: Cool tones
+	{ id: "mint", name: "Mint", description: "Crisp aqua fresh" },
+	{ id: "sky", name: "Sky", description: "Light azure blue" },
+	{ id: "ocean", name: "Ocean", description: "Deep sea depths" },
+	{ id: "midnight", name: "Midnight", description: "Rich indigo night" },
+	{ id: "lavender", name: "Lavender", description: "Soft purple mist" },
+	// Row 4: Rich & neutral
+	{ id: "plum", name: "Plum", description: "Deep violet luxury" },
+	{ id: "berry", name: "Berry", description: "Vibrant magenta" },
+	{ id: "wine", name: "Wine", description: "Rich burgundy" },
+	{ id: "slate", name: "Slate", description: "Cool gray minimal" },
+	{ id: "neutral", name: "Neutral", description: "Pure grayscale" },
+]
 
 type User = {
 	id: string
@@ -24,12 +53,24 @@ type User = {
 
 export function AccountSettings({ user }: { user: User }) {
 	const router = useRouter()
+	const { theme, setTheme, resolvedTheme } = useTheme()
 	const [name, setName] = useState(user.name)
 	const [phone, setPhone] = useState(user.phone || "")
 	const [image, setImage] = useState(user.image || "")
 	const [saving, setSaving] = useState(false)
 	const [uploading, setUploading] = useState(false)
+	const [mounted, setMounted] = useState(false)
+	const [accentTheme, setAccentTheme] = useState("coffee")
 	const fileInputRef = useRef<HTMLInputElement>(null)
+
+	useEffect(() => {
+		setMounted(true)
+		// Load saved accent theme from localStorage
+		const savedAccent = localStorage.getItem("jetbeans-accent-theme")
+		if (savedAccent) {
+			setAccentTheme(savedAccent)
+		}
+	}, [])
 
 	const initials = name
 		.split(" ")
@@ -193,6 +234,89 @@ export function AccountSettings({ user }: { user: User }) {
 						<Button onClick={handleSave} disabled={saving}>
 							{saving ? "Saving..." : "Save Changes"}
 						</Button>
+					</div>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Appearance</CardTitle>
+					<CardDescription>Customize how the dashboard looks for you.</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-6">
+					<div className="space-y-3">
+						<Label>Color Mode</Label>
+						<div className="flex gap-2">
+							<Button
+								variant={mounted && theme === "light" ? "default" : "outline"}
+								size="sm"
+								onClick={() => setTheme("light")}
+								disabled={!mounted}
+							>
+								Light
+							</Button>
+							<Button
+								variant={mounted && theme === "dark" ? "default" : "outline"}
+								size="sm"
+								onClick={() => setTheme("dark")}
+								disabled={!mounted}
+							>
+								Dark
+							</Button>
+							<Button
+								variant={mounted && theme === "system" ? "default" : "outline"}
+								size="sm"
+								onClick={() => setTheme("system")}
+								disabled={!mounted}
+							>
+								System
+							</Button>
+						</div>
+						<p className="text-xs text-muted-foreground">
+							{mounted
+								? theme === "system"
+									? `Follows your device's color scheme (currently ${resolvedTheme})`
+									: `Currently using ${theme} mode`
+								: "Loading..."}
+						</p>
+					</div>
+
+					<Separator />
+
+					<div className="space-y-3">
+						<Label>Theme</Label>
+						<p className="text-sm text-muted-foreground">Choose a color palette for the interface.</p>
+						<div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
+							{themeOptions.map((option) => (
+								<button
+									key={option.id}
+									type="button"
+									onClick={() => {
+										setAccentTheme(option.id)
+										localStorage.setItem("jetbeans-accent-theme", option.id)
+										window.dispatchEvent(new CustomEvent("accent-theme-change", { detail: option.id }))
+										toast.success(`${option.name} theme applied`)
+									}}
+									className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-colors ${
+										accentTheme === option.id
+											? "border-primary bg-muted"
+											: "border-transparent hover:border-muted-foreground/20 hover:bg-muted/50"
+									}`}
+								>
+									<div
+										className="size-8 rounded-full border-2 border-white shadow-sm"
+										style={{ backgroundColor: themePresets[option.id]?.light.primary }}
+									/>
+									<div className="text-center">
+										<p className="text-xs font-medium">{option.name}</p>
+										<p className="text-[10px] text-muted-foreground">{option.description}</p>
+									</div>
+								</button>
+							))}
+						</div>
+						<p className="text-xs text-muted-foreground">
+							Your accent theme preference is saved to this browser.
+						</p>
 					</div>
 				</CardContent>
 			</Card>

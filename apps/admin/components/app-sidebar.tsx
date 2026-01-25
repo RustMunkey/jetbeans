@@ -21,6 +21,12 @@ import {
   StarIcon,
   UserGroupIcon,
   SourceCodeIcon,
+  UserIcon,
+  Building03Icon,
+  SaleTag01Icon,
+  ChartLineData01Icon,
+  CheckListIcon,
+  Call02Icon,
 } from "@hugeicons/core-free-icons"
 
 import Link from "next/link"
@@ -103,6 +109,38 @@ const data = {
       ],
     },
   ],
+  navSales: [
+    {
+      title: "Contacts",
+      url: "/sales/contacts",
+      icon: UserIcon,
+    },
+    {
+      title: "Companies",
+      url: "/sales/companies",
+      icon: Building03Icon,
+    },
+    {
+      title: "Deals",
+      url: "/sales/deals",
+      icon: SaleTag01Icon,
+    },
+    {
+      title: "Pipeline",
+      url: "/sales/pipeline",
+      icon: ChartLineData01Icon,
+    },
+    {
+      title: "Tasks",
+      url: "/sales/tasks",
+      icon: CheckListIcon,
+    },
+    {
+      title: "Calls",
+      url: "/sales/calls",
+      icon: Call02Icon,
+    },
+  ],
   navOperations: [
     {
       title: "Inventory",
@@ -177,6 +215,7 @@ const data = {
       items: [
         { title: "Email Templates", url: "/notifications" },
         { title: "Messages", url: "/notifications/messages" },
+        { title: "Calls", url: "/calls" },
         { title: "Alerts", url: "/notifications/alerts" },
       ],
     },
@@ -286,6 +325,7 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
           </SidebarGroup>
           <NavMain label="Overview" items={data.navOverview} />
           <NavMain label="Store" items={data.navStore} />
+          <NavMain label="Sales" items={data.navSales} />
           <NavMain label="Operations" items={data.navOperations} />
           <NavMain label="Growth" items={data.navGrowth} />
           <NavMain label="System" items={navSystem} />

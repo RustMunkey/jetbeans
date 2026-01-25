@@ -4,6 +4,9 @@ import { auth } from "@/lib/auth"
 import { getTeamMessages, getTeamMembers, getInboxEmails } from "./actions"
 import { MessagesClient } from "./messages-client"
 
+// Disable caching for this page - always fetch fresh messages
+export const dynamic = "force-dynamic"
+
 export default async function MessagesPage() {
 	const session = await auth.api.getSession({ headers: await headers() })
 	if (!session) redirect("/login")

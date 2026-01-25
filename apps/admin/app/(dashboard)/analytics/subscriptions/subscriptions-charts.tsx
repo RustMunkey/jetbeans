@@ -13,14 +13,16 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
+import { useAccentTheme } from "@/components/accent-theme-provider"
 
 type GrowthPoint = { date: string; subscriptions: number }
 
 const growthConfig = {
-  subscriptions: { label: "New Subscriptions", color: "oklch(0.55 0.15 35)" },
+  subscriptions: { label: "New Subscriptions", color: "var(--chart-1)" },
 } satisfies ChartConfig
 
 export function SubscriptionGrowthChart({ data }: { data: GrowthPoint[] }) {
+  const { accentTheme } = useAccentTheme()
   if (data.length === 0) {
     return (
       <div className="rounded-xl border bg-card p-4">
@@ -36,7 +38,7 @@ export function SubscriptionGrowthChart({ data }: { data: GrowthPoint[] }) {
   }
 
   return (
-    <div className="rounded-xl border bg-card p-4">
+    <div className="rounded-xl border bg-card p-4" key={accentTheme}>
       <div className="mb-4">
         <h3 className="text-sm font-medium">Subscription Growth</h3>
         <p className="text-xs text-muted-foreground">New subscriptions over time</p>

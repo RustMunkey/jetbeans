@@ -1062,6 +1062,53 @@ async function seed() {
 		},
 	])
 
+	// --- ANALYTICS EVENTS (for heatmap and traffic) ---
+	console.log("Creating analytics events...")
+	const analyticsValues = []
+	const pathnames = ["/", "/products", "/products/midnight-espresso", "/products/morning-ritual-blend", "/products/ethiopian-yirgacheffe", "/cart", "/checkout", "/about", "/faq", "/blog"]
+	const referrers = ["", "", "", "google.com", "instagram.com", "facebook.com", "twitter.com", "tiktok.com", "reddit.com", "bing.com"]
+
+	// Generate events for the past 364 days
+	for (let daysAgo = 0; daysAgo < 364; daysAgo++) {
+		const date = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000)
+		// Vary visitor count by day of week (weekends higher) and add some randomness
+		const dayOfWeek = date.getDay()
+		const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+		const baseVisitors = isWeekend ? 80 : 50
+		// Add seasonal variation (more visitors in winter months)
+		const month = date.getMonth()
+		const seasonalBoost = [1.3, 1.2, 1.1, 0.9, 0.8, 0.7, 0.7, 0.8, 0.9, 1.0, 1.1, 1.4][month]
+		// Add some random days with spikes (promotions/campaigns)
+		const spike = Math.random() > 0.95 ? 2.5 : 1
+		const visitorCount = Math.floor(baseVisitors * seasonalBoost * spike * (0.7 + Math.random() * 0.6))
+
+		for (let v = 0; v < visitorCount; v++) {
+			const visitorId = `v_${daysAgo}_${v}`
+			const sessionId = `s_${daysAgo}_${v}`
+			// Each visitor views 1-5 pages
+			const pageViews = 1 + Math.floor(Math.random() * 4)
+			for (let p = 0; p < pageViews; p++) {
+				analyticsValues.push({
+					sessionId,
+					visitorId,
+					eventType: "pageview",
+					pathname: pathnames[Math.floor(Math.random() * pathnames.length)],
+					referrer: p === 0 ? referrers[Math.floor(Math.random() * referrers.length)] : "",
+					hostname: "jetbeans.cafe",
+					createdAt: new Date(date.getTime() + Math.floor(Math.random() * 24 * 60 * 60 * 1000)),
+				})
+			}
+		}
+	}
+
+	// Insert in batches to avoid memory issues
+	const batchSize = 1000
+	for (let i = 0; i < analyticsValues.length; i += batchSize) {
+		const batch = analyticsValues.slice(i, i + batchSize)
+		await db.insert(schema.analyticsEvents).values(batch)
+	}
+	console.log(`Created ${analyticsValues.length} analytics events`)
+
 	// --- ALERT RULES ---
 	console.log("Creating alert rules...")
 	await db.insert(schema.alertRules).values([

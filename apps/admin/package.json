@@ -65,6 +65,8 @@
 		"inngest": "^3.49.3",
 		"input-otp": "^1.4.2",
 		"ioredis": "^5.9.2",
+		"livekit-client": "^2.17.0",
+		"livekit-server-sdk": "^2.15.0",
 		"lucide-react": "^0.563.0",
 		"nanoid": "^5.1.6",
 		"next": "16.1.4",

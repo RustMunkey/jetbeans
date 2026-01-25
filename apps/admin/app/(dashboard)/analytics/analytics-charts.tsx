@@ -16,29 +16,30 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
+import { useAccentTheme } from "@/components/accent-theme-provider"
 
 type RevenuePoint = { date: string; revenue: number }
 type OrdersPoint = { date: string; orders: number }
 type CategoryPoint = { name: string; revenue: number }
 
 const revenueConfig = {
-  revenue: { label: "Revenue", color: "oklch(0.55 0.15 35)" },
+  revenue: { label: "Revenue", color: "var(--chart-1)" },
 } satisfies ChartConfig
 
 const ordersConfig = {
-  orders: { label: "Orders", color: "oklch(0.60 0.12 45)" },
+  orders: { label: "Orders", color: "var(--chart-2)" },
 } satisfies ChartConfig
 
 const categoryConfig = {
-  revenue: { label: "Revenue", color: "oklch(0.55 0.15 35)" },
+  revenue: { label: "Revenue", color: "var(--chart-1)" },
 } satisfies ChartConfig
 
 const categoryColors = [
-  "oklch(0.55 0.15 35)",
-  "oklch(0.60 0.12 45)",
-  "oklch(0.65 0.10 55)",
-  "oklch(0.70 0.08 65)",
-  "oklch(0.75 0.06 75)",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
 ]
 
 function formatDateTick(dateStr: string) {
@@ -69,8 +70,10 @@ export function AnalyticsCharts({
   ordersData: OrdersPoint[]
   categoryData: CategoryPoint[]
 }) {
+  const { accentTheme } = useAccentTheme()
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" key={accentTheme}>
       {/* Revenue + Orders side by side */}
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border bg-card p-4 min-w-0 overflow-hidden">
@@ -152,14 +155,11 @@ export function AnalyticsCharts({
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Bar
                   dataKey="orders"
+                  fill="var(--chart-2)"
                   radius={[4, 4, 0, 0]}
                   animationDuration={1200}
                   animationEasing="ease-in-out"
-                >
-                  {ordersData.map((_, i) => (
-                    <Cell key={i} fill={categoryColors[i % categoryColors.length]} />
-                  ))}
-                </Bar>
+                />
               </BarChart>
             </ChartContainer>
           )}

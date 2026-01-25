@@ -13,14 +13,16 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
+import { useAccentTheme } from "@/components/accent-theme-provider"
 
 type SalesPoint = { date: string; sales: number }
 
 const salesConfig = {
-  sales: { label: "Sales", color: "oklch(0.55 0.15 35)" },
+  sales: { label: "Sales", color: "var(--chart-1)" },
 } satisfies ChartConfig
 
 export function SalesCharts({ salesByDay }: { salesByDay: SalesPoint[] }) {
+  const { accentTheme } = useAccentTheme()
   if (salesByDay.length === 0) {
     return (
       <div className="rounded-xl border bg-card p-4">
@@ -36,7 +38,7 @@ export function SalesCharts({ salesByDay }: { salesByDay: SalesPoint[] }) {
   }
 
   return (
-    <div className="rounded-xl border bg-card p-4">
+    <div className="rounded-xl border bg-card p-4" key={accentTheme}>
       <div className="mb-4">
         <h3 className="text-sm font-medium">Sales by Day</h3>
         <p className="text-xs text-muted-foreground">Weekly sales distribution</p>

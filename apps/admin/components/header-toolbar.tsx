@@ -9,6 +9,9 @@ import {
   Add01Icon,
   Store01Icon,
   Mail01Icon,
+  Call02Icon,
+  Radio02Icon,
+  RadioButtonIcon,
 } from "@hugeicons/core-free-icons"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -42,6 +45,7 @@ import { useSession } from "@/lib/auth-client"
 import { usePusher } from "@/components/pusher-provider"
 import { getUnreadCount, getTeamMessages, markAllRead, markMessageRead } from "@/app/(dashboard)/notifications/messages/actions"
 import { showMessageToast } from "@/components/message-toast"
+import { ActiveCallIndicator } from "@/components/calls"
 import Link from "next/link"
 
 type QuickMessage = {
@@ -95,12 +99,24 @@ function shouldPlaySound(messageChannel: string, senderId: string): boolean {
   }
 }
 
+// Ambient radio stations (SomaFM - free, legal, chill music)
+const RADIO_STATIONS = [
+  { name: "Drone Zone", url: "https://ice1.somafm.com/dronezone-128-mp3" },
+  { name: "Groove Salad", url: "https://ice1.somafm.com/groovesalad-128-mp3" },
+  { name: "Space Station", url: "https://ice1.somafm.com/spacestation-128-mp3" },
+  { name: "Deep Space One", url: "https://ice1.somafm.com/deepspaceone-128-mp3" },
+  { name: "Lush", url: "https://ice1.somafm.com/lush-128-mp3" },
+]
+
 export function HeaderToolbar() {
   const [storeOnline, setStoreOnline] = React.useState(true)
   const [confirmOpen, setConfirmOpen] = React.useState(false)
   const [unreadCount, setUnreadCount] = React.useState(0)
   const [recentMessages, setRecentMessages] = React.useState<QuickMessage[]>([])
   const [messagesPopoverOpen, setMessagesPopoverOpen] = React.useState(false)
+  const [radioPlaying, setRadioPlaying] = React.useState(false)
+  const [currentStation, setCurrentStation] = React.useState(0)
+  const radioRef = React.useRef<HTMLAudioElement | null>(null)
   const hasNotifications = false // TODO: replace with real notification count
   const { open: openCommandMenu } = useCommandMenu()
   const router = useRouter()
@@ -120,6 +136,16 @@ export function HeaderToolbar() {
     notificationSoundRef.current = audio
   }, [])
 
+  // Cleanup radio on unmount
+  React.useEffect(() => {
+    return () => {
+      if (radioRef.current) {
+        radioRef.current.pause()
+        radioRef.current = null
+      }
+    }
+  }, [])
+
   const playNotificationSound = React.useCallback((messageChannel: string, senderId: string) => {
     if (!shouldPlaySound(messageChannel, senderId)) return
 
@@ -133,6 +159,34 @@ export function HeaderToolbar() {
       sound.play().catch(() => {})
     }
   }, [])
+
+  const toggleRadio = React.useCallback(() => {
+    if (radioPlaying) {
+      radioRef.current?.pause()
+      setRadioPlaying(false)
+    } else {
+      if (!radioRef.current) {
+        radioRef.current = new Audio(RADIO_STATIONS[currentStation].url)
+        radioRef.current.volume = 0.3
+      }
+      radioRef.current.play().catch(() => {})
+      setRadioPlaying(true)
+    }
+  }, [radioPlaying, currentStation])
+
+  const switchStation = React.useCallback((index: number) => {
+    const wasPlaying = radioPlaying
+    if (radioRef.current) {
+      radioRef.current.pause()
+      radioRef.current = null
+    }
+    setCurrentStation(index)
+    if (wasPlaying) {
+      radioRef.current = new Audio(RADIO_STATIONS[index].url)
+      radioRef.current.volume = 0.3
+      radioRef.current.play().catch(() => {})
+    }
+  }, [radioPlaying])
 
   React.useEffect(() => {
     if (!session?.user?.id) return
@@ -177,18 +231,6 @@ export function HeaderToolbar() {
 
   return (
     <div className="flex items-center gap-2 px-4">
-      <button
-        type="button"
-        onClick={openCommandMenu}
-        className="hidden md:flex h-8 w-56 items-center gap-2 rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground transition-colors hover:bg-muted"
-      >
-        <HugeiconsIcon icon={Search01Icon} size={14} />
-        <span className="flex-1 text-left">Search...</span>
-        <kbd className="pointer-events-none hidden h-5 items-center gap-0.5 rounded border bg-background px-1.5 font-mono text-[10px] font-medium opacity-60 sm:flex">
-          <span className="text-xs">⌘</span>K
-        </kbd>
-      </button>
-      <Separator orientation="vertical" className="hidden md:block data-[orientation=vertical]:h-4" />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="size-8">
@@ -341,6 +383,57 @@ export function HeaderToolbar() {
           </div>
         </PopoverContent>
       </Popover>
+      <Button variant="ghost" size="icon" className="size-8" asChild>
+        <Link href="/calls">
+          <HugeiconsIcon icon={Call02Icon} size={16} />
+          <span className="sr-only">Calls</span>
+        </Link>
+      </Button>
+      <ActiveCallIndicator />
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative size-8"
+            onClick={(e) => {
+              // Single click toggles radio, right-click or long-press opens menu
+              if (e.detail === 1) {
+                e.preventDefault()
+                toggleRadio()
+              }
+            }}
+          >
+            <HugeiconsIcon icon={radioPlaying ? RadioButtonIcon : Radio02Icon} size={16} />
+            <span className="sr-only">Radio</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-48 p-0">
+          <div className="flex items-center justify-between border-b px-3 py-2">
+            <span className="text-sm font-medium">Stations</span>
+            {radioPlaying && (
+              <span className="flex items-center gap-1.5 text-xs text-green-600">
+                <span className="size-1.5 rounded-full bg-green-500 animate-pulse" />
+                Live
+              </span>
+            )}
+          </div>
+          <div className="py-1">
+            {RADIO_STATIONS.map((station, index) => (
+              <button
+                key={station.url}
+                onClick={() => switchStation(index)}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors ${currentStation === index ? "bg-accent" : ""}`}
+              >
+                {currentStation === index && radioPlaying && (
+                  <span className="size-1.5 rounded-full bg-green-500 animate-pulse" />
+                )}
+                <span>{station.name}</span>
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
       <Popover>
         <PopoverTrigger asChild>
           <Button variant="ghost" size="icon" className="relative size-8">
@@ -411,6 +504,18 @@ export function HeaderToolbar() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <Separator orientation="vertical" className="hidden md:block data-[orientation=vertical]:h-4" />
+      <button
+        type="button"
+        onClick={openCommandMenu}
+        className="hidden md:flex h-8 w-56 items-center gap-2 rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground transition-colors hover:bg-muted"
+      >
+        <HugeiconsIcon icon={Search01Icon} size={14} />
+        <span className="flex-1 text-left">Search...</span>
+        <kbd className="pointer-events-none hidden h-5 items-center gap-0.5 rounded border bg-background px-1.5 font-mono text-[10px] font-medium opacity-60 sm:flex">
+          <span className="text-xs">⌘</span>K
+        </kbd>
+      </button>
       <Separator orientation="vertical" className="data-[orientation=vertical]:h-4" />
       <ThemeToggle />
     </div>
