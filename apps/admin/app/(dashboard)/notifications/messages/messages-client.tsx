@@ -1,17 +1,17 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { ChatTab } from "./chat-tab"
 import { InboxTab } from "./inbox-tab"
 import type { TeamMessage, TeamMember, InboxEmail } from "./types"
 
 const MESSAGES_TAB_KEY = "jetbeans_messages_tab"
 
-function loadTab(): string {
+function loadTab(): "chat" | "inbox" {
 	if (typeof window === "undefined") return "chat"
 	try {
-		return localStorage.getItem(MESSAGES_TAB_KEY) || "chat"
+		const stored = localStorage.getItem(MESSAGES_TAB_KEY)
+		return stored === "inbox" ? "inbox" : "chat"
 	} catch {
 		return "chat"
 	}
@@ -39,44 +39,36 @@ export function MessagesClient({
 	teamMembers: TeamMember[]
 	inboxEmails: InboxEmail[]
 }) {
-	const [activeTab, setActiveTab] = useState("chat")
+	const [activeTab, setActiveTab] = useState<"chat" | "inbox">("chat")
 
 	useEffect(() => {
 		setActiveTab(loadTab())
 	}, [])
 
-	function handleTabChange(value: string) {
+	function handleTabChange(value: "chat" | "inbox") {
 		setActiveTab(value)
 		saveTab(value)
 	}
 
-	return (
-		<div className="space-y-4">
-			<div>
-				<h2 className="text-lg font-semibold">Messages</h2>
-				<p className="text-sm text-muted-foreground">
-					Team chat and customer inbox.
-				</p>
-			</div>
+	if (activeTab === "inbox") {
+		return (
+			<InboxTab
+				emails={inboxEmails}
+				activeTab={activeTab}
+				onTabChange={handleTabChange}
+			/>
+		)
+	}
 
-			<Tabs value={activeTab} onValueChange={handleTabChange}>
-				<TabsList>
-					<TabsTrigger value="chat">Chat</TabsTrigger>
-					<TabsTrigger value="inbox">Inbox</TabsTrigger>
-				</TabsList>
-				<TabsContent value="chat" className="mt-4">
-					<ChatTab
-						messages={messages}
-						userId={userId}
-						userName={userName}
-						userImage={userImage}
-						teamMembers={teamMembers}
-					/>
-				</TabsContent>
-				<TabsContent value="inbox" className="mt-4">
-					<InboxTab emails={inboxEmails} />
-				</TabsContent>
-			</Tabs>
-		</div>
+	return (
+		<ChatTab
+			messages={messages}
+			userId={userId}
+			userName={userName}
+			userImage={userImage}
+			teamMembers={teamMembers}
+			activeTab={activeTab}
+			onTabChange={handleTabChange}
+		/>
 	)
 }

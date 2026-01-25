@@ -155,6 +155,34 @@ export async function markAllRead() {
 		)
 }
 
+export async function clearConversationMessages(channel: string) {
+	const session = await auth.api.getSession({ headers: await headers() })
+	if (!session) throw new Error("Unauthorized")
+
+	// Get message IDs for this channel
+	const channelMessages = await db
+		.select({ id: teamMessages.id })
+		.from(teamMessages)
+		.where(eq(teamMessages.channel, channel))
+
+	if (channelMessages.length === 0) return
+
+	const messageIds = channelMessages.map(m => m.id)
+
+	// Delete only the recipient records for this user in this channel
+	// This removes messages from their view without affecting other users
+	for (const msgId of messageIds) {
+		await db
+			.delete(teamMessageRecipients)
+			.where(
+				and(
+					eq(teamMessageRecipients.messageId, msgId),
+					eq(teamMessageRecipients.recipientId, session.user.id)
+				)
+			)
+	}
+}
+
 // Get read receipts for messages sent by the current user
 export async function getReadReceipts(messageIds: string[]) {
 	if (messageIds.length === 0) return {}

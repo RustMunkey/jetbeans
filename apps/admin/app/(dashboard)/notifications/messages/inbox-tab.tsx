@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import { formatDate } from "@/lib/format"
 import type { InboxEmail } from "./types"
@@ -105,7 +106,15 @@ function InboxThread({
 	)
 }
 
-export function InboxTab({ emails }: { emails: InboxEmail[] }) {
+export function InboxTab({
+	emails,
+	activeTab,
+	onTabChange,
+}: {
+	emails: InboxEmail[]
+	activeTab: "chat" | "inbox"
+	onTabChange: (tab: "chat" | "inbox") => void
+}) {
 	const [selectedId, setSelectedId] = useState<string | null>(null)
 	const [statusFilter, setStatusFilter] = useState("all")
 
@@ -161,30 +170,44 @@ export function InboxTab({ emails }: { emails: InboxEmail[] }) {
 	]
 
 	return (
-		<DataTable
-			columns={columns}
-			data={filteredEmails}
-			searchPlaceholder="Search emails..."
-			totalCount={filteredEmails.length}
-			currentPage={1}
-			pageSize={20}
-			getId={(row) => row.id}
-			onRowClick={(row) => setSelectedId(row.id)}
-			emptyMessage="No emails yet"
-			emptyDescription="Customer inquiries from the contact page will appear here."
-			filters={
-				<Select value={statusFilter} onValueChange={setStatusFilter}>
-					<SelectTrigger className="h-9 w-full sm:w-[130px]">
-						<SelectValue placeholder="All Statuses" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">All Statuses</SelectItem>
-						<SelectItem value="unread">Unread</SelectItem>
-						<SelectItem value="read">Read</SelectItem>
-						<SelectItem value="replied">Replied</SelectItem>
-					</SelectContent>
-				</Select>
-			}
-		/>
+		<div className="flex h-[calc(100vh-8rem)] flex-col rounded-lg border overflow-hidden">
+			{/* Header with tab toggle */}
+			<div className="h-12 border-b px-4 flex items-center justify-between shrink-0">
+				<span className="text-sm font-medium">Customer Inbox</span>
+				<Tabs value={activeTab} onValueChange={(v) => onTabChange(v as "chat" | "inbox")}>
+					<TabsList className="h-8">
+						<TabsTrigger value="chat" className="text-xs px-3 h-6">Chat</TabsTrigger>
+						<TabsTrigger value="inbox" className="text-xs px-3 h-6">Inbox</TabsTrigger>
+					</TabsList>
+				</Tabs>
+			</div>
+			<div className="flex-1 overflow-auto p-4">
+				<DataTable
+					columns={columns}
+					data={filteredEmails}
+					searchPlaceholder="Search emails..."
+					totalCount={filteredEmails.length}
+					currentPage={1}
+					pageSize={20}
+					getId={(row) => row.id}
+					onRowClick={(row) => setSelectedId(row.id)}
+					emptyMessage="No emails yet"
+					emptyDescription="Customer inquiries from the contact page will appear here."
+					filters={
+						<Select value={statusFilter} onValueChange={setStatusFilter}>
+							<SelectTrigger className="h-9 w-full sm:w-[130px]">
+								<SelectValue placeholder="All Statuses" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Statuses</SelectItem>
+								<SelectItem value="unread">Unread</SelectItem>
+								<SelectItem value="read">Read</SelectItem>
+								<SelectItem value="replied">Replied</SelectItem>
+							</SelectContent>
+						</Select>
+					}
+				/>
+			</div>
+		</div>
 	)
 }

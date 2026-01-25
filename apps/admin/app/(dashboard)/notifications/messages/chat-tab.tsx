@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePusher } from "@/components/pusher-provider"
-import { sendTeamMessage, markMessageRead, getMessageReadStatus } from "./actions"
+import { sendTeamMessage, markMessageRead, getMessageReadStatus, clearConversationMessages } from "./actions"
 import type { TeamMessage, TeamMember, Conversation } from "./types"
 import { CHANNELS } from "./types"
 
@@ -133,12 +134,16 @@ export function ChatTab({
 	userName,
 	userImage,
 	teamMembers,
+	activeTab,
+	onTabChange,
 }: {
 	messages: TeamMessage[]
 	userId: string
 	userName: string
 	userImage: string | null
 	teamMembers: TeamMember[]
+	activeTab: "chat" | "inbox"
+	onTabChange: (tab: "chat" | "inbox") => void
 }) {
 	const [messages, setMessages] = useState<TeamMessage[]>(initialMessages)
 	const [active, setActive] = useState<Conversation>(() => {
@@ -341,7 +346,7 @@ export function ChatTab({
 	)
 
 	return (
-		<div className="flex h-[calc(100vh-13rem)] rounded-lg border overflow-hidden">
+		<div className="flex h-[calc(100vh-8rem)] rounded-lg border overflow-hidden">
 			{/* Desktop sidebar */}
 			<div className="hidden md:flex md:w-64 md:shrink-0 border-r bg-muted/30 flex-col">
 				{sidebarContent}
@@ -371,6 +376,30 @@ export function ChatTab({
 							— {active.id === "general" ? "Team-wide chat" : `${active.id} updates`}
 						</span>
 					)}
+					<div className="ml-auto flex items-center gap-2">
+						{filteredMessages.length > 0 && (
+							<Button
+								variant="ghost"
+								size="sm"
+								className="h-7 text-xs text-muted-foreground"
+								onClick={async () => {
+									if (!confirm("Clear all messages in this conversation? This only affects your view.")) return
+									const channel = active.type === "channel" ? active.id : "dm"
+									await clearConversationMessages(channel)
+									setMessages((prev) => prev.filter((m) => m.channel !== channel))
+									toast.success("Messages cleared")
+								}}
+							>
+								Clear
+							</Button>
+						)}
+						<Tabs value={activeTab} onValueChange={(v) => onTabChange(v as "chat" | "inbox")}>
+							<TabsList className="h-8">
+								<TabsTrigger value="chat" className="text-xs px-3 h-6">Chat</TabsTrigger>
+								<TabsTrigger value="inbox" className="text-xs px-3 h-6">Inbox</TabsTrigger>
+							</TabsList>
+						</Tabs>
+					</div>
 				</div>
 
 				{/* Messages */}
