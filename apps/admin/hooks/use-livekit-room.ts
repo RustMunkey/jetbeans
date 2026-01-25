@@ -4,8 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import type {
 	Room,
 	ConnectionState,
-	LocalParticipant,
-	RemoteParticipant,
 	Track,
 } from "livekit-client"
 
@@ -122,7 +120,7 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 			setRoom(newRoom)
 
 			const handleConnectionStateChanged = (state: ConnectionState) => {
-				setConnectionState(state as number)
+				setConnectionState(state as unknown as number)
 			}
 
 			const handleParticipantConnected = () => updateParticipants(newRoom!)
@@ -142,7 +140,7 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 			const handleTrackUnmuted = syncLocalState
 			const handleLocalTrackPublished = syncLocalState
 			const handleLocalTrackUnpublished = syncLocalState
-			const handleActiveSpeakersChanged = (speakers: (LocalParticipant | RemoteParticipant)[]) => {
+			const handleActiveSpeakersChanged = (speakers: { identity: string }[]) => {
 				if (speakers.length > 0) {
 					setDominantSpeaker(speakers[0].identity)
 				}
