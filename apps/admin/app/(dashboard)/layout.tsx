@@ -11,6 +11,7 @@ import { CommandMenuWrapper } from "@/components/command-menu-wrapper"
 import { HeaderToolbar } from "@/components/header-toolbar"
 import { PusherProvider } from "@/components/pusher-provider"
 import { CallProvider, IncomingCallModal, CallInterface } from "@/components/calls"
+import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts"
 import { SidebarSwipe } from "@/components/sidebar-swipe"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -53,32 +54,34 @@ export default async function DashboardLayout({
         userImage={session.user.image || null}
       >
         <SidebarProvider defaultOpen={sidebarOpen}>
-          <AppSidebar user={{
-            name: session.user.name,
-            email: session.user.email,
-            avatar: session.user.image || "",
-            role: user?.role || "member",
-          }} />
           <CommandMenuWrapper />
-          <SidebarSwipe />
-          <SidebarInset className="md:flex md:flex-col">
-            <BreadcrumbProvider>
-              <header className="flex h-16 shrink-0 items-center justify-between gap-2">
-                <div className="flex items-center gap-2 px-4 min-w-0">
-                  <SidebarTrigger className="-ml-1 shrink-0" />
-                  <Separator
-                    orientation="vertical"
-                    className="mr-2 shrink-0 data-[orientation=vertical]:h-4"
-                  />
-                  <div className="min-w-0 overflow-x-auto sm:overflow-hidden [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
-                    <BreadcrumbNav />
+          <KeyboardShortcutsProvider>
+            <AppSidebar user={{
+              name: session.user.name,
+              email: session.user.email,
+              avatar: session.user.image || "",
+              role: user?.role || "member",
+            }} />
+            <SidebarSwipe />
+            <SidebarInset className="md:flex md:flex-col">
+              <BreadcrumbProvider>
+                <header className="flex h-16 shrink-0 items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 px-4 min-w-0">
+                    <SidebarTrigger className="-ml-1 shrink-0" />
+                    <Separator
+                      orientation="vertical"
+                      className="mr-2 shrink-0 data-[orientation=vertical]:h-4"
+                    />
+                    <div className="min-w-0 overflow-x-auto sm:overflow-hidden [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
+                      <BreadcrumbNav />
+                    </div>
                   </div>
-                </div>
-                <HeaderToolbar />
-              </header>
-              {children}
-            </BreadcrumbProvider>
-          </SidebarInset>
+                  <HeaderToolbar />
+                </header>
+                {children}
+              </BreadcrumbProvider>
+            </SidebarInset>
+          </KeyboardShortcutsProvider>
         </SidebarProvider>
 
         {/* Call UI overlays */}

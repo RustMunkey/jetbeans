@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { RichTextEditor, RichTextDisplay } from "@/components/rich-text-editor"
 import { getDeveloperNotes, createDeveloperNote, updateDeveloperNote, deleteDeveloperNote } from "./actions"
 
 type DeveloperNote = {
@@ -92,6 +92,8 @@ export function NotesTable({
 	const [statusFilter, setStatusFilter] = useState("all")
 	const [typeFilter, setTypeFilter] = useState("all")
 	const [dialogOpen, setDialogOpen] = useState(false)
+	const [viewDialogOpen, setViewDialogOpen] = useState(false)
+	const [viewingNote, setViewingNote] = useState<DeveloperNote | null>(null)
 	const [editingNote, setEditingNote] = useState<DeveloperNote | null>(null)
 	const [formData, setFormData] = useState({
 		title: "",
@@ -99,7 +101,7 @@ export function NotesTable({
 		type: "bug",
 		priority: "medium",
 		status: "open",
-		assignedTo: "",
+		assignedTo: "__unassigned__",
 	})
 	const [saving, setSaving] = useState(false)
 
@@ -121,7 +123,7 @@ export function NotesTable({
 			type: "bug",
 			priority: "medium",
 			status: "open",
-			assignedTo: "",
+			assignedTo: "__unassigned__",
 		})
 		setDialogOpen(true)
 	}
@@ -134,9 +136,14 @@ export function NotesTable({
 			type: note.type,
 			priority: note.priority,
 			status: note.status,
-			assignedTo: note.assignedTo || "",
+			assignedTo: note.assignedTo || "__unassigned__",
 		})
 		setDialogOpen(true)
+	}
+
+	function openViewDialog(note: DeveloperNote) {
+		setViewingNote(note)
+		setViewDialogOpen(true)
 	}
 
 	async function handleSave() {
@@ -146,6 +153,7 @@ export function NotesTable({
 		}
 
 		setSaving(true)
+		const assignedTo = formData.assignedTo === "__unassigned__" ? null : formData.assignedTo
 		try {
 			if (editingNote) {
 				await updateDeveloperNote(editingNote.id, {
@@ -154,7 +162,7 @@ export function NotesTable({
 					type: formData.type,
 					priority: formData.priority,
 					status: formData.status,
-					assignedTo: formData.assignedTo || null,
+					assignedTo,
 				})
 				toast.success("Note updated")
 			} else {
@@ -163,7 +171,7 @@ export function NotesTable({
 					body: formData.body,
 					type: formData.type,
 					priority: formData.priority,
-					assignedTo: formData.assignedTo || undefined,
+					assignedTo: assignedTo || undefined,
 				})
 				toast.success("Note created")
 			}
@@ -222,8 +230,15 @@ export function NotesTable({
 			header: "Title",
 			cell: (row) => (
 				<div className="min-w-[200px]">
-					<span className="font-medium">{row.title}</span>
-					<p className="text-xs text-muted-foreground truncate max-w-[300px]">{row.body}</p>
+					<button
+						className="font-medium text-left hover:underline"
+						onClick={() => openViewDialog(row)}
+					>
+						{row.title}
+					</button>
+					<p className="text-xs text-muted-foreground truncate max-w-[300px]">
+						{row.body.replace(/<[^>]*>/g, "").slice(0, 100)}
+					</p>
 				</div>
 			),
 		},
@@ -362,14 +377,14 @@ export function NotesTable({
 							/>
 						</div>
 						<div className="grid gap-2">
-							<Label htmlFor="body">Description</Label>
-							<Textarea
-								id="body"
-								value={formData.body}
-								onChange={(e) => setFormData((prev) => ({ ...prev, body: e.target.value }))}
-								placeholder="Describe the bug, issue, or note in detail..."
-								rows={4}
-							/>
+							<Label>Description</Label>
+							<div className="min-h-[150px]">
+								<RichTextEditor
+									content={formData.body}
+									onChange={(html) => setFormData((prev) => ({ ...prev, body: html }))}
+									placeholder="Describe the bug, issue, or note in detail..."
+								/>
+							</div>
 						</div>
 						<div className="grid grid-cols-2 gap-4">
 							<div className="grid gap-2">
@@ -438,7 +453,7 @@ export function NotesTable({
 									<SelectValue placeholder="Unassigned" />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="">Unassigned</SelectItem>
+									<SelectItem value="__unassigned__">Unassigned</SelectItem>
 									{teamMembers.map((member) => (
 										<SelectItem key={member.id} value={member.id}>
 											{member.name || member.email}
@@ -454,6 +469,52 @@ export function NotesTable({
 						</Button>
 						<Button onClick={handleSave} disabled={saving}>
 							{saving ? "Saving..." : editingNote ? "Update" : "Create"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* View Dialog */}
+			<Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+				<DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+					<DialogHeader>
+						<div className="flex items-center gap-2 mb-2">
+							{viewingNote && (
+								<>
+									<Badge variant={TYPE_LABELS[viewingNote.type]?.variant || "outline"}>
+										{TYPE_LABELS[viewingNote.type]?.label || viewingNote.type}
+									</Badge>
+									<Badge variant="outline" className={STATUS_LABELS[viewingNote.status]?.className}>
+										{STATUS_LABELS[viewingNote.status]?.label || viewingNote.status}
+									</Badge>
+									<span className={`text-xs font-medium ${PRIORITY_LABELS[viewingNote.priority]?.className}`}>
+										{PRIORITY_LABELS[viewingNote.priority]?.label || viewingNote.priority} priority
+									</span>
+								</>
+							)}
+						</div>
+						<DialogTitle>{viewingNote?.title}</DialogTitle>
+						<DialogDescription>
+							Reported by {viewingNote?.authorName || "Unknown"} on{" "}
+							{viewingNote?.createdAt && new Date(viewingNote.createdAt).toLocaleDateString()}
+						</DialogDescription>
+					</DialogHeader>
+					<div className="py-4">
+						{viewingNote && <RichTextDisplay content={viewingNote.body} />}
+					</div>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setViewDialogOpen(false)}>
+							Close
+						</Button>
+						<Button
+							onClick={() => {
+								if (viewingNote) {
+									setViewDialogOpen(false)
+									openEditDialog(viewingNote)
+								}
+							}}
+						>
+							Edit
 						</Button>
 					</DialogFooter>
 				</DialogContent>
