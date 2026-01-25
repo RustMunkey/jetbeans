@@ -170,7 +170,7 @@ export function InboxTab({
 	]
 
 	return (
-		<div className="flex h-[calc(100vh-8rem)] flex-col rounded-lg border overflow-hidden">
+		<div className="flex h-[calc(100vh-6rem)] flex-col rounded-lg border overflow-hidden">
 			{/* Header with tab toggle */}
 			<div className="h-12 border-b px-4 flex items-center justify-between shrink-0">
 				<span className="text-sm font-medium">Customer Inbox</span>

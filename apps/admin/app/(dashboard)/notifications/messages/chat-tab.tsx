@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
+import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -159,8 +160,56 @@ export function ChatTab({
 		totalRecipients: number
 		readBy: { name: string | null; readAt: Date | null }[]
 	}>>({})
+	const [highlightedId, setHighlightedId] = useState<string | null>(null)
+	const [isAtBottom, setIsAtBottom] = useState(true)
 	const messagesEndRef = useRef<HTMLDivElement>(null)
+	const messagesContainerRef = useRef<HTMLDivElement>(null)
 	const { pusher } = usePusher()
+	const searchParams = useSearchParams()
+
+	// Handle URL params for highlighting specific message
+	useEffect(() => {
+		const highlightId = searchParams.get("highlight")
+		const channel = searchParams.get("channel")
+
+		if (highlightId) {
+			setHighlightedId(highlightId)
+			// Switch to the correct channel/conversation
+			if (channel && channel !== active.id) {
+				if (channel === "dm") {
+					// For DMs, find the message to get the other person's ID
+					const msg = messages.find(m => m.id === highlightId)
+					if (msg) {
+						const otherId = msg.senderId === userId ? active.id : msg.senderId
+						const member = teamMembers.find(m => m.id === otherId)
+						if (member) {
+							setActive({ type: "dm", id: otherId, label: member.name })
+						}
+					}
+				} else {
+					setActive({ type: "channel", id: channel, label: `#${channel}` })
+				}
+			}
+			// Scroll to the message after a short delay
+			setTimeout(() => {
+				const el = document.querySelector(`[data-message-id="${highlightId}"]`)
+				el?.scrollIntoView({ behavior: "smooth", block: "center" })
+			}, 100)
+			// Clear highlight after animation
+			setTimeout(() => setHighlightedId(null), 2000)
+			// Clear URL params
+			window.history.replaceState({}, "", "/notifications/messages")
+		}
+	}, [searchParams, messages, userId, teamMembers, active.id])
+
+	// Track if user is at bottom of messages
+	const handleScroll = useCallback(() => {
+		const container = messagesContainerRef.current
+		if (!container) return
+		const threshold = 100 // pixels from bottom
+		const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold
+		setIsAtBottom(atBottom)
+	}, [])
 
 	// Fetch read receipts for messages sent by current user
 	useEffect(() => {
@@ -234,10 +283,18 @@ export function ChatTab({
 		}
 	}, [pusher, userId])
 
-	// Auto-scroll to bottom when messages change or conversation switches
+	// Auto-scroll to bottom only if user is already at bottom
 	useEffect(() => {
-		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-	}, [messages, active])
+		if (isAtBottom) {
+			messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+		}
+	}, [messages, isAtBottom])
+
+	// Scroll to bottom when switching conversations
+	useEffect(() => {
+		messagesEndRef.current?.scrollIntoView({ behavior: "auto" })
+		setIsAtBottom(true)
+	}, [active])
 
 	const filteredMessages = messages.filter((m) => {
 		if (active.type === "channel") return m.channel === active.id
@@ -346,7 +403,7 @@ export function ChatTab({
 	)
 
 	return (
-		<div className="flex h-[calc(100vh-8rem)] rounded-lg border overflow-hidden">
+		<div className="flex h-[calc(100vh-6rem)] rounded-lg border overflow-hidden">
 			{/* Desktop sidebar */}
 			<div className="hidden md:flex md:w-64 md:shrink-0 border-r bg-muted/30 flex-col">
 				{sidebarContent}
@@ -403,7 +460,11 @@ export function ChatTab({
 				</div>
 
 				{/* Messages */}
-				<div className="flex-1 overflow-y-auto p-4 space-y-3">
+				<div
+					ref={messagesContainerRef}
+					onScroll={handleScroll}
+					className="flex-1 overflow-y-auto p-4 space-y-3"
+				>
 					{filteredMessages.length === 0 ? (
 						<div className="flex items-center justify-center h-full">
 							<div className="text-center">
@@ -438,37 +499,46 @@ export function ChatTab({
 							}
 
 							const isUnread = !isOwn && !msg.readAt
+							const isHighlighted = msg.id === highlightedId
 
 							return (
 								<div
 									key={msg.id}
 									ref={(el) => observeMessage(el, msg.id, isUnread)}
-									className={`flex gap-2.5 ${isOwn ? "flex-row-reverse" : ""}`}
+									data-message-id={msg.id}
+									className={`flex gap-2.5 items-start transition-all duration-500 rounded-lg ${isOwn ? "flex-row-reverse" : ""} ${isHighlighted ? "bg-yellow-500/20 ring-2 ring-yellow-500/50 p-2 -mx-2" : ""}`}
 								>
-									<Avatar className="h-7 w-7 shrink-0 mt-0.5">
-										{msg.senderImage && <AvatarImage src={msg.senderImage} alt={msg.senderName} />}
-										<AvatarFallback className="text-[10px]">{getInitials(msg.senderName)}</AvatarFallback>
-									</Avatar>
-									<div className={`max-w-[75%] flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
-										<div className={`flex items-baseline gap-2 ${isOwn ? "flex-row-reverse" : ""}`}>
-											<span className="text-xs font-medium">{isOwn ? "You" : msg.senderName}</span>
-											<span className="text-[11px] text-muted-foreground">{timeAgo(msg.createdAt)}</span>
-										</div>
-										<div className={`mt-1 rounded-lg px-3 py-2 text-sm whitespace-pre-wrap break-words ${
+									<div className="flex flex-col items-center shrink-0 w-10">
+										<Avatar className="h-7 w-7">
+											{msg.senderImage && <AvatarImage src={msg.senderImage} alt={msg.senderName} />}
+											<AvatarFallback className="text-[10px]">{getInitials(msg.senderName)}</AvatarFallback>
+										</Avatar>
+										<span className="text-[9px] text-muted-foreground mt-0.5 truncate max-w-full">
+											{isOwn ? "You" : msg.senderName.split(" ")[0]}
+										</span>
+									</div>
+									<div className={`max-w-[70%] flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
+										<div className={`px-3 py-2 text-sm whitespace-pre-wrap break-words ${
 											isOwn
-												? "bg-primary text-primary-foreground"
-												: "bg-muted"
+												? "bg-primary text-primary-foreground rounded-lg rounded-br-sm"
+												: "bg-muted rounded-lg rounded-bl-sm"
 										}`}>
 											{msg.body}
 										</div>
-										{readStatus && (
-											<span className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
-												<svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-													<path d="M2 8.5l3.5 3.5L14 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-												</svg>
-												{readStatus}
-											</span>
-										)}
+										<div className={`flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground ${isOwn ? "flex-row-reverse" : ""}`}>
+											<span>{timeAgo(msg.createdAt)}</span>
+											{readStatus && (
+												<>
+													<span className="text-muted-foreground/50">·</span>
+													<span className="flex items-center gap-0.5">
+														<svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+															<path d="M2 8.5l3.5 3.5L14 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+														</svg>
+														{readStatus}
+													</span>
+												</>
+											)}
+										</div>
 									</div>
 								</div>
 							)

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,6 +23,7 @@ type User = {
 }
 
 export function AccountSettings({ user }: { user: User }) {
+	const router = useRouter()
 	const [name, setName] = useState(user.name)
 	const [phone, setPhone] = useState(user.phone || "")
 	const [image, setImage] = useState(user.image || "")
@@ -66,6 +68,8 @@ export function AccountSettings({ user }: { user: User }) {
 				image: image || undefined,
 			})
 			toast.success("Profile updated")
+			// Refresh server components to update sidebar, header, etc.
+			router.refresh()
 		} catch {
 			toast.error("Failed to update profile")
 		} finally {

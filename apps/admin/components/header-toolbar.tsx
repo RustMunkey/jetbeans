@@ -66,6 +66,12 @@ function timeAgo(dateStr: string) {
   return `${days}d ago`
 }
 
+function formatCount(count: number): string {
+  if (count < 1000) return String(count)
+  if (count < 1000000) return `${Math.floor(count / 1000)}K+`
+  return `${Math.floor(count / 1000000)}M+`
+}
+
 export function HeaderToolbar() {
   const [storeOnline, setStoreOnline] = React.useState(true)
   const [confirmOpen, setConfirmOpen] = React.useState(false)
@@ -153,8 +159,8 @@ export function HeaderToolbar() {
           <Button variant="ghost" size="icon" className="relative size-8">
             <HugeiconsIcon icon={Mail01Icon} size={16} />
             {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center size-4 rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
-                {unreadCount > 9 ? "9+" : unreadCount}
+              <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-primary text-[9px] font-medium text-primary-foreground">
+                {formatCount(unreadCount)}
               </span>
             )}
             <span className="sr-only">Messages</span>
@@ -166,6 +172,13 @@ export function HeaderToolbar() {
             <Link
               href="/notifications/messages"
               className="text-xs text-primary hover:underline"
+              onClick={() => {
+                markAllRead()
+                setUnreadCount(0)
+                setRecentMessages((prev) =>
+                  prev.map((m) => ({ ...m, readAt: m.readAt || new Date().toISOString() }))
+                )
+              }}
             >
               View all
             </Link>
@@ -198,6 +211,8 @@ export function HeaderToolbar() {
                           prev.map((m) => m.id === msg.id ? { ...m, readAt: new Date().toISOString() } : m)
                         )
                       }
+                      // Navigate to the specific message
+                      router.push(`/notifications/messages?highlight=${msg.id}&channel=${msg.channel}`)
                     }}
                   >
                     <Avatar className="h-7 w-7 shrink-0">
