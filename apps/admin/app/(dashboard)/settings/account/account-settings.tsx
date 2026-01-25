@@ -113,16 +113,14 @@ type User = {
 // Sortable track row component
 function SortableTrackRow({
 	track,
-	playingId,
-	onPreview,
-	onPlayInMusicPlayer,
+	isCurrentlyPlaying,
+	onTogglePlay,
 	onEdit,
 	onDelete,
 }: {
 	track: UserAudioTrack
-	playingId: string | null
-	onPreview: (track: UserAudioTrack) => void
-	onPlayInMusicPlayer: (track: UserAudioTrack) => void
+	isCurrentlyPlaying: boolean
+	onTogglePlay: () => void
 	onEdit: (track: UserAudioTrack) => void
 	onDelete: (id: string) => void
 }) {
@@ -145,7 +143,7 @@ function SortableTrackRow({
 		<div
 			ref={setNodeRef}
 			style={style}
-			className="flex items-center gap-3 px-3 py-2 rounded-lg border bg-background hover:bg-muted/50 transition-colors"
+			className={`flex items-center gap-3 px-3 py-2 rounded-lg border bg-background hover:bg-muted/50 transition-colors ${isCurrentlyPlaying ? "ring-1 ring-primary/50 bg-primary/5" : ""}`}
 		>
 			{/* Drag handle */}
 			<button
@@ -158,13 +156,13 @@ function SortableTrackRow({
 
 			{/* Play button */}
 			<Button
-				variant="ghost"
+				variant={isCurrentlyPlaying ? "default" : "ghost"}
 				size="icon"
 				className="size-8 shrink-0"
-				onClick={() => onPreview(track)}
+				onClick={onTogglePlay}
 			>
 				<HugeiconsIcon
-					icon={playingId === track.id ? PauseIcon : PlayIcon}
+					icon={isCurrentlyPlaying ? PauseIcon : PlayIcon}
 					size={16}
 				/>
 			</Button>
@@ -188,15 +186,6 @@ function SortableTrackRow({
 
 			{/* Actions */}
 			<div className="flex items-center gap-1 shrink-0">
-				<Button
-					variant="ghost"
-					size="icon"
-					className="size-7"
-					onClick={() => onPlayInMusicPlayer(track)}
-					title="Play in music player"
-				>
-					<HugeiconsIcon icon={MusicNote03Icon} size={14} />
-				</Button>
 				<Button
 					variant="ghost"
 					size="icon"
@@ -238,10 +227,10 @@ export function AccountSettings({ user }: { user: User }) {
 	const [editDialogOpen, setEditDialogOpen] = useState(false)
 	const [editingTrack, setEditingTrack] = useState<UserAudioTrack | null>(null)
 	const [uploadingTrack, setUploadingTrack] = useState(false)
-	const [previewAudio, setPreviewAudio] = useState<HTMLAudioElement | null>(null)
-	const [playingId, setPlayingId] = useState<string | null>(null)
 
-	const { setTracks: setMusicPlayerTracks, playTrack } = useMusicPlayer()
+	const { setTracks: setMusicPlayerTracks, playTrack, currentTrack, isPlaying, toggle } = useMusicPlayer()
+
+	const MAX_TRACKS = 50
 
 	// DnD sensors
 	const sensors = useSensors(
@@ -330,6 +319,12 @@ export function AccountSettings({ user }: { user: User }) {
 			return
 		}
 
+		// Check track limit
+		if (tracks.length >= MAX_TRACKS) {
+			toast.error(`Maximum ${MAX_TRACKS} tracks allowed. Delete some tracks to upload more.`)
+			return
+		}
+
 		setUploadingTrack(true)
 		try {
 			// Use Vercel Blob client upload to bypass Next.js body size limits
@@ -389,38 +384,21 @@ export function AccountSettings({ user }: { user: User }) {
 		}
 	}
 
-	const handlePreview = (track: UserAudioTrack) => {
-		if (playingId === track.id) {
-			previewAudio?.pause()
-			setPlayingId(null)
-			return
+	const handleTogglePlay = (track: UserAudioTrack) => {
+		// If this track is already playing, toggle pause/play
+		if (currentTrack?.id === track.id) {
+			toggle()
+		} else {
+			// Play this track in the global music player
+			playTrack({
+				id: track.id,
+				name: track.name,
+				url: track.url,
+				artist: track.artist || undefined,
+				duration: track.duration || undefined,
+				type: "uploaded",
+			})
 		}
-
-		if (previewAudio) {
-			previewAudio.pause()
-		}
-
-		const audio = new Audio(track.url)
-		audio.volume = 0.5
-		audio.onended = () => setPlayingId(null)
-		audio.play().catch(() => {})
-		setPreviewAudio(audio)
-		setPlayingId(track.id)
-	}
-
-	const handlePlayInMusicPlayer = (track: UserAudioTrack) => {
-		if (previewAudio) {
-			previewAudio.pause()
-			setPlayingId(null)
-		}
-		playTrack({
-			id: track.id,
-			name: track.name,
-			url: track.url,
-			artist: track.artist || undefined,
-			duration: track.duration || undefined,
-			type: "uploaded",
-		})
 	}
 
 	const initials = name
@@ -679,9 +657,14 @@ export function AccountSettings({ user }: { user: User }) {
 							<CardTitle>Music Library</CardTitle>
 							<CardDescription>
 								Upload and manage your personal music collection. Drag to reorder tracks.
+								<span className="ml-2 text-xs">({tracks.length}/{MAX_TRACKS} tracks)</span>
 							</CardDescription>
 						</div>
-						<Button size="sm" onClick={() => setUploadDialogOpen(true)}>
+						<Button
+							size="sm"
+							onClick={() => setUploadDialogOpen(true)}
+							disabled={tracks.length >= MAX_TRACKS}
+						>
 							<HugeiconsIcon icon={Upload04Icon} size={16} className="mr-2" />
 							Upload
 						</Button>
@@ -730,9 +713,8 @@ export function AccountSettings({ user }: { user: User }) {
 										<SortableTrackRow
 											key={track.id}
 											track={track}
-											playingId={playingId}
-											onPreview={handlePreview}
-											onPlayInMusicPlayer={handlePlayInMusicPlayer}
+											isCurrentlyPlaying={currentTrack?.id === track.id && isPlaying}
+											onTogglePlay={() => handleTogglePlay(track)}
 											onEdit={(t) => {
 												setEditingTrack(t)
 												setEditDialogOpen(true)
@@ -753,7 +735,7 @@ export function AccountSettings({ user }: { user: User }) {
 					<DialogHeader>
 						<DialogTitle>Upload Track</DialogTitle>
 						<DialogDescription>
-							Upload an audio file (max 50MB) to add it to your music library.
+							Upload an audio file (max 50MB) to your library. You can store up to {MAX_TRACKS} tracks.
 						</DialogDescription>
 					</DialogHeader>
 					<form onSubmit={handleTrackUpload}>

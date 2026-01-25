@@ -89,6 +89,9 @@ function formatKeys(keys: string[]): string {
 
 // Check if keys match event
 function matchesEvent(keys: string[], e: KeyboardEvent): boolean {
+	// Guard against malformed keyboard events
+	if (!e.key) return false
+
 	const pressedKeys: string[] = []
 
 	if (e.metaKey || e.ctrlKey) pressedKeys.push("meta")
