@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useCallback, useEffect, useState, type ReactNode } from "react"
+import { createContext, useContext, useCallback, useEffect, useState, useRef, type ReactNode } from "react"
 import { usePusher } from "@/components/pusher-provider"
 
 // ConnectionState enum values from livekit-client (avoid direct import for faster builds)
@@ -92,6 +92,7 @@ export function CallProvider({
 }) {
 	const { pusher } = usePusher()
 	const [status, setStatus] = useState<CallClientStatus>("idle")
+	const statusRef = useRef<CallClientStatus>("idle")
 	const [call, setCall] = useState<CallWithParticipants | null>(null)
 	const [incomingCall, setIncomingCall] = useState<IncomingCallEvent | null>(null)
 	const [token, setToken] = useState<string | null>(null)
@@ -114,6 +115,11 @@ export function CallProvider({
 		toggleScreenShare,
 		disconnect,
 	} = useLiveKitRoom(token, wsUrl)
+
+	// Keep statusRef in sync
+	useEffect(() => {
+		statusRef.current = status
+	}, [status])
 
 	// Duration timer
 	useEffect(() => {
@@ -152,7 +158,7 @@ export function CallProvider({
 
 		const handleIncomingCall = (event: IncomingCallEvent) => {
 			// Don't interrupt an active call
-			if (status !== "idle") return
+			if (statusRef.current !== "idle") return
 
 			setIncomingCall(event)
 			setStatus("ringing-incoming")
@@ -169,7 +175,7 @@ export function CallProvider({
 
 			// Auto-decline after timeout
 			const timeout = setTimeout(async () => {
-				if (status === "ringing-incoming" && incomingCall?.callId === event.callId) {
+				if (statusRef.current === "ringing-incoming") {
 					try {
 						await markCallAsMissed(event.callId)
 					} catch {}
@@ -183,7 +189,7 @@ export function CallProvider({
 
 		const handleCallAccepted = (event: CallAcceptedEvent) => {
 			// Someone accepted our outgoing call
-			if (status === "ringing-outgoing") {
+			if (statusRef.current === "ringing-outgoing" || statusRef.current === "connecting") {
 				setStatus("connecting")
 			}
 		}
@@ -221,7 +227,7 @@ export function CallProvider({
 			channel.unbind("participant-joined", handleParticipantJoined)
 			channel.unbind("participant-left", handleParticipantLeft)
 		}
-	}, [pusher, userId, status, incomingCall])
+	}, [pusher, userId])
 
 	const stopRingtone = () => {
 		const ringtone = (window as unknown as { __ringtone?: HTMLAudioElement }).__ringtone
