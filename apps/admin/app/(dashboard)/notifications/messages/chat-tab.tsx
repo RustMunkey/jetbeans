@@ -508,10 +508,10 @@ export function ChatTab({
 									data-message-id={msg.id}
 									className={`flex gap-2.5 items-start transition-all duration-500 rounded-lg ${isOwn ? "flex-row-reverse" : ""} ${isHighlighted ? "bg-yellow-500/20 ring-2 ring-yellow-500/50 p-2 -mx-2" : ""}`}
 								>
-									<div className="flex flex-col items-center shrink-0 w-10">
-										<Avatar className="h-7 w-7">
+									<div className="flex flex-col items-center shrink-0 w-12">
+										<Avatar className="h-9 w-9">
 											{msg.senderImage && <AvatarImage src={msg.senderImage} alt={msg.senderName} />}
-											<AvatarFallback className="text-[10px]">{getInitials(msg.senderName)}</AvatarFallback>
+											<AvatarFallback className="text-xs">{getInitials(msg.senderName)}</AvatarFallback>
 										</Avatar>
 										<span className="text-[9px] text-muted-foreground mt-0.5 truncate max-w-full">
 											{isOwn ? "You" : msg.senderName.split(" ")[0]}
