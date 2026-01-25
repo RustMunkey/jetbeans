@@ -100,6 +100,7 @@ export function HeaderToolbar() {
   const [confirmOpen, setConfirmOpen] = React.useState(false)
   const [unreadCount, setUnreadCount] = React.useState(0)
   const [recentMessages, setRecentMessages] = React.useState<QuickMessage[]>([])
+  const [messagesPopoverOpen, setMessagesPopoverOpen] = React.useState(false)
   const hasNotifications = false // TODO: replace with real notification count
   const { open: openCommandMenu } = useCommandMenu()
   const router = useRouter()
@@ -215,7 +216,7 @@ export function HeaderToolbar() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <Popover>
+      <Popover open={messagesPopoverOpen} onOpenChange={setMessagesPopoverOpen}>
         <PopoverTrigger asChild>
           <Button variant="ghost" size="icon" className="relative size-8">
             <HugeiconsIcon icon={Mail01Icon} size={16} />
@@ -234,6 +235,7 @@ export function HeaderToolbar() {
               href="/notifications/messages"
               className="text-xs text-primary hover:underline"
               onClick={() => {
+                setMessagesPopoverOpen(false)
                 markAllRead()
                 setUnreadCount(0)
                 setRecentMessages((prev) =>
@@ -265,8 +267,17 @@ export function HeaderToolbar() {
                     key={msg.id}
                     className={`flex gap-3 px-4 py-3 border-b last:border-0 cursor-pointer hover:bg-muted/50 transition-colors ${!msg.readAt ? "bg-primary/5" : ""}`}
                     onClick={() => {
-                      // Navigate immediately, mark read in background
+                      // Close popover first
+                      setMessagesPopoverOpen(false)
+
+                      // Dispatch custom event for highlighting (works even when already on page)
+                      window.dispatchEvent(new CustomEvent("highlight-message", {
+                        detail: { messageId: msg.id, channel: msg.channel }
+                      }))
+
+                      // Navigate (will be instant if already on page)
                       router.push(`/notifications/messages?highlight=${msg.id}&channel=${msg.channel}`)
+
                       if (!msg.readAt) {
                         markMessageRead(msg.id)
                         setUnreadCount((c) => Math.max(0, c - 1))

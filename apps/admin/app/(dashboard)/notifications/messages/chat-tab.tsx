@@ -172,40 +172,54 @@ export function ChatTab({
 	const { pusher } = usePusher()
 	const searchParams = useSearchParams()
 
+	// Function to highlight a message
+	const highlightMessage = useCallback((messageId: string, channel: string) => {
+		setHighlightedId(messageId)
+		// Switch to the correct channel/conversation
+		if (channel && channel !== active.id) {
+			if (channel === "dm") {
+				// For DMs, find the message to get the other person's ID
+				const msg = messages.find(m => m.id === messageId)
+				if (msg) {
+					const otherId = msg.senderId === userId ? active.id : msg.senderId
+					const member = teamMembers.find(m => m.id === otherId)
+					if (member) {
+						setActive({ type: "dm", id: otherId, label: member.name })
+					}
+				}
+			} else {
+				setActive({ type: "channel", id: channel, label: `#${channel}` })
+			}
+		}
+		// Scroll to the message after a short delay
+		setTimeout(() => {
+			const el = document.querySelector(`[data-message-id="${messageId}"]`)
+			el?.scrollIntoView({ behavior: "smooth", block: "center" })
+		}, 100)
+		// Clear highlight after animation
+		setTimeout(() => setHighlightedId(null), 2000)
+		// Clear URL params
+		window.history.replaceState({}, "", "/notifications/messages")
+	}, [active.id, messages, userId, teamMembers])
+
+	// Listen for custom highlight event (from header popover)
+	useEffect(() => {
+		const handleHighlight = (e: CustomEvent<{ messageId: string; channel: string }>) => {
+			highlightMessage(e.detail.messageId, e.detail.channel)
+		}
+		window.addEventListener("highlight-message", handleHighlight as EventListener)
+		return () => window.removeEventListener("highlight-message", handleHighlight as EventListener)
+	}, [highlightMessage])
+
 	// Handle URL params for highlighting specific message
 	useEffect(() => {
 		const highlightId = searchParams.get("highlight")
 		const channel = searchParams.get("channel")
 
-		if (highlightId) {
-			setHighlightedId(highlightId)
-			// Switch to the correct channel/conversation
-			if (channel && channel !== active.id) {
-				if (channel === "dm") {
-					// For DMs, find the message to get the other person's ID
-					const msg = messages.find(m => m.id === highlightId)
-					if (msg) {
-						const otherId = msg.senderId === userId ? active.id : msg.senderId
-						const member = teamMembers.find(m => m.id === otherId)
-						if (member) {
-							setActive({ type: "dm", id: otherId, label: member.name })
-						}
-					}
-				} else {
-					setActive({ type: "channel", id: channel, label: `#${channel}` })
-				}
-			}
-			// Scroll to the message after a short delay
-			setTimeout(() => {
-				const el = document.querySelector(`[data-message-id="${highlightId}"]`)
-				el?.scrollIntoView({ behavior: "smooth", block: "center" })
-			}, 100)
-			// Clear highlight after animation
-			setTimeout(() => setHighlightedId(null), 2000)
-			// Clear URL params
-			window.history.replaceState({}, "", "/notifications/messages")
+		if (highlightId && channel) {
+			highlightMessage(highlightId, channel)
 		}
-	}, [searchParams, messages, userId, teamMembers, active.id])
+	}, [searchParams, highlightMessage])
 
 	// Track if user is at bottom of messages
 	const handleScroll = useCallback(() => {

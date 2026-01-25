@@ -27,7 +27,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         loading: <Loader2Icon className="size-3.5 animate-spin" />,
       }}
       toastOptions={{
-        className: "!py-2 !px-3 text-xs !w-auto !max-w-[280px]",
+        className: "!py-2 !px-3 text-xs",
       }}
       style={
         {

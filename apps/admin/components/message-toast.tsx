@@ -27,7 +27,7 @@ export function MessageToast({ id, senderName, body, messageId, channel }: Messa
 
 	return (
 		<div
-			className={`w-auto max-w-[280px] cursor-pointer select-none bg-popover text-popover-foreground border rounded-md shadow-lg ${expanded ? "py-2 px-3" : "py-2 px-3"}`}
+			className={`w-[356px] cursor-pointer select-none bg-popover text-popover-foreground border rounded-md shadow-lg py-2 px-3`}
 			onClick={(e) => {
 				if ((e.target as HTMLElement).closest("button")) return
 				setExpanded(!expanded)
