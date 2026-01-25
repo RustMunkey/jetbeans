@@ -83,6 +83,7 @@ export async function sendTeamMessage(data: {
 
 	// Fire Pusher notifications in parallel, don't block response
 	if (pusherServer) {
+		const pusher = pusherServer
 		const payload = {
 			id: message.id,
 			senderId,
@@ -96,7 +97,7 @@ export async function sendTeamMessage(data: {
 		// Non-blocking: fire all triggers in parallel
 		Promise.all(
 			recipientIds.map((recipientId) =>
-				pusherServer.trigger(`private-user-${recipientId}`, "new-message", payload)
+				pusher.trigger(`private-user-${recipientId}`, "new-message", payload)
 			)
 		).catch(() => {}) // Ignore errors, message is already saved
 	}
@@ -122,14 +123,17 @@ export async function markMessageRead(messageId: string) {
 
 	// Notify the sender that their message was read (non-blocking)
 	if (pusherServer) {
+		const pusher = pusherServer
+		const userId = session.user.id
+		const userName = session.user.name
 		db.select({ senderId: teamMessages.senderId })
 			.from(teamMessages)
 			.where(eq(teamMessages.id, messageId))
 			.then(([message]) => {
-				if (message && message.senderId !== session.user.id) {
-					pusherServer.trigger(`private-user-${message.senderId}`, "message-read", {
+				if (message && message.senderId !== userId) {
+					pusher.trigger(`private-user-${message.senderId}`, "message-read", {
 						messageId,
-						readBy: session.user.name,
+						readBy: userName,
 						readAt: readAt.toISOString(),
 					}).catch(() => {})
 				}

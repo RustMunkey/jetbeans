@@ -55,6 +55,19 @@
 	50% { opacity: 0.35; }
 }
 
+@keyframes pulse-highlight {
+	0%, 100% { transform: translateX(0) rotate(0); }
+	10% { transform: translateX(-3px) rotate(-0.5deg); }
+	20% { transform: translateX(3px) rotate(0.5deg); }
+	30% { transform: translateX(-3px) rotate(-0.5deg); }
+	40% { transform: translateX(3px) rotate(0.5deg); }
+	50% { transform: translateX(-2px) rotate(-0.3deg); }
+	60% { transform: translateX(2px) rotate(0.3deg); }
+	70% { transform: translateX(-1px) rotate(-0.1deg); }
+	80% { transform: translateX(1px) rotate(0.1deg); }
+	90% { transform: translateX(0) rotate(0); }
+}
+
 :root {
 	--background: oklch(0.960 0.016 60);
 	--foreground: oklch(0.240 0.04 42);

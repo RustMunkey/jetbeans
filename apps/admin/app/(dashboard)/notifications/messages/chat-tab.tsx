@@ -506,7 +506,7 @@ export function ChatTab({
 									key={msg.id}
 									ref={(el) => observeMessage(el, msg.id, isUnread)}
 									data-message-id={msg.id}
-									className={`flex gap-2.5 items-start transition-all duration-300 rounded-lg ${isOwn ? "flex-row-reverse" : ""} ${isHighlighted ? "scale-105 p-2 -mx-2 relative z-[9999]" : ""}`}
+									className={`flex gap-2.5 items-start rounded-lg ${isOwn ? "flex-row-reverse" : ""} ${isHighlighted ? "animate-[pulse-highlight_0.6s_ease-out] relative z-[9999]" : ""}`}
 								>
 									<Avatar className="h-9 w-9 shrink-0">
 										{msg.senderImage && <AvatarImage src={msg.senderImage} alt={msg.senderName} />}
