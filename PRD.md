@@ -220,6 +220,20 @@ jetbeans/
 
 ---
 
+## Pending Setup (TODO)
+
+### Integrations (after web app deployed)
+- [ ] **Resend** — Verify `jetbeans.cafe` domain, requires web app on Vercel first. API key: `re_Pkv4QSj6_H54zwkerbATTHZNA55mKJCRa`
+- [ ] **EasyPost** — Requires billing info (credit/debit card). Set up when ready for shipping labels.
+- [ ] **Phone notifications** — Research push notification options for mobile (FCM, APNs, or service like OneSignal) for team alerts when messages received
+
+### Completed
+- [x] Neon (database)
+- [x] Pusher (realtime messaging)
+- [x] Google OAuth (admin login)
+
+---
+
 ## Future Considerations
 - NeoEngine migration for decentralized file storage
 - Mobile app (React Native)

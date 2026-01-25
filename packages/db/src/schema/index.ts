@@ -26,3 +26,4 @@ export * from "./email-templates";
 export * from "./alerts";
 export * from "./store-settings";
 export * from "./team-messages";
+export * from "./developer-notes";

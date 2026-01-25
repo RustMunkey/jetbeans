@@ -156,20 +156,20 @@ export function ChatTab({
 		if (!pusher || !userId) return
 
 		const ch = pusher.subscribe(`private-user-${userId}`)
-		ch.bind("new-message", (data: TeamMessage) => {
+		const handleNewMessage = (data: TeamMessage) => {
 			setMessages((prev) => {
 				// Avoid duplicates
 				if (prev.some((m) => m.id === data.id)) return prev
 				return [...prev, data]
 			})
-			if (data.senderId !== userId) {
-				toast.info(`${data.senderName}: ${data.body.slice(0, 60)}`)
-			}
-		})
+			// Don't show toast here - HeaderToolbar handles global notifications
+		}
+		ch.bind("new-message", handleNewMessage)
 
 		return () => {
-			ch.unbind_all()
-			pusher.unsubscribe(`private-user-${userId}`)
+			// Only unbind our specific handler, don't unsubscribe the channel
+			// HeaderToolbar also uses this channel for notifications
+			ch.unbind("new-message", handleNewMessage)
 		}
 	}, [pusher, userId])
 

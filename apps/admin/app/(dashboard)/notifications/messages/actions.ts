@@ -65,12 +65,21 @@ export async function sendTeamMessage(data: {
 		.values({ senderId, channel, body: data.body })
 		.returning()
 
+	// Insert recipient records for all recipients
 	await db.insert(teamMessageRecipients).values(
 		recipientIds.map((recipientId) => ({
 			messageId: message.id,
 			recipientId,
 		}))
 	)
+
+	// Also insert sender as recipient of their own message (marked as read)
+	// This ensures sender's messages appear when they reload the page
+	await db.insert(teamMessageRecipients).values({
+		messageId: message.id,
+		recipientId: senderId,
+		readAt: new Date(),
+	})
 
 	if (pusherServer) {
 		const payload = {

@@ -1,6 +1,9 @@
 import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
+import { db } from "@jetbeans/db/client"
+import { eq } from "@jetbeans/db/drizzle"
+import { users } from "@jetbeans/db/schema"
 import { AppSidebar } from "@/components/app-sidebar"
 import { BreadcrumbNav } from "@/components/breadcrumb-nav"
 import { BreadcrumbProvider } from "@/components/breadcrumb-context"
@@ -28,6 +31,13 @@ export default async function DashboardLayout({
     redirect("/login")
   }
 
+  // Get user role for sidebar permissions
+  const [user] = await db
+    .select({ role: users.role })
+    .from(users)
+    .where(eq(users.id, session.user.id))
+    .limit(1)
+
   const cookieStore = await cookies()
   const sidebarOpen = cookieStore.get("sidebar_state")?.value !== "false"
 
@@ -41,6 +51,7 @@ export default async function DashboardLayout({
           name: session.user.name,
           email: session.user.email,
           avatar: session.user.image || "",
+          role: user?.role || "member",
         }} />
         <CommandMenuWrapper />
         <SidebarSwipe />

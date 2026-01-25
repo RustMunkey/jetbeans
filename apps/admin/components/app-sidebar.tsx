@@ -20,6 +20,7 @@ import {
   ShoppingBag01Icon,
   StarIcon,
   UserGroupIcon,
+  SourceCodeIcon,
 } from "@hugeicons/core-free-icons"
 
 import Link from "next/link"
@@ -198,17 +199,42 @@ const data = {
       ],
     },
   ],
+  navDevelopers: [
+    {
+      title: "Developer Tools",
+      url: "/developers",
+      icon: SourceCodeIcon,
+      items: [
+        { title: "Notes & Bugs", url: "/developers/notes" },
+      ],
+    },
+  ],
 }
 
 type UserData = {
   name: string
   email: string
   avatar: string
+  role: string
 }
 
 export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sidebar> & { user: UserData }) {
   const { open: openCommandMenu } = useCommandMenu()
   const sidebarState = useSidebarStateProvider()
+
+  // Filter out Integrations link for non-owners
+  const navSystem = React.useMemo(() => {
+    if (user.role === "owner") return data.navSystem
+    return data.navSystem.map((item) => {
+      if (item.title === "Settings" && item.items) {
+        return {
+          ...item,
+          items: item.items.filter((sub) => sub.title !== "Integrations"),
+        }
+      }
+      return item
+    })
+  }, [user.role])
 
   return (
     <SidebarStateContext.Provider value={sidebarState}>
@@ -261,7 +287,8 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
           <NavMain label="Store" items={data.navStore} />
           <NavMain label="Operations" items={data.navOperations} />
           <NavMain label="Growth" items={data.navGrowth} />
-          <NavMain label="System" items={data.navSystem} />
+          <NavMain label="System" items={navSystem} />
+          <NavMain label="Developers" items={data.navDevelopers} />
         </SidebarContent>
         <SidebarFooter>
           <NavUser user={user} />
