@@ -81,6 +81,7 @@ export async function sendTeamMessage(data: {
 		readAt: new Date(),
 	})
 
+	// Fire Pusher notifications in parallel, don't block response
 	if (pusherServer) {
 		const payload = {
 			id: message.id,
@@ -92,9 +93,12 @@ export async function sendTeamMessage(data: {
 			createdAt: message.createdAt.toISOString(),
 			readAt: null,
 		}
-		for (const recipientId of recipientIds) {
-			await pusherServer.trigger(`private-user-${recipientId}`, "new-message", payload)
-		}
+		// Non-blocking: fire all triggers in parallel
+		Promise.all(
+			recipientIds.map((recipientId) =>
+				pusherServer.trigger(`private-user-${recipientId}`, "new-message", payload)
+			)
+		).catch(() => {}) // Ignore errors, message is already saved
 	}
 
 	return message
@@ -116,20 +120,21 @@ export async function markMessageRead(messageId: string) {
 			)
 		)
 
-	// Notify the sender that their message was read
+	// Notify the sender that their message was read (non-blocking)
 	if (pusherServer) {
-		const [message] = await db
-			.select({ senderId: teamMessages.senderId })
+		db.select({ senderId: teamMessages.senderId })
 			.from(teamMessages)
 			.where(eq(teamMessages.id, messageId))
-
-		if (message && message.senderId !== session.user.id) {
-			await pusherServer.trigger(`private-user-${message.senderId}`, "message-read", {
-				messageId,
-				readBy: session.user.name,
-				readAt: readAt.toISOString(),
+			.then(([message]) => {
+				if (message && message.senderId !== session.user.id) {
+					pusherServer.trigger(`private-user-${message.senderId}`, "message-read", {
+						messageId,
+						readBy: session.user.name,
+						readAt: readAt.toISOString(),
+					}).catch(() => {})
+				}
 			})
-		}
+			.catch(() => {})
 	}
 }
 
