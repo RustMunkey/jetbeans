@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import localFont from "next/font/local";
 import { Providers } from "./providers";
+import { ThemeScript } from "@/components/theme-script";
 import "./globals.css";
 
 const inter = Inter({
@@ -36,6 +37,9 @@ export default function AdminLayout({
 }) {
 	return (
 		<html lang="en" suppressHydrationWarning>
+			<head>
+				<ThemeScript />
+			</head>
 			<body className={`${inter.variable} ${rubikMonoOne.variable} font-sans antialiased`}>
 				<Providers>{children}</Providers>
 			</body>

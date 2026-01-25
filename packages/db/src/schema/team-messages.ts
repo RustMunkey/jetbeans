@@ -1,5 +1,12 @@
-import { pgTable, text, uuid, timestamp } from "drizzle-orm/pg-core"
+import { pgTable, text, uuid, timestamp, json } from "drizzle-orm/pg-core"
 import { users } from "./users"
+
+export type MessageAttachment = {
+	type: "image"
+	url: string
+	name: string
+	size?: number
+}
 
 export const teamMessages = pgTable("team_messages", {
 	id: uuid("id").primaryKey().defaultRandom(),
@@ -8,6 +15,7 @@ export const teamMessages = pgTable("team_messages", {
 		.references(() => users.id, { onDelete: "cascade" }),
 	channel: text("channel").notNull().default("general"),
 	body: text("body").notNull(),
+	attachments: json("attachments").$type<MessageAttachment[]>().default([]),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 })
 

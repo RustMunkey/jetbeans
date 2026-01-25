@@ -29,3 +29,4 @@ export * from "./team-messages";
 export * from "./developer-notes";
 export * from "./crm";
 export * from "./calls";
+export * from "./user-audio";

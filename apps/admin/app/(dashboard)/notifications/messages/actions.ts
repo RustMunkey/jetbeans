@@ -6,6 +6,8 @@ import { teamMessages, teamMessageRecipients, users } from "@jetbeans/db/schema"
 import { eq, desc, asc, and, isNull, ne } from "@jetbeans/db/drizzle"
 import { auth } from "@/lib/auth"
 import { pusherServer } from "@/lib/pusher-server"
+import { put } from "@vercel/blob"
+import type { MessageAttachment } from "./types"
 
 export async function getTeamMessages(userId: string) {
 	return db
@@ -16,6 +18,7 @@ export async function getTeamMessages(userId: string) {
 			senderImage: users.image,
 			channel: teamMessages.channel,
 			body: teamMessages.body,
+			attachments: teamMessages.attachments,
 			createdAt: teamMessages.createdAt,
 			readAt: teamMessageRecipients.readAt,
 		})
@@ -44,6 +47,7 @@ export async function sendTeamMessage(data: {
 	body: string
 	channel?: string
 	recipientIds?: string[]
+	attachments?: MessageAttachment[]
 }) {
 	const session = await auth.api.getSession({ headers: await headers() })
 	if (!session) throw new Error("Unauthorized")
@@ -62,7 +66,7 @@ export async function sendTeamMessage(data: {
 
 	const [message] = await db
 		.insert(teamMessages)
-		.values({ senderId, channel, body: data.body })
+		.values({ senderId, channel, body: data.body, attachments: data.attachments || [] })
 		.returning()
 
 	// Insert recipient records for all recipients
@@ -238,6 +242,101 @@ export async function getMessageReadStatus(messageId: string, senderId: string) 
 		readCount: readRecipients.length,
 		allRead: otherRecipients.length > 0 && readRecipients.length === otherRecipients.length,
 		readBy: readRecipients.map(r => ({ name: r.recipientName, readAt: r.readAt })),
+	}
+}
+
+// Upload chat image to blob storage
+export async function uploadChatImage(formData: FormData): Promise<MessageAttachment> {
+	const session = await auth.api.getSession({ headers: await headers() })
+	if (!session) throw new Error("Unauthorized")
+
+	const file = formData.get("file") as File
+	if (!file || !file.type.startsWith("image/")) {
+		throw new Error("Invalid image file")
+	}
+
+	// Max 10MB
+	if (file.size > 10 * 1024 * 1024) {
+		throw new Error("File too large (max 10MB)")
+	}
+
+	const blob = await put(`chat-images/${session.user.id}/${Date.now()}-${file.name}`, file, {
+		access: "public",
+	})
+
+	return {
+		type: "image",
+		url: blob.url,
+		name: file.name,
+		size: file.size,
+	}
+}
+
+// Fetch Open Graph data for a URL
+export async function fetchLinkPreview(url: string): Promise<{
+	title?: string
+	description?: string
+	image?: string
+	favicon?: string
+	siteName?: string
+} | null> {
+	try {
+		// Basic validation
+		const parsedUrl = new URL(url)
+		if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+			return null
+		}
+
+		const response = await fetch(url, {
+			headers: {
+				"User-Agent": "Mozilla/5.0 (compatible; JetBeans/1.0; +https://jetbeans.coffee)",
+			},
+			signal: AbortSignal.timeout(5000),
+		})
+
+		if (!response.ok) return null
+
+		const html = await response.text()
+
+		// Parse Open Graph and meta tags
+		const getMetaContent = (property: string): string | undefined => {
+			const ogMatch = html.match(new RegExp(`<meta[^>]*property=["']${property}["'][^>]*content=["']([^"']*)["']`, "i"))
+			if (ogMatch) return ogMatch[1]
+			const nameMatch = html.match(new RegExp(`<meta[^>]*name=["']${property}["'][^>]*content=["']([^"']*)["']`, "i"))
+			if (nameMatch) return nameMatch[1]
+			// Reverse order (content before property)
+			const ogReverseMatch = html.match(new RegExp(`<meta[^>]*content=["']([^"']*)["'][^>]*property=["']${property}["']`, "i"))
+			if (ogReverseMatch) return ogReverseMatch[1]
+			return undefined
+		}
+
+		const title = getMetaContent("og:title") || getMetaContent("twitter:title") || html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]
+		const description = getMetaContent("og:description") || getMetaContent("twitter:description") || getMetaContent("description")
+		const image = getMetaContent("og:image") || getMetaContent("twitter:image")
+		const siteName = getMetaContent("og:site_name")
+
+		// Get favicon
+		const faviconMatch = html.match(/<link[^>]*rel=["'](?:icon|shortcut icon)["'][^>]*href=["']([^"']*)["']/i)
+			|| html.match(/<link[^>]*href=["']([^"']*)["'][^>]*rel=["'](?:icon|shortcut icon)["']/i)
+		let favicon = faviconMatch?.[1]
+
+		// Make relative URLs absolute
+		if (favicon && !favicon.startsWith("http")) {
+			favicon = new URL(favicon, parsedUrl.origin).href
+		}
+		if (!favicon) {
+			favicon = `${parsedUrl.origin}/favicon.ico`
+		}
+
+		return {
+			title: title?.trim(),
+			description: description?.trim(),
+			image: image ? (image.startsWith("http") ? image : new URL(image, parsedUrl.origin).href) : undefined,
+			favicon,
+			siteName: siteName?.trim(),
+		}
+	} catch {
+		return null
 	}
 }
 

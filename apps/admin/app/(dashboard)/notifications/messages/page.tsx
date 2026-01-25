@@ -22,6 +22,7 @@ export default async function MessagesPage() {
 			<MessagesClient
 				messages={messages.map((m) => ({
 					...m,
+					attachments: m.attachments || undefined,
 					createdAt: m.createdAt.toISOString(),
 					readAt: m.readAt?.toISOString() || null,
 				}))}

@@ -1,3 +1,10 @@
+export type MessageAttachment = {
+	type: "image"
+	url: string
+	name: string
+	size?: number
+}
+
 export type TeamMessage = {
 	id: string
 	senderId: string
@@ -5,6 +12,7 @@ export type TeamMessage = {
 	senderImage: string | null
 	channel: string
 	body: string
+	attachments?: MessageAttachment[]
 	createdAt: string
 	readAt: string | null
 }

@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { Image02Icon, Cancel01Icon, Link04Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
@@ -10,9 +12,112 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePusher } from "@/components/pusher-provider"
 import { CallButtonGroup } from "@/components/calls"
-import { sendTeamMessage, markMessageRead, getMessageReadStatus, clearConversationMessages, getTeamMessages } from "./actions"
-import type { TeamMessage, TeamMember, Conversation } from "./types"
+import { sendTeamMessage, markMessageRead, getMessageReadStatus, clearConversationMessages, getTeamMessages, uploadChatImage, fetchLinkPreview } from "./actions"
+import type { TeamMessage, TeamMember, Conversation, MessageAttachment } from "./types"
 import { CHANNELS } from "./types"
+
+// URL regex for detecting links in messages
+const URL_REGEX = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/g
+
+// Parse message body and convert URLs to clickable links
+function MessageBody({ body, className }: { body: string; className?: string }) {
+	const parts = body.split(URL_REGEX)
+	return (
+		<span className={className}>
+			{parts.map((part, i) => {
+				if (URL_REGEX.test(part)) {
+					URL_REGEX.lastIndex = 0 // Reset regex state
+					return (
+						<a
+							key={i}
+							href={part}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="text-primary hover:underline break-all"
+							onClick={(e) => e.stopPropagation()}
+						>
+							{part}
+						</a>
+					)
+				}
+				return part
+			})}
+		</span>
+	)
+}
+
+// Link preview component
+function LinkPreview({ url }: { url: string }) {
+	const [preview, setPreview] = useState<{
+		title?: string
+		description?: string
+		image?: string
+		favicon?: string
+		siteName?: string
+	} | null>(null)
+	const [loading, setLoading] = useState(true)
+
+	useEffect(() => {
+		let cancelled = false
+		fetchLinkPreview(url).then((data) => {
+			if (!cancelled) {
+				setPreview(data)
+				setLoading(false)
+			}
+		}).catch(() => {
+			if (!cancelled) setLoading(false)
+		})
+		return () => { cancelled = true }
+	}, [url])
+
+	if (loading || !preview || (!preview.title && !preview.image)) return null
+
+	return (
+		<a
+			href={url}
+			target="_blank"
+			rel="noopener noreferrer"
+			className="mt-2 flex gap-3 p-2 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors max-w-sm"
+		>
+			{preview.image ? (
+				<img
+					src={preview.image}
+					alt=""
+					className="w-16 h-16 rounded object-cover shrink-0"
+					onError={(e) => { e.currentTarget.style.display = "none" }}
+				/>
+			) : preview.favicon ? (
+				<img
+					src={preview.favicon}
+					alt=""
+					className="w-6 h-6 rounded shrink-0 mt-1"
+					onError={(e) => { e.currentTarget.style.display = "none" }}
+				/>
+			) : (
+				<div className="w-6 h-6 rounded bg-muted flex items-center justify-center shrink-0 mt-1">
+					<HugeiconsIcon icon={Link04Icon} size={12} className="text-muted-foreground" />
+				</div>
+			)}
+			<div className="flex-1 min-w-0">
+				{preview.siteName && (
+					<p className="text-[10px] text-muted-foreground truncate">{preview.siteName}</p>
+				)}
+				{preview.title && (
+					<p className="text-xs font-medium line-clamp-2">{preview.title}</p>
+				)}
+				{preview.description && (
+					<p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">{preview.description}</p>
+				)}
+			</div>
+		</a>
+	)
+}
+
+// Extract first URL from message body
+function getFirstUrl(body: string): string | null {
+	const match = body.match(URL_REGEX)
+	return match ? match[0] : null
+}
 
 function getInitials(name: string) {
 	return name
@@ -168,8 +273,12 @@ export function ChatTab({
 	}>>({})
 	const [highlightedId, setHighlightedId] = useState<string | null>(null)
 	const [isAtBottom, setIsAtBottom] = useState(true)
+	const [pendingAttachments, setPendingAttachments] = useState<MessageAttachment[]>([])
+	const [isDragOver, setIsDragOver] = useState(false)
+	const [uploadingImage, setUploadingImage] = useState(false)
 	const messagesEndRef = useRef<HTMLDivElement>(null)
 	const messagesContainerRef = useRef<HTMLDivElement>(null)
+	const fileInputRef = useRef<HTMLInputElement>(null)
 	const { pusher } = usePusher()
 	const searchParams = useSearchParams()
 
@@ -184,6 +293,7 @@ export function ChatTab({
 				const freshMessages = await getTeamMessages(userId)
 				const formattedMessages = freshMessages.map((m) => ({
 					...m,
+					attachments: m.attachments || undefined,
 					createdAt: m.createdAt.toISOString(),
 					readAt: m.readAt?.toISOString() || null,
 				}))
@@ -344,10 +454,57 @@ export function ChatTab({
 		return m.channel === "dm" && (m.senderId === active.id || m.senderId === userId)
 	})
 
+	async function handleImageUpload(file: File) {
+		if (!file.type.startsWith("image/")) {
+			toast.error("Only image files are allowed")
+			return
+		}
+		if (file.size > 10 * 1024 * 1024) {
+			toast.error("Image too large (max 10MB)")
+			return
+		}
+
+		setUploadingImage(true)
+		try {
+			const formData = new FormData()
+			formData.append("file", file)
+			const attachment = await uploadChatImage(formData)
+			setPendingAttachments((prev) => [...prev, attachment])
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Failed to upload image")
+		} finally {
+			setUploadingImage(false)
+		}
+	}
+
+	function handleDragOver(e: React.DragEvent) {
+		e.preventDefault()
+		setIsDragOver(true)
+	}
+
+	function handleDragLeave(e: React.DragEvent) {
+		e.preventDefault()
+		setIsDragOver(false)
+	}
+
+	async function handleDrop(e: React.DragEvent) {
+		e.preventDefault()
+		setIsDragOver(false)
+
+		const files = Array.from(e.dataTransfer.files)
+		const imageFiles = files.filter((f) => f.type.startsWith("image/"))
+
+		for (const file of imageFiles) {
+			await handleImageUpload(file)
+		}
+	}
+
 	async function handleSend() {
-		if (!body.trim()) return
+		if (!body.trim() && pendingAttachments.length === 0) return
 		const messageBody = body.trim()
+		const attachments = [...pendingAttachments]
 		setBody("")
+		setPendingAttachments([])
 		setSending(true)
 
 		// Optimistic: add message to local state immediately
@@ -360,6 +517,7 @@ export function ChatTab({
 			senderImage: userImage,
 			channel,
 			body: messageBody,
+			attachments,
 			createdAt: new Date().toISOString(),
 			readAt: new Date().toISOString(),
 		}
@@ -367,7 +525,7 @@ export function ChatTab({
 
 		try {
 			const recipientIds = active.type === "dm" ? [active.id] : undefined
-			const realMessage = await sendTeamMessage({ body: messageBody, channel, recipientIds })
+			const realMessage = await sendTeamMessage({ body: messageBody, channel, recipientIds, attachments })
 			// Replace optimistic message with real one from database
 			const createdAt = typeof realMessage.createdAt === "string"
 				? realMessage.createdAt
@@ -575,29 +733,57 @@ export function ChatTab({
 										<AvatarFallback className="text-xs">{getInitials(msg.senderName)}</AvatarFallback>
 									</Avatar>
 									<div className={`max-w-[70%] flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
-										<div className={`flex items-end gap-1 ${isOwn ? "flex-row-reverse" : ""}`}>
-											<div className={`px-3 py-2 text-sm whitespace-pre-wrap break-words ${
-												isOwn
-													? "bg-primary text-primary-foreground rounded-lg rounded-br-sm"
-													: "bg-muted rounded-lg rounded-bl-sm"
-											}`}>
-												{msg.body}
+										{/* Attachments (images) */}
+										{msg.attachments && msg.attachments.length > 0 && (
+											<div className={`flex flex-wrap gap-2 mb-2 ${isOwn ? "justify-end" : "justify-start"}`}>
+												{msg.attachments.map((att, attIdx) => (
+													<a
+														key={attIdx}
+														href={att.url}
+														target="_blank"
+														rel="noopener noreferrer"
+														className="block"
+													>
+														<img
+															src={att.url}
+															alt={att.name}
+															className="max-w-[200px] max-h-[200px] rounded-lg object-cover border hover:opacity-90 transition-opacity"
+														/>
+													</a>
+												))}
 											</div>
-											<button
-												type="button"
-												onClick={() => {
-													navigator.clipboard.writeText(msg.body)
-													toast.success("Copied to clipboard")
-												}}
-												className="opacity-0 group-hover:opacity-100 transition-opacity mb-0.5"
-												title="Copy message"
-											>
-												<svg className="w-3.5 h-3.5 text-muted-foreground/50 hover:text-muted-foreground" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-													<rect x="5" y="5" width="8" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
-													<path d="M3 10V3.5A1.5 1.5 0 0 1 4.5 2H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-												</svg>
-											</button>
+										)}
+										<div className={`flex items-end gap-1 ${isOwn ? "flex-row-reverse" : ""}`}>
+											{msg.body && (
+												<div className={`px-3 py-2 text-sm whitespace-pre-wrap break-words ${
+													isOwn
+														? "bg-primary text-primary-foreground rounded-lg rounded-br-sm"
+														: "bg-muted rounded-lg rounded-bl-sm"
+												}`}>
+													<MessageBody body={msg.body} />
+												</div>
+											)}
+											{msg.body && (
+												<button
+													type="button"
+													onClick={() => {
+														navigator.clipboard.writeText(msg.body)
+														toast.success("Copied to clipboard")
+													}}
+													className="opacity-0 group-hover:opacity-100 transition-opacity mb-0.5"
+													title="Copy message"
+												>
+													<svg className="w-3.5 h-3.5 text-muted-foreground/50 hover:text-muted-foreground" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+														<rect x="5" y="5" width="8" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
+														<path d="M3 10V3.5A1.5 1.5 0 0 1 4.5 2H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+													</svg>
+												</button>
+											)}
 										</div>
+										{/* Link preview */}
+										{msg.body && getFirstUrl(msg.body) && (
+											<LinkPreview url={getFirstUrl(msg.body)!} />
+										)}
 										<div className={`flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground ${isOwn ? "flex-row-reverse" : ""}`}>
 											<span className="font-medium">{isOwn ? "You" : msg.senderName.split(" ")[0]}</span>
 											<span className="text-muted-foreground/50">·</span>
@@ -623,23 +809,76 @@ export function ChatTab({
 				</div>
 
 				{/* Input */}
-				<div className="border-t p-3 flex items-end gap-2">
-					<Textarea
-						value={body}
-						onChange={(e) => setBody(e.target.value)}
-						onKeyDown={handleKeyDown}
-						placeholder={placeholder}
-						className="min-h-10 max-h-32 resize-none flex-1 text-sm"
-						rows={1}
-					/>
-					<Button
-						size="sm"
-						onClick={handleSend}
-						disabled={sending || !body.trim()}
-						className="shrink-0"
-					>
-						Send
-					</Button>
+				<div
+					className={`border-t p-3 ${isDragOver ? "bg-primary/5 border-primary" : ""}`}
+					onDragOver={handleDragOver}
+					onDragLeave={handleDragLeave}
+					onDrop={handleDrop}
+				>
+					{/* Pending attachments preview */}
+					{pendingAttachments.length > 0 && (
+						<div className="flex flex-wrap gap-2 mb-2">
+							{pendingAttachments.map((att, idx) => (
+								<div key={idx} className="relative group">
+									<img
+										src={att.url}
+										alt={att.name}
+										className="w-16 h-16 rounded object-cover border"
+									/>
+									<button
+										type="button"
+										onClick={() => setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))}
+										className="absolute -top-1.5 -right-1.5 size-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+									>
+										<HugeiconsIcon icon={Cancel01Icon} size={12} />
+									</button>
+								</div>
+							))}
+						</div>
+					)}
+					<div className="flex items-end gap-2">
+						<input
+							ref={fileInputRef}
+							type="file"
+							accept="image/*"
+							multiple
+							className="hidden"
+							onChange={(e) => {
+								const files = Array.from(e.target.files || [])
+								files.forEach((file) => handleImageUpload(file))
+								e.target.value = ""
+							}}
+						/>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							className="size-9 shrink-0"
+							onClick={() => fileInputRef.current?.click()}
+							disabled={uploadingImage}
+						>
+							<HugeiconsIcon icon={Image02Icon} size={18} className="text-muted-foreground" />
+						</Button>
+						<Textarea
+							value={body}
+							onChange={(e) => setBody(e.target.value)}
+							onKeyDown={handleKeyDown}
+							placeholder={isDragOver ? "Drop images here..." : placeholder}
+							className="min-h-10 max-h-32 resize-none flex-1 text-sm"
+							rows={1}
+						/>
+						<Button
+							size="sm"
+							onClick={handleSend}
+							disabled={sending || uploadingImage || (!body.trim() && pendingAttachments.length === 0)}
+							className="shrink-0"
+						>
+							{uploadingImage ? "..." : "Send"}
+						</Button>
+					</div>
+					{isDragOver && (
+						<p className="text-xs text-primary mt-2 text-center">Drop images to attach</p>
+					)}
 				</div>
 			</div>
 		</div>
