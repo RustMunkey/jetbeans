@@ -27,16 +27,16 @@ export function MessageToast({ id, senderName, body, messageId, channel }: Messa
 
 	return (
 		<div
-			className={`w-[300px] cursor-pointer select-none bg-popover text-popover-foreground border rounded-lg shadow-lg ${expanded ? "p-3" : "py-2 px-3"}`}
+			className={`w-[300px] cursor-pointer select-none bg-popover text-popover-foreground border rounded-md shadow-lg ${expanded ? "p-2.5" : "py-1 px-2.5"}`}
 			onClick={(e) => {
 				if ((e.target as HTMLElement).closest("button")) return
 				setExpanded(!expanded)
 			}}
 		>
 			{/* Header - always visible */}
-			<div className="flex items-center gap-2">
-				<HugeiconsIcon icon={Mail01Icon} size={14} className="shrink-0 text-muted-foreground" />
-				<span className="font-medium text-sm">{senderName}</span>
+			<div className="flex items-center gap-1.5">
+				<HugeiconsIcon icon={Mail01Icon} size={11} className="shrink-0 text-muted-foreground" />
+				<span className="font-medium text-xs leading-none">{senderName}</span>
 			</div>
 
 			{/* Expanded content */}

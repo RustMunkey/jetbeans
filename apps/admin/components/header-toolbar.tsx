@@ -72,18 +72,7 @@ function formatCount(count: number): string {
   return `${Math.floor(count / 1000000)}M+`
 }
 
-// Preloaded notification sound for instant playback
-let notificationSound: HTMLAudioElement | null = null
-let lastSoundTime = 0
 const SOUND_THROTTLE_MS = 800
-
-// Preload audio immediately
-if (typeof window !== "undefined") {
-  notificationSound = new Audio("/sounds/message.mp3")
-  notificationSound.volume = 0.5
-  notificationSound.preload = "auto"
-  notificationSound.load()
-}
 
 function shouldPlaySound(messageChannel: string, senderId: string): boolean {
   if (typeof window === "undefined") return false
@@ -106,21 +95,6 @@ function shouldPlaySound(messageChannel: string, senderId: string): boolean {
   }
 }
 
-function playNotificationSound(messageChannel: string, senderId: string) {
-  if (!shouldPlaySound(messageChannel, senderId)) return
-
-  const now = Date.now()
-  if (now - lastSoundTime < SOUND_THROTTLE_MS) return
-  lastSoundTime = now
-
-  if (notificationSound) {
-    // Clone for instant overlapping playback
-    const sound = notificationSound.cloneNode() as HTMLAudioElement
-    sound.volume = 0.5
-    sound.play().catch(() => {})
-  }
-}
-
 export function HeaderToolbar() {
   const [storeOnline, setStoreOnline] = React.useState(true)
   const [confirmOpen, setConfirmOpen] = React.useState(false)
@@ -131,6 +105,33 @@ export function HeaderToolbar() {
   const router = useRouter()
   const { data: session } = useSession()
   const { pusher } = usePusher()
+
+  // Audio refs for notification sound
+  const notificationSoundRef = React.useRef<HTMLAudioElement | null>(null)
+  const lastSoundTimeRef = React.useRef(0)
+
+  // Preload notification sound on mount
+  React.useEffect(() => {
+    const audio = new Audio("/sounds/message.mp3")
+    audio.volume = 0.5
+    audio.preload = "auto"
+    audio.load()
+    notificationSoundRef.current = audio
+  }, [])
+
+  const playNotificationSound = React.useCallback((messageChannel: string, senderId: string) => {
+    if (!shouldPlaySound(messageChannel, senderId)) return
+
+    const now = Date.now()
+    if (now - lastSoundTimeRef.current < SOUND_THROTTLE_MS) return
+    lastSoundTimeRef.current = now
+
+    if (notificationSoundRef.current) {
+      const sound = notificationSoundRef.current.cloneNode() as HTMLAudioElement
+      sound.volume = 0.5
+      sound.play().catch(() => {})
+    }
+  }, [])
 
   React.useEffect(() => {
     if (!session?.user?.id) return
@@ -171,7 +172,7 @@ export function HeaderToolbar() {
       channel.unbind_all()
       pusher.unsubscribe(`private-user-${session.user.id}`)
     }
-  }, [pusher, session?.user?.id])
+  }, [pusher, session?.user?.id, playNotificationSound])
 
   return (
     <div className="flex items-center gap-2 px-4">

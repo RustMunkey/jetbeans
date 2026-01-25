@@ -518,7 +518,7 @@ export function ChatTab({
 										<AvatarFallback className="text-xs">{getInitials(msg.senderName)}</AvatarFallback>
 									</Avatar>
 									<div className={`max-w-[70%] flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
-										<div className="relative">
+										<div className={`flex items-end gap-1 ${isOwn ? "flex-row-reverse" : ""}`}>
 											<div className={`px-3 py-2 text-sm whitespace-pre-wrap break-words ${
 												isOwn
 													? "bg-primary text-primary-foreground rounded-lg rounded-br-sm"
@@ -532,12 +532,10 @@ export function ChatTab({
 													navigator.clipboard.writeText(msg.body)
 													toast.success("Copied to clipboard")
 												}}
-												className={`absolute bottom-1 opacity-0 group-hover:opacity-100 transition-opacity ${
-													isOwn ? "left-1.5" : "right-1.5"
-												}`}
+												className="opacity-0 group-hover:opacity-100 transition-opacity mb-0.5"
 												title="Copy message"
 											>
-												<svg className={`w-3.5 h-3.5 ${isOwn ? "text-primary-foreground/60 hover:text-primary-foreground" : "text-muted-foreground/60 hover:text-muted-foreground"}`} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+												<svg className="w-3.5 h-3.5 text-muted-foreground/50 hover:text-muted-foreground" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
 													<rect x="5" y="5" width="8" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
 													<path d="M3 10V3.5A1.5 1.5 0 0 1 4.5 2H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
 												</svg>
