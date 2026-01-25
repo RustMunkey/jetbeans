@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { RichTextEditor } from "@/components/rich-text-editor"
 import { createSitePage, updateSitePage, deleteSitePage } from "../../actions"
+import { useDraft, type Draft } from "@/lib/use-draft"
+import { DraftIndicator, DraftStatus } from "@/components/drafts-manager"
 
 type SitePage = {
 	id: string
@@ -41,6 +43,55 @@ export function PageForm({ page }: { page: SitePage | null }) {
 	const [metaDescription, setMetaDescription] = useState(page?.metaDescription || "")
 	const [saving, setSaving] = useState(false)
 
+	// Draft support
+	type PageFormData = {
+		title: string
+		slug: string
+		content: string
+		status: string
+		metaTitle: string
+		metaDescription: string
+	}
+
+	const {
+		lastSaved: draftLastSaved,
+		isSaving: draftIsSaving,
+		debouncedSave: saveDraft,
+		discardDraft,
+		loadDraft,
+	} = useDraft<PageFormData>({
+		key: "site-page",
+		getTitle: (data) => data.title || "Untitled Page",
+		autoSave: true,
+	})
+
+	const formData = useMemo(() => ({
+		title,
+		slug,
+		content,
+		status,
+		metaTitle,
+		metaDescription,
+	}), [title, slug, content, status, metaTitle, metaDescription])
+
+	// Auto-save draft when form data changes (only for new pages)
+	useEffect(() => {
+		if (isNew && (title || content)) {
+			saveDraft(formData)
+		}
+	}, [isNew, title, content, formData, saveDraft])
+
+	function handleLoadDraft(draft: Draft) {
+		const data = draft.data as PageFormData
+		setTitle(data.title || "")
+		setSlug(data.slug || "")
+		setContent(data.content || "")
+		setStatus(data.status || "draft")
+		setMetaTitle(data.metaTitle || "")
+		setMetaDescription(data.metaDescription || "")
+		loadDraft(draft)
+	}
+
 	function handleTitleChange(value: string) {
 		setTitle(value)
 		if (isNew || slug === slugify(page?.title || "")) {
@@ -66,6 +117,7 @@ export function PageForm({ page }: { page: SitePage | null }) {
 			if (isNew) {
 				await createSitePage(data)
 				toast.success("Page created")
+				discardDraft()
 			} else {
 				await updateSitePage(page.id, data)
 				toast.success("Page updated")
@@ -91,10 +143,19 @@ export function PageForm({ page }: { page: SitePage | null }) {
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
-				<h2 className="text-2xl font-bold tracking-tight">
-					{isNew ? "New Page" : "Edit Page"}
-				</h2>
-				<div className="flex gap-2">
+				<div className="flex items-center gap-3">
+					<h2 className="text-2xl font-bold tracking-tight">
+						{isNew ? "New Page" : "Edit Page"}
+					</h2>
+					{isNew && (
+						<DraftIndicator
+							draftKey="site-page"
+							onSelect={handleLoadDraft}
+						/>
+					)}
+				</div>
+				<div className="flex items-center gap-3">
+					{isNew && <DraftStatus lastSaved={draftLastSaved} isSaving={draftIsSaving} />}
 					{!isNew && (
 						<Button variant="destructive" onClick={handleDelete}>Delete</Button>
 					)}

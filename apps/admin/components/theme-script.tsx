@@ -1,4 +1,4 @@
-import { themePresets } from "./accent-theme-provider"
+import { themePresets } from "./theme-presets"
 
 // Generate the blocking script that applies theme before paint
 // This prevents flash of default theme colors

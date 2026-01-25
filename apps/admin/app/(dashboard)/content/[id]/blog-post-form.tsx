@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { RichTextEditor } from "@/components/rich-text-editor"
 import { MediaUploader, type MediaItem } from "@/components/media-uploader"
 import { createBlogPost, updateBlogPost, deleteBlogPost } from "../actions"
+import { useDraft, type Draft } from "@/lib/use-draft"
+import { DraftIndicator, DraftStatus } from "@/components/drafts-manager"
 
 type BlogPost = {
 	id: string
@@ -50,6 +52,66 @@ export function BlogPostForm({ post }: { post: BlogPost | null }) {
 	const [metaDescription, setMetaDescription] = useState(post?.metaDescription || "")
 	const [saving, setSaving] = useState(false)
 
+	// Draft support
+	type BlogPostFormData = {
+		title: string
+		slug: string
+		excerpt: string
+		content: string
+		status: string
+		coverImage: string | null
+		tagsInput: string
+		metaTitle: string
+		metaDescription: string
+	}
+
+	const {
+		lastSaved: draftLastSaved,
+		isSaving: draftIsSaving,
+		debouncedSave: saveDraft,
+		discardDraft,
+		loadDraft,
+		clearCurrentDraft,
+	} = useDraft<BlogPostFormData>({
+		key: "blog-post",
+		getTitle: (data) => data.title || "Untitled Post",
+		autoSave: true,
+	})
+
+	// Memoize the form data to avoid unnecessary re-renders
+	const formData = useMemo(() => ({
+		title,
+		slug,
+		excerpt,
+		content,
+		status,
+		coverImage: coverMedia[0]?.url || null,
+		tagsInput,
+		metaTitle,
+		metaDescription,
+	}), [title, slug, excerpt, content, status, coverMedia, tagsInput, metaTitle, metaDescription])
+
+	// Auto-save draft when form data changes (only for new posts)
+	useEffect(() => {
+		if (isNew && (title || content)) {
+			saveDraft(formData)
+		}
+	}, [isNew, title, content, formData, saveDraft])
+
+	function handleLoadDraft(draft: Draft) {
+		const data = draft.data as BlogPostFormData
+		setTitle(data.title || "")
+		setSlug(data.slug || "")
+		setExcerpt(data.excerpt || "")
+		setContent(data.content || "")
+		setStatus(data.status || "draft")
+		setCoverMedia(data.coverImage ? [{ id: "cover", url: data.coverImage, type: "image" }] : [])
+		setTagsInput(data.tagsInput || "")
+		setMetaTitle(data.metaTitle || "")
+		setMetaDescription(data.metaDescription || "")
+		loadDraft(draft)
+	}
+
 	function handleTitleChange(value: string) {
 		setTitle(value)
 		if (isNew || slug === slugify(post?.title || "")) {
@@ -78,6 +140,7 @@ export function BlogPostForm({ post }: { post: BlogPost | null }) {
 			if (isNew) {
 				await createBlogPost(data)
 				toast.success("Post created")
+				discardDraft()
 			} else {
 				await updateBlogPost(post.id, data)
 				toast.success("Post updated")
@@ -103,10 +166,19 @@ export function BlogPostForm({ post }: { post: BlogPost | null }) {
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
-				<h2 className="text-2xl font-bold tracking-tight">
-					{isNew ? "New Blog Post" : "Edit Blog Post"}
-				</h2>
-				<div className="flex gap-2">
+				<div className="flex items-center gap-3">
+					<h2 className="text-2xl font-bold tracking-tight">
+						{isNew ? "New Blog Post" : "Edit Blog Post"}
+					</h2>
+					{isNew && (
+						<DraftIndicator
+							draftKey="blog-post"
+							onSelect={handleLoadDraft}
+						/>
+					)}
+				</div>
+				<div className="flex items-center gap-3">
+					{isNew && <DraftStatus lastSaved={draftLastSaved} isSaving={draftIsSaving} />}
 					{!isNew && (
 						<Button variant="destructive" onClick={handleDelete}>Delete</Button>
 					)}

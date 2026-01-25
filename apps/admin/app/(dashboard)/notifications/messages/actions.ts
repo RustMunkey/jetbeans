@@ -55,6 +55,13 @@ export async function sendTeamMessage(data: {
 	const senderId = session.user.id
 	const channel = data.channel || "general"
 
+	// Fetch fresh user data from database (not session cache)
+	const [senderData] = await db
+		.select({ name: users.name, image: users.image })
+		.from(users)
+		.where(eq(users.id, senderId))
+		.limit(1)
+
 	let recipientIds = data.recipientIds
 	if (!recipientIds || recipientIds.length === 0) {
 		const allUsers = await db
@@ -91,8 +98,8 @@ export async function sendTeamMessage(data: {
 		const payload = {
 			id: message.id,
 			senderId,
-			senderName: session.user.name,
-			senderImage: session.user.image,
+			senderName: senderData?.name || session.user.name,
+			senderImage: senderData?.image || null,
 			channel,
 			body: data.body,
 			createdAt: message.createdAt.toISOString(),

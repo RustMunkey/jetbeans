@@ -338,7 +338,7 @@ function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="sidebar-header"
       data-sidebar="header"
       className={cn(
-        "flex flex-col gap-2 p-2 sticky top-0 z-10 bg-sidebar/80 backdrop-blur-md border-b border-sidebar-border/50",
+        "flex flex-col gap-2 p-2 sticky top-0 z-10 backdrop-blur-xl backdrop-saturate-150 border-b border-sidebar-border/30 bg-[color-mix(in_oklch,var(--sidebar)_80%,transparent)]",
         className
       )}
       {...props}
@@ -352,7 +352,7 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="sidebar-footer"
       data-sidebar="footer"
       className={cn(
-        "flex flex-col gap-2 p-2 sticky bottom-0 z-10 bg-sidebar/80 backdrop-blur-md border-t border-sidebar-border/50",
+        "flex flex-col gap-2 p-2 sticky bottom-0 z-10 backdrop-blur-xl backdrop-saturate-150 border-t border-sidebar-border/30 bg-[color-mix(in_oklch,var(--sidebar)_80%,transparent)]",
         className
       )}
       {...props}

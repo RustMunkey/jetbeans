@@ -34,9 +34,13 @@ export default async function DashboardLayout({
     redirect("/login")
   }
 
-  // Get user role for sidebar permissions
+  // Get fresh user data from database (not session cache)
   const [user] = await db
-    .select({ role: users.role })
+    .select({
+      role: users.role,
+      name: users.name,
+      image: users.image,
+    })
     .from(users)
     .where(eq(users.id, session.user.id))
     .limit(1)
@@ -51,17 +55,17 @@ export default async function DashboardLayout({
     >
       <CallProvider
         userId={session.user.id}
-        userName={session.user.name || "User"}
-        userImage={session.user.image || null}
+        userName={user?.name || session.user.name || "User"}
+        userImage={user?.image || null}
       >
         <MusicPlayerProvider>
           <SidebarProvider defaultOpen={sidebarOpen}>
             <CommandMenuWrapper />
             <KeyboardShortcutsProvider>
               <AppSidebar user={{
-                name: session.user.name,
+                name: user?.name || session.user.name,
                 email: session.user.email,
-                avatar: session.user.image || "",
+                avatar: user?.image || "",
                 role: user?.role || "member",
               }} />
               <SidebarSwipe />

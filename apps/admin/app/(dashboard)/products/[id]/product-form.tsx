@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,8 @@ import { slugify } from "@/lib/format"
 import { useBreadcrumbOverride } from "@/components/breadcrumb-context"
 import { MediaUploader, type MediaItem } from "@/components/media-uploader"
 import { createProduct, updateProduct, createVariant, deleteVariant } from "../actions"
+import { useDraft, type Draft } from "@/lib/use-draft"
+import { DraftIndicator, DraftStatus } from "@/components/drafts-manager"
 
 interface Variant {
 	id: string
@@ -99,6 +101,98 @@ export function ProductForm({ product, categories }: ProductFormProps) {
 	const [variants, setVariants] = useState<Variant[]>(product?.variants ?? [])
 	const [newVariant, setNewVariant] = useState({ name: "", sku: "", price: "", quantity: "0" })
 
+	// Draft support
+	type ProductFormData = {
+		name: string
+		slug: string
+		description: string
+		shortDescription: string
+		price: string
+		compareAtPrice: string
+		costPrice: string
+		categoryId: string
+		sourceType: string
+		tags: string
+		mediaUrls: string[]
+		isActive: boolean
+		isSubscribable: boolean
+		isFeatured: boolean
+		weight: string
+		weightUnit: string
+		metaTitle: string
+		metaDescription: string
+	}
+
+	const {
+		lastSaved: draftLastSaved,
+		isSaving: draftIsSaving,
+		debouncedSave: saveDraft,
+		discardDraft,
+		loadDraft,
+	} = useDraft<ProductFormData>({
+		key: "product",
+		getTitle: (data) => data.name || "Untitled Product",
+		autoSave: true,
+	})
+
+	// Memoize form data
+	const formData = useMemo(() => ({
+		name,
+		slug,
+		description,
+		shortDescription,
+		price,
+		compareAtPrice,
+		costPrice,
+		categoryId,
+		sourceType,
+		tags,
+		mediaUrls: mediaItems.map((i) => i.url),
+		isActive,
+		isSubscribable,
+		isFeatured,
+		weight,
+		weightUnit,
+		metaTitle,
+		metaDescription,
+	}), [name, slug, description, shortDescription, price, compareAtPrice, costPrice, categoryId, sourceType, tags, mediaItems, isActive, isSubscribable, isFeatured, weight, weightUnit, metaTitle, metaDescription])
+
+	// Auto-save draft when form data changes (only for new products)
+	useEffect(() => {
+		if (isNew && (name || description)) {
+			saveDraft(formData)
+		}
+	}, [isNew, name, description, formData, saveDraft])
+
+	function handleLoadDraft(draft: Draft) {
+		const data = draft.data as ProductFormData
+		setName(data.name || "")
+		setSlug(data.slug || "")
+		setDescription(data.description || "")
+		setShortDescription(data.shortDescription || "")
+		setPrice(data.price || "")
+		setCompareAtPrice(data.compareAtPrice || "")
+		setCostPrice(data.costPrice || "")
+		setCategoryId(data.categoryId || "")
+		setSourceType(data.sourceType || "owned")
+		setTags(data.tags || "")
+		setMediaItems(
+			(data.mediaUrls || []).map((url) => ({
+				id: crypto.randomUUID(),
+				url,
+				type: /\.(mp4|webm|mov)(\?|$)/i.test(url) ? "video" : "image",
+			}))
+		)
+		setIsActive(data.isActive ?? true)
+		setIsSubscribable(data.isSubscribable ?? false)
+		setIsFeatured(data.isFeatured ?? false)
+		setWeight(data.weight || "")
+		setWeightUnit(data.weightUnit || "oz")
+		setMetaTitle(data.metaTitle || "")
+		setMetaDescription(data.metaDescription || "")
+		loadDraft(draft)
+	}
+
 	const handleNameChange = (value: string) => {
 		setName(value)
 		if (isNew || slug === slugify(product?.name ?? "")) {
@@ -143,6 +237,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
 			if (isNew) {
 				await createProduct(data)
 				toast.success("Product created")
+				discardDraft()
 			} else {
 				await updateProduct(product.id, data)
 				toast.success("Product updated")
@@ -198,8 +293,15 @@ export function ProductForm({ product, categories }: ProductFormProps) {
 					{!isNew && (
 						<StatusBadge status={isActive ? "active" : "inactive"} type="product" />
 					)}
+					{isNew && (
+						<DraftIndicator
+							draftKey="product"
+							onSelect={handleLoadDraft}
+						/>
+					)}
 				</div>
 				<div className="flex flex-row-reverse sm:flex-row items-center gap-2 w-full rounded-lg border p-3 sm:w-auto sm:border-0 sm:p-0">
+					{isNew && <DraftStatus lastSaved={draftLastSaved} isSaving={draftIsSaving} />}
 					<Button onClick={handleSave} disabled={loading} size="sm" className="flex-1 sm:flex-initial">
 						{loading ? "Saving..." : isNew ? "Create Product" : "Save Changes"}
 					</Button>

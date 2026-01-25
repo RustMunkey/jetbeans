@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { RichTextEditor } from "@/components/rich-text-editor"
 import { createEmailTemplate, updateEmailTemplate, deleteEmailTemplate } from "../actions"
+import { useDraft, type Draft } from "@/lib/use-draft"
+import { DraftIndicator, DraftStatus } from "@/components/drafts-manager"
 
 type EmailTemplate = {
 	id: string
@@ -43,6 +45,55 @@ export function TemplateForm({ template }: { template: EmailTemplate | null }) {
 	)
 	const [saving, setSaving] = useState(false)
 
+	// Draft support
+	type TemplateFormData = {
+		name: string
+		slug: string
+		subject: string
+		body: string
+		isActive: boolean
+		variablesInput: string
+	}
+
+	const {
+		lastSaved: draftLastSaved,
+		isSaving: draftIsSaving,
+		debouncedSave: saveDraft,
+		discardDraft,
+		loadDraft,
+	} = useDraft<TemplateFormData>({
+		key: "email-template",
+		getTitle: (data) => data.name || "Untitled Template",
+		autoSave: true,
+	})
+
+	const formData = useMemo(() => ({
+		name,
+		slug,
+		subject,
+		body,
+		isActive,
+		variablesInput,
+	}), [name, slug, subject, body, isActive, variablesInput])
+
+	// Auto-save draft when form data changes (only for new templates)
+	useEffect(() => {
+		if (isNew && (name || body)) {
+			saveDraft(formData)
+		}
+	}, [isNew, name, body, formData, saveDraft])
+
+	function handleLoadDraft(draft: Draft) {
+		const data = draft.data as TemplateFormData
+		setName(data.name || "")
+		setSlug(data.slug || "")
+		setSubject(data.subject || "")
+		setBody(data.body || "")
+		setIsActive(data.isActive ?? true)
+		setVariablesInput(data.variablesInput || "")
+		loadDraft(draft)
+	}
+
 	function handleNameChange(value: string) {
 		setName(value)
 		if (isNew || slug === slugify(template?.name || "")) {
@@ -65,6 +116,7 @@ export function TemplateForm({ template }: { template: EmailTemplate | null }) {
 			if (isNew) {
 				await createEmailTemplate(data)
 				toast.success("Template created")
+				discardDraft()
 			} else {
 				await updateEmailTemplate(template.id, data)
 				toast.success("Template updated")
@@ -90,10 +142,19 @@ export function TemplateForm({ template }: { template: EmailTemplate | null }) {
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
-				<h2 className="text-2xl font-bold tracking-tight">
-					{isNew ? "New Template" : "Edit Template"}
-				</h2>
-				<div className="flex gap-2">
+				<div className="flex items-center gap-3">
+					<h2 className="text-2xl font-bold tracking-tight">
+						{isNew ? "New Template" : "Edit Template"}
+					</h2>
+					{isNew && (
+						<DraftIndicator
+							draftKey="email-template"
+							onSelect={handleLoadDraft}
+						/>
+					)}
+				</div>
+				<div className="flex items-center gap-3">
+					{isNew && <DraftStatus lastSaved={draftLastSaved} isSaving={draftIsSaving} />}
 					{!isNew && (
 						<Button variant="destructive" onClick={handleDelete}>Delete</Button>
 					)}

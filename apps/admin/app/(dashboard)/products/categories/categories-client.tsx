@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,8 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { slugify } from "@/lib/format"
 import { createCategory, updateCategory, deleteCategory } from "./actions"
+import { useDraft, type Draft } from "@/lib/use-draft"
+import { DraftIndicator, DraftStatus } from "@/components/drafts-manager"
 
 interface Category {
 	id: string
@@ -53,12 +55,52 @@ export function CategoriesClient({ categories }: CategoriesClientProps) {
 	const [description, setDescription] = useState("")
 	const [parentId, setParentId] = useState("")
 
+	// Draft support
+	type CategoryFormData = {
+		name: string
+		slug: string
+		description: string
+		parentId: string
+	}
+
+	const {
+		lastSaved: draftLastSaved,
+		isSaving: draftIsSaving,
+		debouncedSave: saveDraft,
+		discardDraft,
+		loadDraft,
+		clearCurrentDraft,
+	} = useDraft<CategoryFormData>({
+		key: "category",
+		getTitle: (data) => data.name || "Untitled Category",
+		autoSave: true,
+	})
+
+	// Auto-save draft when form data changes (only when creating new)
+	useEffect(() => {
+		if (dialogOpen && !editing && name) {
+			saveDraft({ name, slug, description, parentId })
+		}
+	}, [dialogOpen, editing, name, slug, description, parentId, saveDraft])
+
+	function handleLoadDraft(draft: Draft) {
+		const data = draft.data as CategoryFormData
+		setName(data.name || "")
+		setSlug(data.slug || "")
+		setDescription(data.description || "")
+		setParentId(data.parentId || "")
+		loadDraft(draft)
+		setEditing(null)
+		setDialogOpen(true)
+	}
+
 	const openCreate = () => {
 		setEditing(null)
 		setName("")
 		setSlug("")
 		setDescription("")
 		setParentId("")
+		clearCurrentDraft()
 		setDialogOpen(true)
 	}
 
@@ -90,6 +132,7 @@ export function CategoriesClient({ categories }: CategoriesClientProps) {
 			} else {
 				await createCategory(data)
 				toast.success("Category created")
+				discardDraft()
 			}
 			setDialogOpen(false)
 			router.refresh()
@@ -155,7 +198,13 @@ export function CategoriesClient({ categories }: CategoriesClientProps) {
 						Organize products into categories.
 					</p>
 				</div>
-				<Button size="sm" onClick={openCreate}>Add Category</Button>
+				<div className="flex items-center gap-2">
+					<DraftIndicator
+						draftKey="category"
+						onSelect={handleLoadDraft}
+					/>
+					<Button size="sm" onClick={openCreate}>Add Category</Button>
+				</div>
 			</div>
 
 			{categories.length === 0 ? (
@@ -213,11 +262,18 @@ export function CategoriesClient({ categories }: CategoriesClientProps) {
 							</Select>
 						</div>
 					</div>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-						<Button onClick={handleSave} disabled={loading}>
-							{loading ? "Saving..." : editing ? "Update" : "Create"}
-						</Button>
+					<DialogFooter className="flex-col sm:flex-row gap-2">
+						{!editing && (
+							<div className="flex-1 flex items-center">
+								<DraftStatus lastSaved={draftLastSaved} isSaving={draftIsSaving} />
+							</div>
+						)}
+						<div className="flex gap-2">
+							<Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+							<Button onClick={handleSave} disabled={loading}>
+								{loading ? "Saving..." : editing ? "Update" : "Create"}
+							</Button>
+						</div>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>

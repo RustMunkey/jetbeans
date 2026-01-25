@@ -58,6 +58,8 @@ import {
 	reorderAudioTracks,
 	type UserAudioTrack,
 } from "../music/actions"
+import { DraftsManagerDialog } from "@/components/drafts-manager"
+import { getAllDrafts, deleteDraft as deleteDraftFromStore, type Draft } from "@/lib/use-draft"
 
 function formatFileSize(bytes: number | null): string {
 	if (!bytes) return "Unknown"
@@ -108,6 +110,113 @@ type User = {
 	role: string | null
 	phone: string | null
 	createdAt: Date
+}
+
+const DRAFT_KEY_LABELS: Record<string, string> = {
+	note: "Developer Notes",
+	"blog-post": "Blog Posts",
+	product: "Products",
+	"email-template": "Email Templates",
+	"site-page": "Site Pages",
+	category: "Categories",
+}
+
+// Drafts card component
+function DraftsCard() {
+	const [drafts, setDrafts] = useState<Draft[]>([])
+
+	useEffect(() => {
+		setDrafts(getAllDrafts())
+	}, [])
+
+	const handleDeleteDraft = (id: string) => {
+		deleteDraftFromStore(id)
+		setDrafts(getAllDrafts())
+	}
+
+	const handleClearAll = () => {
+		if (!confirm("Are you sure you want to clear all drafts? This cannot be undone.")) return
+		drafts.forEach((d) => deleteDraftFromStore(d.id))
+		setDrafts([])
+	}
+
+	// Group drafts by key
+	const groupedDrafts = drafts.reduce((acc, draft) => {
+		if (!acc[draft.key]) acc[draft.key] = []
+		acc[draft.key].push(draft)
+		return acc
+	}, {} as Record<string, Draft[]>)
+
+	return (
+		<Card>
+			<CardHeader>
+				<div className="flex items-center justify-between">
+					<div>
+						<CardTitle>Saved Drafts</CardTitle>
+						<CardDescription>
+							Unsaved work is automatically saved as drafts. {drafts.length > 0 && `(${drafts.length} drafts)`}
+						</CardDescription>
+					</div>
+					{drafts.length > 0 && (
+						<Button variant="outline" size="sm" onClick={handleClearAll}>
+							Clear All
+						</Button>
+					)}
+				</div>
+			</CardHeader>
+			<CardContent>
+				{drafts.length === 0 ? (
+					<div className="flex flex-col items-center justify-center py-8 text-center">
+						<div className="size-12 rounded-full bg-muted flex items-center justify-center mb-4">
+							<HugeiconsIcon icon={Edit02Icon} size={24} className="text-muted-foreground" />
+						</div>
+						<h3 className="font-medium mb-1">No drafts saved</h3>
+						<p className="text-sm text-muted-foreground">
+							When you start typing in forms, your work will be saved automatically.
+						</p>
+					</div>
+				) : (
+					<div className="space-y-4">
+						{Object.entries(groupedDrafts).map(([key, keyDrafts]) => (
+							<div key={key}>
+								<h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+									{DRAFT_KEY_LABELS[key] || key}
+								</h4>
+								<div className="space-y-1">
+									{keyDrafts.map((draft) => (
+										<div
+											key={draft.id}
+											className="flex items-center justify-between px-3 py-2 rounded-lg border bg-background hover:bg-muted/50"
+										>
+											<div className="min-w-0">
+												<p className="text-sm font-medium truncate">{draft.title || "Untitled"}</p>
+												<p className="text-xs text-muted-foreground">
+													{new Date(draft.updatedAt).toLocaleDateString("en-US", {
+														month: "short",
+														day: "numeric",
+														hour: "numeric",
+														minute: "2-digit",
+													})}
+												</p>
+											</div>
+											<Button
+												variant="ghost"
+												size="sm"
+												className="text-destructive shrink-0"
+												onClick={() => handleDeleteDraft(draft.id)}
+											>
+												<HugeiconsIcon icon={Delete02Icon} size={14} />
+											</Button>
+										</div>
+									))}
+								</div>
+							</div>
+						))}
+					</div>
+				)}
+			</CardContent>
+		</Card>
+	)
 }
 
 // Sortable track row component
@@ -728,6 +837,8 @@ export function AccountSettings({ user }: { user: User }) {
 					)}
 				</CardContent>
 			</Card>
+
+			<DraftsCard />
 
 			{/* Upload Track Dialog */}
 			<Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>

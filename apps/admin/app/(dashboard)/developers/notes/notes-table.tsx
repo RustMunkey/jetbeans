@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { useBreadcrumbOverride } from "@/components/breadcrumb-context"
@@ -21,6 +21,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RichTextEditor, RichTextDisplay } from "@/components/rich-text-editor"
 import { getDeveloperNotes, createDeveloperNote, updateDeveloperNote, deleteDeveloperNote } from "./actions"
+import { useDraft, type Draft } from "@/lib/use-draft"
+import { DraftIndicator, DraftStatus } from "@/components/drafts-manager"
 
 type DeveloperNote = {
 	id: string
@@ -105,6 +107,41 @@ export function NotesTable({
 	})
 	const [saving, setSaving] = useState(false)
 
+	// Draft support
+	type NoteFormData = typeof formData
+	const {
+		lastSaved: draftLastSaved,
+		isSaving: draftIsSaving,
+		debouncedSave: saveDraft,
+		discardDraft,
+		loadDraft,
+		clearCurrentDraft,
+	} = useDraft<NoteFormData>({
+		key: "note",
+		getTitle: (data) => data.title || "Untitled Note",
+		autoSave: true,
+	})
+
+	// Auto-save draft when form data changes (only when creating new, not editing)
+	useEffect(() => {
+		if (dialogOpen && !editingNote && (formData.title || formData.body)) {
+			saveDraft(formData)
+		}
+	}, [dialogOpen, editingNote, formData, saveDraft])
+
+	function handleLoadDraft(draft: Draft) {
+		const data = draft.data as NoteFormData
+		setFormData({
+			title: data.title || "",
+			body: data.body || "",
+			type: data.type || "bug",
+			priority: data.priority || "medium",
+			status: data.status || "open",
+			assignedTo: data.assignedTo || "__unassigned__",
+		})
+		loadDraft(draft)
+	}
+
 	async function handleFilterChange(status: string, type: string) {
 		setStatusFilter(status)
 		setTypeFilter(type)
@@ -125,6 +162,7 @@ export function NotesTable({
 			status: "open",
 			assignedTo: "__unassigned__",
 		})
+		clearCurrentDraft()
 		setDialogOpen(true)
 	}
 
@@ -174,6 +212,8 @@ export function NotesTable({
 					assignedTo: assignedTo || undefined,
 				})
 				toast.success("Note created")
+				// Discard draft after successful creation
+				discardDraft()
 			}
 			setDialogOpen(false)
 			// Refresh the list
@@ -316,7 +356,17 @@ export function NotesTable({
 						Track bugs, issues, and notes.
 					</p>
 				</div>
-				<Button onClick={openCreateDialog}>New Note</Button>
+				<div className="flex items-center gap-2">
+					<DraftIndicator
+						draftKey="note"
+						onSelect={(draft) => {
+							handleLoadDraft(draft)
+							setEditingNote(null)
+							setDialogOpen(true)
+						}}
+					/>
+					<Button onClick={openCreateDialog}>New Note</Button>
+				</div>
 			</div>
 
 			<DataTable
@@ -463,13 +513,20 @@ export function NotesTable({
 							</Select>
 						</div>
 					</div>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setDialogOpen(false)}>
-							Cancel
-						</Button>
-						<Button onClick={handleSave} disabled={saving}>
-							{saving ? "Saving..." : editingNote ? "Update" : "Create"}
-						</Button>
+					<DialogFooter className="flex-col sm:flex-row gap-2">
+						{!editingNote && (
+							<div className="flex-1 flex items-center">
+								<DraftStatus lastSaved={draftLastSaved} isSaving={draftIsSaving} />
+							</div>
+						)}
+						<div className="flex gap-2">
+							<Button variant="outline" onClick={() => setDialogOpen(false)}>
+								Cancel
+							</Button>
+							<Button onClick={handleSave} disabled={saving}>
+								{saving ? "Saving..." : editingNote ? "Update" : "Create"}
+							</Button>
+						</div>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>

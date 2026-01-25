@@ -56,9 +56,11 @@ function LinkPreview({ url }: { url: string }) {
 		siteName?: string
 	} | null>(null)
 	const [loading, setLoading] = useState(true)
+	const [imageError, setImageError] = useState(false)
 
 	useEffect(() => {
 		let cancelled = false
+		setImageError(false)
 		fetchLinkPreview(url).then((data) => {
 			if (!cancelled) {
 				setPreview(data)
@@ -72,45 +74,67 @@ function LinkPreview({ url }: { url: string }) {
 
 	if (loading || !preview || (!preview.title && !preview.image)) return null
 
+	const hostname = (() => {
+		try {
+			return new URL(url).hostname.replace(/^www\./, "")
+		} catch {
+			return url
+		}
+	})()
+
 	return (
 		<a
 			href={url}
 			target="_blank"
 			rel="noopener noreferrer"
-			className="mt-2 flex gap-3 p-2 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors max-w-sm"
+			className="mt-2 block rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors max-w-sm overflow-hidden"
 		>
-			{preview.image ? (
-				<img
-					src={preview.image}
-					alt=""
-					className="w-16 h-16 rounded object-cover shrink-0"
-					onError={(e) => { e.currentTarget.style.display = "none" }}
-				/>
-			) : preview.favicon ? (
-				<img
-					src={preview.favicon}
-					alt=""
-					className="w-6 h-6 rounded shrink-0 mt-1"
-					onError={(e) => { e.currentTarget.style.display = "none" }}
-				/>
-			) : (
-				<div className="w-6 h-6 rounded bg-muted flex items-center justify-center shrink-0 mt-1">
-					<HugeiconsIcon icon={Link04Icon} size={12} className="text-muted-foreground" />
+			{/* OG Image on top */}
+			{preview.image && !imageError && (
+				<div className="w-full aspect-[1.91/1] bg-muted">
+					<img
+						src={preview.image}
+						alt=""
+						className="w-full h-full object-cover"
+						onError={() => setImageError(true)}
+					/>
 				</div>
 			)}
-			<div className="flex-1 min-w-0">
-				{preview.siteName && (
-					<p className="text-[10px] text-muted-foreground truncate">{preview.siteName}</p>
-				)}
+			{/* Content */}
+			<div className="p-3">
 				{preview.title && (
-					<p className="text-xs font-medium line-clamp-2">{preview.title}</p>
+					<p className="text-sm font-medium line-clamp-2">{preview.title}</p>
 				)}
 				{preview.description && (
-					<p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">{preview.description}</p>
+					<p className="text-xs text-muted-foreground line-clamp-2 mt-1">{preview.description}</p>
 				)}
+				{/* Footer with favicon and hostname */}
+				<div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/50">
+					{preview.favicon ? (
+						<img
+							src={preview.favicon}
+							alt=""
+							className="w-4 h-4 rounded-sm shrink-0"
+							onError={(e) => { e.currentTarget.style.display = "none" }}
+						/>
+					) : (
+						<div className="w-4 h-4 rounded-sm bg-muted flex items-center justify-center shrink-0">
+							<HugeiconsIcon icon={Link04Icon} size={10} className="text-muted-foreground" />
+						</div>
+					)}
+					<span className="text-[11px] text-muted-foreground truncate">
+						{preview.siteName || hostname}
+					</span>
+				</div>
 			</div>
 		</a>
 	)
+}
+
+// Check if message is only a URL (no other text)
+function isOnlyUrl(body: string): boolean {
+	const trimmed = body.trim()
+	return URL_REGEX.test(trimmed) && trimmed.replace(URL_REGEX, "").trim() === ""
 }
 
 // Extract first URL from message body
@@ -753,37 +777,36 @@ export function ChatTab({
 												))}
 											</div>
 										)}
+										{/* Message bubble - hide if message is only a URL (link preview will show instead) */}
+									{msg.body && !isOnlyUrl(msg.body) && (
 										<div className={`flex items-end gap-1 ${isOwn ? "flex-row-reverse" : ""}`}>
-											{msg.body && (
-												<div className={`px-3 py-2 text-sm whitespace-pre-wrap break-words ${
-													isOwn
-														? "bg-primary text-primary-foreground rounded-lg rounded-br-sm"
-														: "bg-muted rounded-lg rounded-bl-sm"
-												}`}>
-													<MessageBody body={msg.body} />
-												</div>
-											)}
-											{msg.body && (
-												<button
-													type="button"
-													onClick={() => {
-														navigator.clipboard.writeText(msg.body)
-														toast.success("Copied to clipboard")
-													}}
-													className="opacity-0 group-hover:opacity-100 transition-opacity mb-0.5"
-													title="Copy message"
-												>
-													<svg className="w-3.5 h-3.5 text-muted-foreground/50 hover:text-muted-foreground" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-														<rect x="5" y="5" width="8" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
-														<path d="M3 10V3.5A1.5 1.5 0 0 1 4.5 2H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-													</svg>
-												</button>
-											)}
+											<div className={`px-3 py-2 text-sm whitespace-pre-wrap break-words ${
+												isOwn
+													? "bg-primary text-primary-foreground rounded-lg rounded-br-sm"
+													: "bg-muted rounded-lg rounded-bl-sm"
+											}`}>
+												<MessageBody body={msg.body} />
+											</div>
+											<button
+												type="button"
+												onClick={() => {
+													navigator.clipboard.writeText(msg.body)
+													toast.success("Copied to clipboard")
+												}}
+												className="opacity-0 group-hover:opacity-100 transition-opacity mb-0.5"
+												title="Copy message"
+											>
+												<svg className="w-3.5 h-3.5 text-muted-foreground/50 hover:text-muted-foreground" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+													<rect x="5" y="5" width="8" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
+													<path d="M3 10V3.5A1.5 1.5 0 0 1 4.5 2H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+												</svg>
+											</button>
 										</div>
-										{/* Link preview */}
-										{msg.body && getFirstUrl(msg.body) && (
-											<LinkPreview url={getFirstUrl(msg.body)!} />
-										)}
+									)}
+									{/* Link preview */}
+									{msg.body && getFirstUrl(msg.body) && (
+										<LinkPreview url={getFirstUrl(msg.body)!} />
+									)}
 										<div className={`flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground ${isOwn ? "flex-row-reverse" : ""}`}>
 											<span className="font-medium">{isOwn ? "You" : msg.senderName.split(" ")[0]}</span>
 											<span className="text-muted-foreground/50">·</span>
