@@ -137,7 +137,7 @@ export function HeaderToolbar() {
     getUnreadCount(session.user.id).then(setUnreadCount)
     getTeamMessages(session.user.id).then((msgs) => {
       setRecentMessages(
-        msgs.slice(0, 5).map((m) => ({
+        msgs.slice(-20).map((m) => ({
           ...m,
           createdAt: m.createdAt.toISOString(),
           readAt: m.readAt?.toISOString() || null,
@@ -151,10 +151,15 @@ export function HeaderToolbar() {
 
     const channel = pusher.subscribe(`private-user-${session.user.id}`)
     channel.bind("new-message", (data: QuickMessage) => {
-      setUnreadCount((c) => c + 1)
-      setRecentMessages((prev) => [data, ...prev].slice(0, 5))
-      toast.info(`${data.senderName}: ${data.body.slice(0, 60)}`)
-      playNotificationSound(data.channel, data.senderId)
+      // Always add to recent messages list
+      setRecentMessages((prev) => [data, ...prev].slice(0, 20))
+
+      // Only show notification if not viewing that conversation
+      if (shouldPlaySound(data.channel, data.senderId)) {
+        setUnreadCount((c) => c + 1)
+        toast.info(`${data.senderName}: ${data.body.slice(0, 60)}`)
+        playNotificationSound(data.channel, data.senderId)
+      }
     })
 
     return () => {
