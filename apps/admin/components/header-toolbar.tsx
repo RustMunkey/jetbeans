@@ -163,37 +163,12 @@ export function HeaderToolbar() {
         <PopoverContent align="end" collisionPadding={16} className="w-[calc(100vw-2rem)] md:w-80 p-0">
           <div className="flex items-center justify-between border-b px-4 py-3">
             <h4 className="text-sm font-semibold">Messages</h4>
-            <div className="flex items-center gap-1">
-              {unreadCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-auto px-2 py-1 text-xs text-muted-foreground"
-                  onClick={async () => {
-                    await markAllRead()
-                    setUnreadCount(0)
-                    setRecentMessages((prev) =>
-                      prev.map((m) => ({ ...m, readAt: m.readAt || new Date().toISOString() }))
-                    )
-                  }}
-                >
-                  Mark all read
-                </Button>
-              )}
-              {recentMessages.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-auto px-2 py-1 text-xs text-muted-foreground"
-                  onClick={() => {
-                    setRecentMessages([])
-                    setUnreadCount(0)
-                  }}
-                >
-                  Clear
-                </Button>
-              )}
-            </div>
+            <Link
+              href="/notifications/messages"
+              className="text-xs text-primary hover:underline"
+            >
+              View all
+            </Link>
           </div>
           {recentMessages.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -242,13 +217,40 @@ export function HeaderToolbar() {
               })}
             </div>
           )}
-          <div className="border-t px-4 py-2">
-            <Link
-              href="/notifications/messages"
-              className="text-xs text-primary hover:underline"
-            >
-              View all messages
-            </Link>
+          <div className="flex items-center justify-between border-t px-4 py-2">
+            {unreadCount > 0 ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-auto px-2 py-1 text-xs text-muted-foreground"
+                onClick={async () => {
+                  await markAllRead()
+                  setUnreadCount(0)
+                  setRecentMessages((prev) =>
+                    prev.map((m) => ({ ...m, readAt: m.readAt || new Date().toISOString() }))
+                  )
+                }}
+              >
+                Mark all read
+              </Button>
+            ) : (
+              <span />
+            )}
+            {recentMessages.length > 0 ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-auto px-2 py-1 text-xs text-muted-foreground"
+                onClick={() => {
+                  setRecentMessages([])
+                  setUnreadCount(0)
+                }}
+              >
+                Clear
+              </Button>
+            ) : (
+              <span />
+            )}
           </div>
         </PopoverContent>
       </Popover>

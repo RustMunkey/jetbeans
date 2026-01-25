@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { usePusher } from "@/components/pusher-provider"
-import { sendTeamMessage, markMessageRead } from "./actions"
+import { sendTeamMessage, markMessageRead, getMessageReadStatus } from "./actions"
 import type { TeamMessage, TeamMember, Conversation } from "./types"
 import { CHANNELS } from "./types"
 
@@ -148,8 +148,37 @@ export function ChatTab({
 	const [body, setBody] = useState("")
 	const [sending, setSending] = useState(false)
 	const [sheetOpen, setSheetOpen] = useState(false)
+	const [readReceipts, setReadReceipts] = useState<Record<string, {
+		allRead: boolean
+		readCount: number
+		totalRecipients: number
+		readBy: { name: string | null; readAt: Date | null }[]
+	}>>({})
 	const messagesEndRef = useRef<HTMLDivElement>(null)
 	const { pusher } = usePusher()
+
+	// Fetch read receipts for messages sent by current user
+	useEffect(() => {
+		async function fetchReadReceipts() {
+			const sentMessages = messages.filter(m => m.senderId === userId && !m.id.startsWith("optimistic-"))
+			const receipts: typeof readReceipts = {}
+
+			for (const msg of sentMessages) {
+				try {
+					const status = await getMessageReadStatus(msg.id, userId)
+					receipts[msg.id] = status
+				} catch {
+					// Ignore errors for individual messages
+				}
+			}
+			setReadReceipts(receipts)
+		}
+
+		fetchReadReceipts()
+		// Re-fetch every 10 seconds for updates
+		const interval = setInterval(fetchReadReceipts, 10000)
+		return () => clearInterval(interval)
+	}, [messages, userId])
 
 	// Real-time: receive messages from others via Pusher WebSocket
 	useEffect(() => {
@@ -164,12 +193,39 @@ export function ChatTab({
 			})
 			// Don't show toast here - HeaderToolbar handles global notifications
 		}
+
+		// Real-time read receipts
+		const handleMessageRead = (data: { messageId: string; readBy: string; readAt: string }) => {
+			setReadReceipts((prev) => {
+				const existing = prev[data.messageId]
+				if (!existing) {
+					// Fetch fresh data for this message
+					getMessageReadStatus(data.messageId, userId).then((status) => {
+						setReadReceipts((p) => ({ ...p, [data.messageId]: status }))
+					})
+					return prev
+				}
+				// Update existing receipt
+				return {
+					...prev,
+					[data.messageId]: {
+						...existing,
+						readCount: existing.readCount + 1,
+						allRead: existing.readCount + 1 >= existing.totalRecipients,
+						readBy: [...existing.readBy, { name: data.readBy, readAt: new Date(data.readAt) }],
+					},
+				}
+			})
+		}
+
 		ch.bind("new-message", handleNewMessage)
+		ch.bind("message-read", handleMessageRead)
 
 		return () => {
-			// Only unbind our specific handler, don't unsubscribe the channel
+			// Only unbind our specific handlers, don't unsubscribe the channel
 			// HeaderToolbar also uses this channel for notifications
 			ch.unbind("new-message", handleNewMessage)
+			ch.unbind("message-read", handleMessageRead)
 		}
 	}, [pusher, userId])
 
@@ -227,8 +283,46 @@ export function ChatTab({
 		setActive(c)
 		saveChatState(c)
 		setSheetOpen(false)
-		for (const msg of messages.filter((m) => !m.readAt && m.channel === c.id && m.senderId !== userId)) {
-			markMessageRead(msg.id)
+		// Don't mark as read here - only mark when message is scrolled into view
+	}
+
+	// Mark message as read when it scrolls into view
+	const observerRef = useRef<IntersectionObserver | null>(null)
+	const observedMessages = useRef<Set<string>>(new Set())
+
+	useEffect(() => {
+		observerRef.current = new IntersectionObserver(
+			(entries) => {
+				for (const entry of entries) {
+					if (entry.isIntersecting) {
+						const messageId = entry.target.getAttribute("data-message-id")
+						if (messageId && !observedMessages.current.has(messageId)) {
+							observedMessages.current.add(messageId)
+							const msg = messages.find(m => m.id === messageId)
+							if (msg && !msg.readAt && msg.senderId !== userId) {
+								markMessageRead(messageId)
+								// Update local state
+								setMessages(prev => prev.map(m =>
+									m.id === messageId ? { ...m, readAt: new Date().toISOString() } : m
+								))
+							}
+						}
+					}
+				}
+			},
+			{ threshold: 0.5 }
+		)
+
+		return () => {
+			observerRef.current?.disconnect()
+		}
+	}, [messages, userId])
+
+	// Callback ref for observing message elements
+	const observeMessage = (el: HTMLDivElement | null, messageId: string, isUnread: boolean) => {
+		if (el && isUnread && observerRef.current) {
+			el.setAttribute("data-message-id", messageId)
+			observerRef.current.observe(el)
 		}
 	}
 
@@ -291,15 +385,42 @@ export function ChatTab({
 							</div>
 						</div>
 					) : (
-						filteredMessages.map((msg) => {
+						filteredMessages.map((msg, idx) => {
 							const isOwn = msg.senderId === userId
+							const receipt = isOwn ? readReceipts[msg.id] : null
+							const isLastOwnMessage = isOwn && filteredMessages.slice(idx + 1).every(m => m.senderId !== userId)
+
+							// Determine read status text
+							let readStatus = null
+							if (isOwn && receipt && isLastOwnMessage) {
+								if (active.type === "dm") {
+									// DM: show "Read" when recipient read it
+									if (receipt.allRead) {
+										readStatus = "Read"
+									}
+								} else {
+									// Channel: show "Read by all" or nothing
+									if (receipt.allRead && receipt.totalRecipients > 0) {
+										readStatus = "Read by all"
+									} else if (receipt.readCount > 0) {
+										readStatus = `Read by ${receipt.readCount}`
+									}
+								}
+							}
+
+							const isUnread = !isOwn && !msg.readAt
+
 							return (
-								<div key={msg.id} className={`flex gap-2.5 ${isOwn ? "flex-row-reverse" : ""}`}>
+								<div
+									key={msg.id}
+									ref={(el) => observeMessage(el, msg.id, isUnread)}
+									className={`flex gap-2.5 ${isOwn ? "flex-row-reverse" : ""}`}
+								>
 									<Avatar className="h-7 w-7 shrink-0 mt-0.5">
 										{msg.senderImage && <AvatarImage src={msg.senderImage} alt={msg.senderName} />}
 										<AvatarFallback className="text-[10px]">{getInitials(msg.senderName)}</AvatarFallback>
 									</Avatar>
-									<div className={`max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
+									<div className={`max-w-[75%] flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
 										<div className={`flex items-baseline gap-2 ${isOwn ? "flex-row-reverse" : ""}`}>
 											<span className="text-xs font-medium">{isOwn ? "You" : msg.senderName}</span>
 											<span className="text-[11px] text-muted-foreground">{timeAgo(msg.createdAt)}</span>
@@ -311,6 +432,14 @@ export function ChatTab({
 										}`}>
 											{msg.body}
 										</div>
+										{readStatus && (
+											<span className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
+												<svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+													<path d="M2 8.5l3.5 3.5L14 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+												</svg>
+												{readStatus}
+											</span>
+										)}
 									</div>
 								</div>
 							)
