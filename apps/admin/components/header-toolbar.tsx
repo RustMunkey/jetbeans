@@ -72,6 +72,49 @@ function formatCount(count: number): string {
   return `${Math.floor(count / 1000000)}M+`
 }
 
+// Throttled notification sound
+const notificationSound = typeof window !== "undefined" ? new Audio("/sounds/message.mp3") : null
+let lastSoundTime = 0
+const SOUND_THROTTLE_MS = 1000 // Don't play more than once per second
+
+function shouldPlaySound(messageChannel: string, senderId: string): boolean {
+  // Always play if not on messages page
+  if (typeof window === "undefined") return false
+  if (!window.location.pathname.includes("/notifications/messages")) return true
+
+  // On messages page - check if viewing the same conversation
+  try {
+    const stored = localStorage.getItem("jetbeans_chat_state")
+    if (!stored) return true
+    const active = JSON.parse(stored) as { type: string; id: string }
+
+    // If it's a DM and we're viewing that DM conversation, don't play
+    if (messageChannel === "dm" && active.type === "dm" && active.id === senderId) {
+      return false
+    }
+    // If it's a channel message and we're viewing that channel, don't play
+    if (messageChannel !== "dm" && active.type === "channel" && active.id === messageChannel) {
+      return false
+    }
+    return true
+  } catch {
+    return true
+  }
+}
+
+function playNotificationSound(messageChannel: string, senderId: string) {
+  if (!shouldPlaySound(messageChannel, senderId)) return
+
+  const now = Date.now()
+  if (now - lastSoundTime < SOUND_THROTTLE_MS) return
+  lastSoundTime = now
+  if (notificationSound) {
+    notificationSound.currentTime = 0
+    notificationSound.volume = 0.5
+    notificationSound.play().catch(() => {}) // Ignore autoplay errors
+  }
+}
+
 export function HeaderToolbar() {
   const [storeOnline, setStoreOnline] = React.useState(true)
   const [confirmOpen, setConfirmOpen] = React.useState(false)
@@ -105,6 +148,7 @@ export function HeaderToolbar() {
       setUnreadCount((c) => c + 1)
       setRecentMessages((prev) => [data, ...prev].slice(0, 5))
       toast.info(`${data.senderName}: ${data.body.slice(0, 60)}`)
+      playNotificationSound(data.channel, data.senderId)
     })
 
     return () => {
