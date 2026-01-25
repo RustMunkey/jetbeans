@@ -206,6 +206,7 @@ const data = {
       icon: SourceCodeIcon,
       items: [
         { title: "Notes & Bugs", url: "/developers/notes" },
+        { title: "Test Page", url: "/developers/test" },
       ],
     },
   ],

@@ -41,7 +41,7 @@ import { useCommandMenu } from "@/components/command-menu"
 import { useSession } from "@/lib/auth-client"
 import { usePusher } from "@/components/pusher-provider"
 import { getUnreadCount, getTeamMessages, markAllRead, markMessageRead } from "@/app/(dashboard)/notifications/messages/actions"
-import { toast } from "sonner"
+import { showMessageToast } from "@/components/message-toast"
 import Link from "next/link"
 
 type QuickMessage = {
@@ -157,7 +157,12 @@ export function HeaderToolbar() {
       // Only show notification if not viewing that conversation
       if (shouldPlaySound(data.channel, data.senderId)) {
         setUnreadCount((c) => c + 1)
-        toast.info(`${data.senderName}: ${data.body.slice(0, 60)}`)
+        showMessageToast({
+          senderName: data.senderName,
+          body: data.body,
+          messageId: data.id,
+          channel: data.channel,
+        })
         playNotificationSound(data.channel, data.senderId)
       }
     })

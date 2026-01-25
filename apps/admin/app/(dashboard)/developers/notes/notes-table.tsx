@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { useBreadcrumbOverride } from "@/components/breadcrumb-context"
 import { DataTable, type Column } from "@/components/data-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -84,6 +85,8 @@ export function NotesTable({
 	notes: DeveloperNote[]
 	teamMembers: TeamMember[]
 }) {
+	useBreadcrumbOverride("developers", "Developers")
+	useBreadcrumbOverride("notes", "Notes & Bugs")
 	const router = useRouter()
 	const [notes, setNotes] = useState(initialNotes)
 	const [statusFilter, setStatusFilter] = useState("all")
@@ -290,43 +293,15 @@ export function NotesTable({
 	]
 
 	return (
-		<div className="space-y-4">
+		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>
-					<h2 className="text-2xl font-bold tracking-tight">Developer Notes</h2>
-					<p className="text-muted-foreground text-sm">
-						Track bugs, issues, and notes for the development team.
+					<h2 className="text-lg font-semibold">Developer Notes</h2>
+					<p className="text-sm text-muted-foreground">
+						Track bugs, issues, and notes.
 					</p>
 				</div>
-				<div className="flex items-center gap-2">
-					<Select value={typeFilter} onValueChange={(v) => handleFilterChange(statusFilter, v)}>
-						<SelectTrigger className="w-[120px]">
-							<SelectValue placeholder="Type" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Types</SelectItem>
-							<SelectItem value="bug">Bug</SelectItem>
-							<SelectItem value="feature">Feature</SelectItem>
-							<SelectItem value="issue">Issue</SelectItem>
-							<SelectItem value="note">Note</SelectItem>
-							<SelectItem value="working">Working</SelectItem>
-							<SelectItem value="broken">Broken</SelectItem>
-						</SelectContent>
-					</Select>
-					<Select value={statusFilter} onValueChange={(v) => handleFilterChange(v, typeFilter)}>
-						<SelectTrigger className="w-[130px]">
-							<SelectValue placeholder="Status" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Status</SelectItem>
-							<SelectItem value="open">Open</SelectItem>
-							<SelectItem value="in_progress">In Progress</SelectItem>
-							<SelectItem value="resolved">Resolved</SelectItem>
-							<SelectItem value="closed">Closed</SelectItem>
-						</SelectContent>
-					</Select>
-					<Button onClick={openCreateDialog}>New Note</Button>
-				</div>
+				<Button onClick={openCreateDialog}>New Note</Button>
 			</div>
 
 			<DataTable
@@ -334,6 +309,36 @@ export function NotesTable({
 				columns={columns}
 				searchKey="title"
 				searchPlaceholder="Search notes..."
+				filters={
+					<>
+						<Select value={typeFilter} onValueChange={(v) => handleFilterChange(statusFilter, v)}>
+							<SelectTrigger className="h-9 w-full sm:w-[130px]">
+								<SelectValue placeholder="All Types" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Types</SelectItem>
+								<SelectItem value="bug">Bug</SelectItem>
+								<SelectItem value="feature">Feature</SelectItem>
+								<SelectItem value="issue">Issue</SelectItem>
+								<SelectItem value="note">Note</SelectItem>
+								<SelectItem value="working">Working</SelectItem>
+								<SelectItem value="broken">Broken</SelectItem>
+							</SelectContent>
+						</Select>
+						<Select value={statusFilter} onValueChange={(v) => handleFilterChange(v, typeFilter)}>
+							<SelectTrigger className="h-9 w-full sm:w-[140px]">
+								<SelectValue placeholder="All Statuses" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Statuses</SelectItem>
+								<SelectItem value="open">Open</SelectItem>
+								<SelectItem value="in_progress">In Progress</SelectItem>
+								<SelectItem value="resolved">Resolved</SelectItem>
+								<SelectItem value="closed">Closed</SelectItem>
+							</SelectContent>
+						</Select>
+					</>
+				}
 			/>
 
 			<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

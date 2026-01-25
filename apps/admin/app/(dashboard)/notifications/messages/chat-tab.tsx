@@ -147,10 +147,15 @@ export function ChatTab({
 	onTabChange: (tab: "chat" | "inbox") => void
 }) {
 	const [messages, setMessages] = useState<TeamMessage[]>(initialMessages)
-	const [active, setActive] = useState<Conversation>(() => {
+	const [active, setActive] = useState<Conversation>({ type: "channel", id: "general", label: "#general" })
+	const [hydrated, setHydrated] = useState(false)
+
+	// Load saved chat state after hydration
+	useEffect(() => {
 		const saved = loadChatState()
-		return saved || { type: "channel", id: "general", label: "#general" }
-	})
+		if (saved) setActive(saved)
+		setHydrated(true)
+	}, [])
 	const [body, setBody] = useState("")
 	const [sending, setSending] = useState(false)
 	const [sheetOpen, setSheetOpen] = useState(false)
