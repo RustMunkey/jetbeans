@@ -2,6 +2,8 @@
 
 import { useState, useRef, useCallback } from "react"
 import { toast } from "sonner"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { DragDropHorizontalIcon } from "@hugeicons/core-free-icons"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -59,11 +61,14 @@ function SortableItem({ item, onRemove, onSetThumbnail, isThumbnail }: {
 			style={style}
 			className={`relative group rounded-lg border overflow-hidden aspect-square bg-muted ${isThumbnail ? "ring-2 ring-primary" : ""}`}
 		>
-			<div
+			{/* Drag handle */}
+			<button
 				{...attributes}
 				{...listeners}
-				className="absolute inset-0 cursor-grab active:cursor-grabbing z-10"
-			/>
+				className="absolute top-1 left-1 z-20 p-1 rounded bg-black/50 text-white cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity touch-none"
+			>
+				<HugeiconsIcon icon={DragDropHorizontalIcon} size={12} />
+			</button>
 			{item.type === "video" ? (
 				<video src={item.url} className="w-full h-full object-cover" muted />
 			) : (

@@ -8,6 +8,8 @@ export {
 	count,
 	sum,
 	avg,
+	max,
+	min,
 	like,
 	ilike,
 	inArray,

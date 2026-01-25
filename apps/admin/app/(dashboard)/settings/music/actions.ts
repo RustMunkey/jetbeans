@@ -3,9 +3,9 @@
 import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
 import { db } from "@jetbeans/db/client"
-import { eq, desc } from "@jetbeans/db/drizzle"
+import { eq, desc, asc, max } from "@jetbeans/db/drizzle"
 import { userAudio } from "@jetbeans/db/schema"
-import { put, del } from "@vercel/blob"
+import { del } from "@vercel/blob"
 
 export type UserAudioTrack = {
 	id: string
@@ -14,6 +14,7 @@ export type UserAudioTrack = {
 	url: string
 	duration: number | null
 	fileSize: number | null
+	sortOrder: number
 	createdAt: Date
 }
 
@@ -34,44 +35,42 @@ export async function getUserAudioTracks(): Promise<UserAudioTrack[]> {
 			url: userAudio.url,
 			duration: userAudio.duration,
 			fileSize: userAudio.fileSize,
+			sortOrder: userAudio.sortOrder,
 			createdAt: userAudio.createdAt,
 		})
 		.from(userAudio)
 		.where(eq(userAudio.userId, user.id))
-		.orderBy(desc(userAudio.createdAt))
+		.orderBy(asc(userAudio.sortOrder), desc(userAudio.createdAt))
 }
 
-export async function uploadAudioTrack(formData: FormData): Promise<UserAudioTrack> {
+// Create a track record after client-side blob upload
+export async function createAudioTrack(data: {
+	name: string
+	artist: string | null
+	url: string
+	fileSize: number | null
+	mimeType: string
+}): Promise<UserAudioTrack> {
 	const user = await getCurrentUser()
 
-	const file = formData.get("file") as File
-	const name = formData.get("name") as string
-	const artist = formData.get("artist") as string | null
+	// Get the max sort order for this user
+	const [maxOrder] = await db
+		.select({ maxOrder: max(userAudio.sortOrder) })
+		.from(userAudio)
+		.where(eq(userAudio.userId, user.id))
 
-	if (!file || !name) {
-		throw new Error("File and name are required")
-	}
+	const nextOrder = (maxOrder?.maxOrder ?? -1) + 1
 
-	// Validate file type
-	if (!file.type.startsWith("audio/")) {
-		throw new Error("File must be an audio file")
-	}
-
-	// Upload to Vercel Blob
-	const blob = await put(`audio/${user.id}/${Date.now()}-${file.name}`, file, {
-		access: "public",
-	})
-
-	// Create database record
 	const [track] = await db
 		.insert(userAudio)
 		.values({
 			userId: user.id,
-			name,
-			artist: artist || null,
-			url: blob.url,
-			fileSize: file.size,
-			mimeType: file.type,
+			name: data.name,
+			artist: data.artist,
+			url: data.url,
+			fileSize: data.fileSize,
+			mimeType: data.mimeType,
+			sortOrder: nextOrder,
 		})
 		.returning()
 
@@ -82,6 +81,7 @@ export async function uploadAudioTrack(formData: FormData): Promise<UserAudioTra
 		url: track.url,
 		duration: track.duration,
 		fileSize: track.fileSize,
+		sortOrder: track.sortOrder,
 		createdAt: track.createdAt,
 	}
 }
@@ -112,8 +112,23 @@ export async function updateAudioTrack(
 		url: track.url,
 		duration: track.duration,
 		fileSize: track.fileSize,
+		sortOrder: track.sortOrder,
 		createdAt: track.createdAt,
 	}
+}
+
+export async function reorderAudioTracks(trackIds: string[]): Promise<void> {
+	const user = await getCurrentUser()
+
+	// Update sort order for each track
+	await Promise.all(
+		trackIds.map((id, index) =>
+			db
+				.update(userAudio)
+				.set({ sortOrder: index, updatedAt: new Date() })
+				.where(eq(userAudio.id, id))
+		)
+	)
 }
 
 export async function deleteAudioTrack(id: string): Promise<void> {

@@ -12,7 +12,25 @@ import {
 	PlayIcon,
 	PauseIcon,
 	Edit02Icon,
+	DragDropHorizontalIcon,
 } from "@hugeicons/core-free-icons"
+import {
+	DndContext,
+	closestCenter,
+	KeyboardSensor,
+	PointerSensor,
+	useSensor,
+	useSensors,
+	type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+	arrayMove,
+	SortableContext,
+	sortableKeyboardCoordinates,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -31,11 +49,13 @@ import {
 import { updateProfile } from "./actions"
 import { themePresets } from "@/components/accent-theme-provider"
 import { useMusicPlayer, type Track } from "@/components/music-player"
+import { upload } from "@vercel/blob/client"
 import {
 	getUserAudioTracks,
-	uploadAudioTrack,
+	createAudioTrack,
 	updateAudioTrack,
 	deleteAudioTrack,
+	reorderAudioTracks,
 	type UserAudioTrack,
 } from "../music/actions"
 
@@ -90,6 +110,116 @@ type User = {
 	createdAt: Date
 }
 
+// Sortable track row component
+function SortableTrackRow({
+	track,
+	playingId,
+	onPreview,
+	onPlayInMusicPlayer,
+	onEdit,
+	onDelete,
+}: {
+	track: UserAudioTrack
+	playingId: string | null
+	onPreview: (track: UserAudioTrack) => void
+	onPlayInMusicPlayer: (track: UserAudioTrack) => void
+	onEdit: (track: UserAudioTrack) => void
+	onDelete: (id: string) => void
+}) {
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id: track.id })
+
+	const style = {
+		transform: CSS.Transform.toString(transform),
+		transition,
+		opacity: isDragging ? 0.5 : 1,
+	}
+
+	return (
+		<div
+			ref={setNodeRef}
+			style={style}
+			className="flex items-center gap-3 px-3 py-2 rounded-lg border bg-background hover:bg-muted/50 transition-colors"
+		>
+			{/* Drag handle */}
+			<button
+				{...attributes}
+				{...listeners}
+				className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
+			>
+				<HugeiconsIcon icon={DragDropHorizontalIcon} size={16} />
+			</button>
+
+			{/* Play button */}
+			<Button
+				variant="ghost"
+				size="icon"
+				className="size-8 shrink-0"
+				onClick={() => onPreview(track)}
+			>
+				<HugeiconsIcon
+					icon={playingId === track.id ? PauseIcon : PlayIcon}
+					size={16}
+				/>
+			</Button>
+
+			{/* Track info - wide layout */}
+			<div className="flex-1 min-w-0 flex items-center gap-4">
+				<div className="flex-1 min-w-0">
+					<p className="font-medium text-sm truncate">{track.name}</p>
+					{track.artist && (
+						<p className="text-xs text-muted-foreground truncate">{track.artist}</p>
+					)}
+				</div>
+				<div className="hidden sm:flex items-center gap-4 text-xs text-muted-foreground shrink-0">
+					<span className="w-12 text-right">{formatDuration(track.duration)}</span>
+					<span className="w-16 text-right">{formatFileSize(track.fileSize)}</span>
+					<span className="w-20 text-right">
+						{new Date(track.createdAt).toLocaleDateString()}
+					</span>
+				</div>
+			</div>
+
+			{/* Actions */}
+			<div className="flex items-center gap-1 shrink-0">
+				<Button
+					variant="ghost"
+					size="icon"
+					className="size-7"
+					onClick={() => onPlayInMusicPlayer(track)}
+					title="Play in music player"
+				>
+					<HugeiconsIcon icon={MusicNote03Icon} size={14} />
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon"
+					className="size-7"
+					onClick={() => onEdit(track)}
+					title="Edit track"
+				>
+					<HugeiconsIcon icon={Edit02Icon} size={14} />
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon"
+					className="size-7 text-destructive hover:text-destructive"
+					onClick={() => onDelete(track.id)}
+					title="Delete track"
+				>
+					<HugeiconsIcon icon={Delete02Icon} size={14} />
+				</Button>
+			</div>
+		</div>
+	)
+}
+
 export function AccountSettings({ user }: { user: User }) {
 	const router = useRouter()
 	const { theme, setTheme, resolvedTheme } = useTheme()
@@ -112,6 +242,18 @@ export function AccountSettings({ user }: { user: User }) {
 	const [playingId, setPlayingId] = useState<string | null>(null)
 
 	const { setTracks: setMusicPlayerTracks, playTrack } = useMusicPlayer()
+
+	// DnD sensors
+	const sensors = useSensors(
+		useSensor(PointerSensor, {
+			activationConstraint: {
+				distance: 8,
+			},
+		}),
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
+		})
+	)
 
 	useEffect(() => {
 		setMounted(true)
@@ -137,21 +279,77 @@ export function AccountSettings({ user }: { user: User }) {
 		setMusicPlayerTracks(uploadedTracks)
 	}, [tracks, setMusicPlayerTracks])
 
+	const handleDragEnd = async (event: DragEndEvent) => {
+		const { active, over } = event
+
+		if (over && active.id !== over.id) {
+			const oldIndex = tracks.findIndex((t) => t.id === active.id)
+			const newIndex = tracks.findIndex((t) => t.id === over.id)
+
+			const newTracks = arrayMove(tracks, oldIndex, newIndex)
+			setTracks(newTracks)
+
+			// Persist the new order
+			try {
+				await reorderAudioTracks(newTracks.map((t) => t.id))
+			} catch {
+				// Revert on error
+				setTracks(tracks)
+				toast.error("Failed to save track order")
+			}
+		}
+	}
+
 	const handleTrackUpload = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault()
 		const formData = new FormData(e.currentTarget)
 
 		const file = formData.get("file") as File
+		const trackName = formData.get("name") as string
+		const artist = formData.get("artist") as string | null
+
 		if (!file || !file.size) {
 			toast.error("Please select a file")
 			return
 		}
 
+		if (!trackName) {
+			toast.error("Please enter a track name")
+			return
+		}
+
+		// Validate file type
+		if (!file.type.startsWith("audio/")) {
+			toast.error("Please select an audio file")
+			return
+		}
+
+		// Validate file size (50MB)
+		if (file.size > 50 * 1024 * 1024) {
+			toast.error("File too large (max 50MB)")
+			return
+		}
+
 		setUploadingTrack(true)
 		try {
-			const track = await uploadAudioTrack(formData)
-			setTracks((prev) => [track, ...prev])
+			// Use Vercel Blob client upload to bypass Next.js body size limits
+			const blob = await upload(`audio/${Date.now()}-${file.name}`, file, {
+				access: "public",
+				handleUploadUrl: "/api/upload-audio",
+			})
+
+			// Create the database record after successful upload
+			const newTrack = await createAudioTrack({
+				name: trackName,
+				artist: artist || null,
+				url: blob.url,
+				fileSize: file.size,
+				mimeType: file.type,
+			})
+
+			setTracks((prev) => [...prev, newTrack])
 			setUploadDialogOpen(false)
+			;(e.target as HTMLFormElement).reset()
 			toast.success("Track uploaded successfully")
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to upload track")
@@ -480,7 +678,7 @@ export function AccountSettings({ user }: { user: User }) {
 						<div>
 							<CardTitle>Music Library</CardTitle>
 							<CardDescription>
-								Upload and manage your personal music collection for the radio player.
+								Upload and manage your personal music collection. Drag to reorder tracks.
 							</CardDescription>
 						</div>
 						<Button size="sm" onClick={() => setUploadDialogOpen(true)}>
@@ -504,64 +702,46 @@ export function AccountSettings({ user }: { user: User }) {
 							</Button>
 						</div>
 					) : (
-						<div className="space-y-2">
-							{tracks.map((track) => (
-								<div
-									key={track.id}
-									className="flex items-center gap-4 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+						<div className="space-y-1">
+							{/* Header row */}
+							<div className="hidden sm:flex items-center gap-3 px-3 py-1 text-xs text-muted-foreground font-medium">
+								<div className="w-4" /> {/* Drag handle space */}
+								<div className="w-8" /> {/* Play button space */}
+								<div className="flex-1 flex items-center gap-4">
+									<span className="flex-1">Track</span>
+									<span className="w-12 text-right">Duration</span>
+									<span className="w-16 text-right">Size</span>
+									<span className="w-20 text-right">Added</span>
+								</div>
+								<div className="w-24" /> {/* Actions space */}
+							</div>
+
+							{/* Sortable tracks */}
+							<DndContext
+								sensors={sensors}
+								collisionDetection={closestCenter}
+								onDragEnd={handleDragEnd}
+							>
+								<SortableContext
+									items={tracks.map((t) => t.id)}
+									strategy={verticalListSortingStrategy}
 								>
-									<Button
-										variant="ghost"
-										size="icon"
-										className="size-10 shrink-0"
-										onClick={() => handlePreview(track)}
-									>
-										<HugeiconsIcon
-											icon={playingId === track.id ? PauseIcon : PlayIcon}
-											size={20}
-										/>
-									</Button>
-									<div className="flex-1 min-w-0">
-										<p className="font-medium truncate">{track.name}</p>
-										<div className="flex items-center gap-2 text-sm text-muted-foreground">
-											{track.artist && <span>{track.artist}</span>}
-											{track.artist && <span>·</span>}
-											<span>{formatDuration(track.duration)}</span>
-											<span>·</span>
-											<span>{formatFileSize(track.fileSize)}</span>
-										</div>
-									</div>
-									<div className="flex items-center gap-1">
-										<Button
-											variant="ghost"
-											size="icon"
-											className="size-8"
-											onClick={() => handlePlayInMusicPlayer(track)}
-										>
-											<HugeiconsIcon icon={MusicNote03Icon} size={16} />
-										</Button>
-										<Button
-											variant="ghost"
-											size="icon"
-											className="size-8"
-											onClick={() => {
-												setEditingTrack(track)
+									{tracks.map((track) => (
+										<SortableTrackRow
+											key={track.id}
+											track={track}
+											playingId={playingId}
+											onPreview={handlePreview}
+											onPlayInMusicPlayer={handlePlayInMusicPlayer}
+											onEdit={(t) => {
+												setEditingTrack(t)
 												setEditDialogOpen(true)
 											}}
-										>
-											<HugeiconsIcon icon={Edit02Icon} size={16} />
-										</Button>
-										<Button
-											variant="ghost"
-											size="icon"
-											className="size-8 text-destructive hover:text-destructive"
-											onClick={() => handleTrackDelete(track.id)}
-										>
-											<HugeiconsIcon icon={Delete02Icon} size={16} />
-										</Button>
-									</div>
-								</div>
-							))}
+											onDelete={handleTrackDelete}
+										/>
+									))}
+								</SortableContext>
+							</DndContext>
 						</div>
 					)}
 				</CardContent>
@@ -573,7 +753,7 @@ export function AccountSettings({ user }: { user: User }) {
 					<DialogHeader>
 						<DialogTitle>Upload Track</DialogTitle>
 						<DialogDescription>
-							Upload an MP3 file to add it to your music library.
+							Upload an audio file (max 50MB) to add it to your music library.
 						</DialogDescription>
 					</DialogHeader>
 					<form onSubmit={handleTrackUpload}>
@@ -589,9 +769,9 @@ export function AccountSettings({ user }: { user: User }) {
 								/>
 							</div>
 							<div className="grid gap-2">
-								<Label htmlFor="name">Track Name</Label>
+								<Label htmlFor="track-name">Track Name</Label>
 								<Input
-									id="name"
+									id="track-name"
 									name="name"
 									placeholder="My awesome track"
 									required

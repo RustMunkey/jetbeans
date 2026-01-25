@@ -16,6 +16,7 @@ export const userAudio = pgTable("user_audio", {
 	duration: integer("duration"), // Duration in seconds
 	fileSize: integer("file_size"), // Size in bytes
 	mimeType: text("mime_type").default("audio/mpeg"),
+	sortOrder: integer("sort_order").default(0).notNull(), // For custom ordering
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 })

@@ -11,7 +11,7 @@ import { CommandMenuWrapper } from "@/components/command-menu-wrapper"
 import { HeaderToolbar } from "@/components/header-toolbar"
 import { PusherProvider } from "@/components/pusher-provider"
 import { CallProvider, IncomingCallModal, CallInterface } from "@/components/calls"
-import { MusicPlayerProvider, MusicPlayerWidget } from "@/components/music-player"
+import { MusicPlayerProvider, MusicPlayerWidget, MusicPlayerLoader } from "@/components/music-player"
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts"
 import { SidebarSwipe } from "@/components/sidebar-swipe"
 import { Separator } from "@/components/ui/separator"
@@ -86,7 +86,8 @@ export default async function DashboardLayout({
             </KeyboardShortcutsProvider>
           </SidebarProvider>
 
-          {/* Music Player Widget */}
+          {/* Music Player - loads user tracks and renders widget */}
+          <MusicPlayerLoader />
           <MusicPlayerWidget />
 
           {/* Call UI overlays */}
