@@ -13,6 +13,6 @@ export function proxy(request: NextRequest) {
 
 export const config = {
 	matcher: [
-		"/((?!login|access-denied|api/auth|_next/static|_next/image|favicon.ico|logos|fonts|avatars).*)",
+		"/((?!login|access-denied|api/auth|api/webhooks|api/inngest|_next/static|_next/image|favicon.ico|logos|fonts|avatars).*)",
 	],
 }
