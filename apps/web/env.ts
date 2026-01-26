@@ -13,9 +13,14 @@ export const env = createEnv({
 		PUSHER_CLUSTER: z.string().optional(),
 		POLAR_ACCESS_TOKEN: z.string().optional(),
 		POLAR_WEBHOOK_SECRET: z.string().optional(),
+		// Email
+		RESEND_API_KEY: z.string().optional(),
+		// Sentry
+		SENTRY_DSN: z.string().optional(),
 	},
 	client: {
 		NEXT_PUBLIC_APP_URL: z.string().url(),
+		NEXT_PUBLIC_SENTRY_DSN: z.string().optional(),
 		NEXT_PUBLIC_PUSHER_KEY: z.string().optional(),
 		NEXT_PUBLIC_PUSHER_CLUSTER: z.string().optional(),
 		NEXT_PUBLIC_REOWN_PROJECT_ID: z.string().optional(),
@@ -31,7 +36,10 @@ export const env = createEnv({
 		PUSHER_CLUSTER: process.env.PUSHER_CLUSTER,
 		POLAR_ACCESS_TOKEN: process.env.POLAR_ACCESS_TOKEN,
 		POLAR_WEBHOOK_SECRET: process.env.POLAR_WEBHOOK_SECRET,
+		RESEND_API_KEY: process.env.RESEND_API_KEY,
+		SENTRY_DSN: process.env.SENTRY_DSN,
 		NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+		NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
 		NEXT_PUBLIC_PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY,
 		NEXT_PUBLIC_PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
 		NEXT_PUBLIC_REOWN_PROJECT_ID: process.env.NEXT_PUBLIC_REOWN_PROJECT_ID,
