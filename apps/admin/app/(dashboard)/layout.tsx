@@ -35,15 +35,22 @@ export default async function DashboardLayout({
   }
 
   // Get fresh user data from database (not session cache)
-  const [user] = await db
-    .select({
-      role: users.role,
-      name: users.name,
-      image: users.image,
-    })
-    .from(users)
-    .where(eq(users.id, session.user.id))
-    .limit(1)
+  let user: { role: string | null; name: string | null; image: string | null } | undefined
+  try {
+    const [dbUser] = await db
+      .select({
+        role: users.role,
+        name: users.name,
+        image: users.image,
+      })
+      .from(users)
+      .where(eq(users.id, session.user.id))
+      .limit(1)
+    user = dbUser
+  } catch {
+    // Database query failed - fall back to session data
+    user = undefined
+  }
 
   const cookieStore = await cookies()
   const sidebarOpen = cookieStore.get("sidebar_state")?.value !== "false"

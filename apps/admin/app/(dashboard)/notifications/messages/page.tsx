@@ -22,14 +22,18 @@ export default async function MessagesPage() {
 			<MessagesClient
 				messages={messages.map((m) => ({
 					...m,
+					senderName: m.senderName || "Unknown",
 					attachments: m.attachments || undefined,
 					createdAt: m.createdAt.toISOString(),
 					readAt: m.readAt?.toISOString() || null,
 				}))}
 				userId={session.user.id}
-				userName={session.user.name}
+				userName={session.user.name || "Unknown"}
 				userImage={session.user.image ?? null}
-				teamMembers={teamMembers}
+				teamMembers={teamMembers.map((m) => ({
+					...m,
+					name: m.name || "Unknown",
+				}))}
 				inboxEmails={inboxEmails}
 			/>
 		</div>
