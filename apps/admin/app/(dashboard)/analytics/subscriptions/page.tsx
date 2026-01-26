@@ -1,3 +1,6 @@
+// Revalidate every 60s
+export const revalidate = 60
+
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   RepeatIcon,

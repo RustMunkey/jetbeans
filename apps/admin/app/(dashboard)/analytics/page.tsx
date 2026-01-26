@@ -1,3 +1,6 @@
+// Revalidate every 60s - Pusher handles real-time updates on top
+export const revalidate = 60
+
 import { AnalyticsCharts } from "./analytics-charts"
 import { AnalyticsStats } from "./analytics-stats"
 import {

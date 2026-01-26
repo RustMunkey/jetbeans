@@ -1,3 +1,6 @@
+// Revalidate every 60s - Pusher handles real-time updates on top
+export const revalidate = 60
+
 import { SalesCharts } from "./sales-charts"
 import { SalesStats } from "./sales-stats"
 import { TopProductsLive } from "@/components/top-products-live"
