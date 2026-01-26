@@ -502,3 +502,17 @@ export async function POST(
 
 	return NextResponse.json({ success: true })
 }
+
+// GET handler for webhook URL verification
+export async function GET(
+	request: Request,
+	{ params }: { params: Promise<{ carrier: string }> }
+) {
+	const { carrier } = await params
+	return NextResponse.json({
+		status: "ok",
+		carrier: carrier,
+		message: "Webhook endpoint is active",
+		timestamp: new Date().toISOString(),
+	})
+}
