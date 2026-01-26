@@ -493,7 +493,6 @@ export async function getPendingTracking(params: GetPendingTrackingParams = {}) 
 				createdAt: shipmentTracking.createdAt,
 				orderId: orders.id,
 				orderNumber: orders.orderNumber,
-				customerName: sql<string | null>`COALESCE(${orders.shippingAddress}->>'name', ${orders.billingAddress}->>'name')`,
 				carrierId: shippingCarriers.id,
 				carrierName: shippingCarriers.name,
 				carrierCode: shippingCarriers.code,
@@ -520,7 +519,7 @@ export async function getPendingTracking(params: GetPendingTrackingParams = {}) 
 			? {
 					id: item.orderId,
 					orderNumber: item.orderNumber || "",
-					customerName: item.customerName,
+					customerName: null as string | null,
 				}
 			: null,
 		carrier: item.carrierId
