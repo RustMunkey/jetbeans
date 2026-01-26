@@ -259,6 +259,7 @@ const data = {
       url: "/developers",
       icon: SourceCodeIcon,
       items: [
+        { title: "Webhook Events", url: "/developers/webhooks" },
         { title: "Notes & Bugs", url: "/developers/notes" },
         { title: "Test Page", url: "/developers/test" },
       ],

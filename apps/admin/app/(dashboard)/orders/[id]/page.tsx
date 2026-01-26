@@ -17,10 +17,15 @@ export default async function OrderDetailPage({ params }: PageProps) {
 		notFound()
 	}
 
-	const [activity, tracking] = await Promise.all([
+	const [activity, trackingRaw] = await Promise.all([
 		getOrderActivity(id),
 		getTrackingByOrderId(id),
 	])
+
+	// Ensure statusHistory is always an array (not null)
+	const tracking = trackingRaw
+		? { ...trackingRaw, statusHistory: trackingRaw.statusHistory ?? [] }
+		: null
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 pt-0 md:max-h-[calc(100svh-4rem)] md:min-h-0 md:overflow-hidden">
