@@ -24,8 +24,26 @@ async function requireAdmin() {
 
 // --- SUPPLIERS ---
 
-export async function getSuppliers() {
-	return db.select().from(suppliers).orderBy(desc(suppliers.createdAt))
+interface GetSuppliersParams {
+	page?: number
+	pageSize?: number
+}
+
+export async function getSuppliers(params: GetSuppliersParams = {}) {
+	const { page = 1, pageSize = 30 } = params
+	const offset = (page - 1) * pageSize
+
+	const [items, [total]] = await Promise.all([
+		db
+			.select()
+			.from(suppliers)
+			.orderBy(desc(suppliers.createdAt))
+			.limit(pageSize)
+			.offset(offset),
+		db.select({ count: count() }).from(suppliers),
+	])
+
+	return { items, totalCount: total.count }
 }
 
 export async function getSupplier(id: string) {
@@ -105,7 +123,7 @@ interface GetPurchaseOrdersParams {
 }
 
 export async function getPurchaseOrders(params: GetPurchaseOrdersParams = {}) {
-	const { page = 1, pageSize = 20, status } = params
+	const { page = 1, pageSize = 30, status } = params
 	const offset = (page - 1) * pageSize
 
 	const conditions = []

@@ -37,10 +37,12 @@ interface GiftCard {
 
 interface GiftCardsClientProps {
 	cards: GiftCard[]
+	totalCount: number
+	currentPage: number
 }
 
 
-export function GiftCardsClient({ cards }: GiftCardsClientProps) {
+export function GiftCardsClient({ cards, totalCount, currentPage }: GiftCardsClientProps) {
 	const router = useRouter()
 	const [open, setOpen] = useState(false)
 	const [statusFilter, setStatusFilter] = useState("all")
@@ -138,6 +140,9 @@ export function GiftCardsClient({ cards }: GiftCardsClientProps) {
 				onRowClick={(row) => router.push(`/customers/gift-cards/${row.id}`)}
 				emptyMessage="No gift cards yet"
 				emptyDescription="Create gift cards to issue to customers."
+				totalCount={totalCount}
+				currentPage={currentPage}
+				pageSize={30}
 				filters={
 					<Select value={statusFilter} onValueChange={setStatusFilter}>
 						<SelectTrigger className="h-9 w-full sm:w-[150px]">

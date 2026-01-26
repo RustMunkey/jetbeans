@@ -11,7 +11,7 @@ export default async function LabelsPage({ searchParams }: PageProps) {
 
 	const { items, totalCount } = await getLabels({
 		page,
-		pageSize: 20,
+		pageSize: 30,
 		status: params.status,
 	})
 

@@ -89,6 +89,19 @@ export const shipmentTracking = pgTable("shipment_tracking", {
 	status: text("status").notNull().default("pending"),
 	statusHistory: jsonb("status_history").$type<Array<{ status: string; timestamp: string; location?: string }>>().default([]),
 	estimatedDelivery: timestamp("estimated_delivery"),
+	// Review queue fields
+	reviewStatus: text("review_status").notNull().default("approved"), // approved | pending_review | rejected
+	source: text("source").default("manual"), // manual | email | api
+	sourceDetails: jsonb("source_details").$type<{ sender?: string; subject?: string; confidence?: string }>(),
 	lastUpdatedAt: timestamp("last_updated_at").defaultNow().notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Trusted senders for auto-approval
+export const trustedSenders = pgTable("trusted_senders", {
+	id: uuid("id").primaryKey().defaultRandom(),
+	email: text("email").notNull().unique(),
+	name: text("name"),
+	autoApprove: boolean("auto_approve").default(true).notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });

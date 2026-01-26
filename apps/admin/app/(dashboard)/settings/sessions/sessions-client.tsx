@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { signOut } from "@/lib/auth-client"
 import { revokeSession, getSessionActivity } from "./actions"
+import { usePresence } from "@/hooks/use-presence"
+import { UserStatusBadge } from "@/components/presence"
 
 type SessionItem = {
   id: string
@@ -80,6 +82,10 @@ export function SessionsList({
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [activity, setActivity] = useState<Record<string, ActivityEntry[]>>({})
   const [loading, setLoading] = useState<string | null>(null)
+  const { members } = usePresence()
+
+  // Get set of online user IDs from presence
+  const onlineUserIds = new Set(members.map((m) => m.id))
 
   const handleExpand = async (sessionId: string) => {
     if (expandedId === sessionId) {
@@ -122,6 +128,8 @@ export function SessionsList({
           const isExpanded = expandedId === s.id
           const entries = activity[s.id]
 
+          const isUserOnline = onlineUserIds.has(s.userId)
+
           return (
             <div key={s.id}>
               <div
@@ -130,9 +138,12 @@ export function SessionsList({
               >
                 <div className="min-w-0 space-y-0.5">
                   <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                    <p className="text-sm font-medium truncate">
-                      {s.userName}{os ? ` — ${os}` : ""}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <UserStatusBadge status={isUserOnline ? "online" : "offline"} size="sm" />
+                      <p className="text-sm font-medium truncate">
+                        {s.userName}{os ? ` — ${os}` : ""}
+                      </p>
+                    </div>
                     {s.isCurrent && (
                       <Badge variant="default" className="text-[10px] px-1.5 py-0">
                         Current

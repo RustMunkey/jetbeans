@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation"
 import { getOrder, getOrderActivity } from "../actions"
+import { getTrackingByOrderId } from "../../shipping/actions"
 import { OrderDetail } from "./order-detail"
 
 interface PageProps {
@@ -16,11 +17,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
 		notFound()
 	}
 
-	const activity = await getOrderActivity(id)
+	const [activity, tracking] = await Promise.all([
+		getOrderActivity(id),
+		getTrackingByOrderId(id),
+	])
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 pt-0 md:max-h-[calc(100svh-4rem)] md:min-h-0 md:overflow-hidden">
-			<OrderDetail order={order} activity={activity} />
+			<OrderDetail order={order} activity={activity} tracking={tracking} />
 		</div>
 	)
 }

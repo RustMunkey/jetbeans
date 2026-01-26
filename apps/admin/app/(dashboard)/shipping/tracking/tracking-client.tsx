@@ -84,7 +84,7 @@ export function TrackingClient({ items, totalCount, currentPage, currentStatus }
 			searchPlaceholder="Search tracking..."
 			totalCount={totalCount}
 			currentPage={currentPage}
-			pageSize={20}
+			pageSize={30}
 			getId={(row) => row.id}
 			emptyMessage="No shipments tracked"
 			emptyDescription="Tracking info will appear here for shipped orders."

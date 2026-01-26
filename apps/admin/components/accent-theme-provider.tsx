@@ -30,6 +30,12 @@ function applyAccentTheme(themeId: string, isDark: boolean) {
 	const colors = isDark ? preset.dark : preset.light
 	const root = document.documentElement
 
+	// Remove the blocking script's style tag so our inline styles take precedence
+	const blockingStyle = document.getElementById("theme-variables")
+	if (blockingStyle) {
+		blockingStyle.remove()
+	}
+
 	root.style.setProperty("--background", colors.background)
 	root.style.setProperty("--foreground", colors.foreground)
 	root.style.setProperty("--card", colors.card)

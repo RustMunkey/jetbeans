@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { DataTable, type Column } from "@/components/data-table"
 import { StatusBadge } from "@/components/status-badge"
@@ -15,9 +14,14 @@ type SitePage = {
 	updatedAt: Date
 }
 
-export function PagesTable({ pages: initialPages }: { pages: SitePage[] }) {
+interface PagesTableProps {
+	pages: SitePage[]
+	totalCount: number
+	currentPage: number
+}
+
+export function PagesTable({ pages, totalCount, currentPage }: PagesTableProps) {
 	const router = useRouter()
-	const [pages, setPages] = useState(initialPages)
 
 	const columns: Column<SitePage>[] = [
 		{
@@ -57,6 +61,8 @@ export function PagesTable({ pages: initialPages }: { pages: SitePage[] }) {
 				searchKey="title"
 				searchPlaceholder="Search pages..."
 				onRowClick={(row) => router.push(`/content/pages/${row.id}`)}
+				totalCount={totalCount}
+				currentPage={currentPage}
 			/>
 		</div>
 	)

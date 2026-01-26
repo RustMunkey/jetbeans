@@ -58,7 +58,13 @@ const typeLabels: Record<string, string> = {
 	social: "Social",
 }
 
-export function CampaignsTable({ campaigns }: { campaigns: Campaign[] }) {
+interface CampaignsTableProps {
+	campaigns: Campaign[]
+	totalCount: number
+	currentPage: number
+}
+
+export function CampaignsTable({ campaigns, totalCount, currentPage }: CampaignsTableProps) {
 	const router = useRouter()
 	const [statusFilter, setStatusFilter] = useState("all")
 	const [createOpen, setCreateOpen] = useState(false)
@@ -189,6 +195,8 @@ export function CampaignsTable({ campaigns }: { campaigns: Campaign[] }) {
 				onRowClick={(row) => router.push(`/marketing/campaigns/${row.id}`)}
 				emptyMessage="No campaigns"
 				emptyDescription="Create a campaign to engage your customers."
+				totalCount={totalCount}
+				currentPage={currentPage}
 				filters={
 					<Select value={statusFilter} onValueChange={setStatusFilter}>
 						<SelectTrigger className="h-9 w-full sm:w-[160px]">

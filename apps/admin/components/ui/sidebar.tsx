@@ -3,7 +3,8 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
-import { PanelLeftIcon } from "lucide-react"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { PanelLeftIcon } from "@hugeicons/core-free-icons"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -273,7 +274,7 @@ function SidebarTrigger({
       }}
       {...props}
     >
-      <PanelLeftIcon />
+      <HugeiconsIcon icon={PanelLeftIcon} size={18} />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   )
@@ -402,7 +403,7 @@ function SidebarContent({
       data-slot="sidebar-content"
       data-sidebar="content"
       className={cn(
-        "flex min-h-0 flex-1 flex-col gap-2 overflow-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden group-data-[collapsible=icon]:overflow-hidden",
+        "flex min-h-0 flex-1 flex-col gap-2 overflow-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         className
       )}
       onScroll={handleScroll}

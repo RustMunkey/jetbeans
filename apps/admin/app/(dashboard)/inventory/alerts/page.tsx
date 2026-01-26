@@ -1,8 +1,16 @@
 import { getAlerts } from "../actions"
 import { AlertsClient } from "./alerts-client"
 
-export default async function AlertsPage() {
-	const items = await getAlerts()
+interface PageProps {
+	searchParams: Promise<{
+		page?: string
+	}>
+}
+
+export default async function AlertsPage({ searchParams }: PageProps) {
+	const params = await searchParams
+	const page = Number(params.page) || 1
+	const { items, totalCount } = await getAlerts({ page, pageSize: 30 })
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 pt-0">
@@ -13,7 +21,7 @@ export default async function AlertsPage() {
 				</p>
 			</div>
 
-			<AlertsClient items={items} />
+			<AlertsClient items={items} totalCount={totalCount} currentPage={page} />
 		</div>
 	)
 }

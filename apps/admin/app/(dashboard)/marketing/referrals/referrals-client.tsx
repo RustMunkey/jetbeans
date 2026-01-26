@@ -45,7 +45,23 @@ const statusColors: Record<string, string> = {
 	rewarded: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
 }
 
-export function ReferralsClient({ referrals, codes }: { referrals: Referral[]; codes: ReferralCode[] }) {
+interface ReferralsClientProps {
+	referrals: Referral[]
+	referralsTotalCount: number
+	referralsCurrentPage: number
+	codes: ReferralCode[]
+	codesTotalCount: number
+	codesCurrentPage: number
+}
+
+export function ReferralsClient({
+	referrals,
+	referralsTotalCount,
+	referralsCurrentPage,
+	codes,
+	codesTotalCount,
+	codesCurrentPage,
+}: ReferralsClientProps) {
 	const [tab, setTab] = useState<"referrals" | "codes">("referrals")
 	const [statusFilter, setStatusFilter] = useState("all")
 
@@ -172,6 +188,9 @@ export function ReferralsClient({ referrals, codes }: { referrals: Referral[]; c
 				<DataTable
 					columns={referralColumns}
 					data={filteredReferrals}
+					totalCount={referralsTotalCount}
+					currentPage={referralsCurrentPage}
+					pageSize={30}
 					searchPlaceholder="Search referrals..."
 					getId={(row) => row.id}
 					emptyMessage="No referrals"
@@ -194,6 +213,9 @@ export function ReferralsClient({ referrals, codes }: { referrals: Referral[]; c
 				<DataTable
 					columns={codeColumns}
 					data={codes}
+					totalCount={codesTotalCount}
+					currentPage={codesCurrentPage}
+					pageSize={30}
 					searchPlaceholder="Search codes..."
 					getId={(row) => row.id}
 					emptyMessage="No referral codes"

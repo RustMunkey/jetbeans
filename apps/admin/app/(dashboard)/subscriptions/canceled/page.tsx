@@ -9,7 +9,7 @@ export default async function CanceledSubscriptionsPage({ searchParams }: PagePr
 	const params = await searchParams
 	const page = Number(params.page) || 1
 
-	const { items, totalCount } = await getSubscriptions({ page, pageSize: 20, status: "cancelled" })
+	const { items, totalCount } = await getSubscriptions({ page, pageSize: 30, status: "cancelled" })
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 p-4 pt-0">

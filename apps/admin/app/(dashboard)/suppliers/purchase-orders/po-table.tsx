@@ -76,7 +76,7 @@ export function POTable({ orders, totalCount, currentPage, currentStatus }: POTa
 			searchPlaceholder="Search purchase orders..."
 			totalCount={totalCount}
 			currentPage={currentPage}
-			pageSize={20}
+			pageSize={30}
 			getId={(row) => row.id}
 			onRowClick={(row) => router.push(`/suppliers/purchase-orders/${row.id}`)}
 			emptyMessage="No purchase orders"

@@ -13,7 +13,7 @@ export default async function ReviewsPage({ searchParams }: PageProps) {
 	const page = Number(params.page) || 1
 	const { items, totalCount } = await getReviews({
 		page,
-		pageSize: 20,
+		pageSize: 30,
 		status: params.status,
 	})
 

@@ -12,7 +12,7 @@ interface GetCustomersParams {
 }
 
 export async function getCustomers(params: GetCustomersParams = {}) {
-	const { page = 1, pageSize = 20, search, segment } = params
+	const { page = 1, pageSize = 30, search, segment } = params
 	const offset = (page - 1) * pageSize
 
 	// Customers are users who are NOT admin/owner role (or have placed orders)
@@ -24,21 +24,18 @@ export async function getCustomers(params: GetCustomersParams = {}) {
 		)
 	}
 
-	let userIds: string[] | undefined
+	// If filtering by segment, add the segment condition to the query
 	if (segment) {
-		const members = await db
+		const segmentSubquery = db
 			.select({ userId: customerSegmentMembers.userId })
 			.from(customerSegmentMembers)
 			.where(eq(customerSegmentMembers.segmentId, segment))
-		userIds = members.map((m) => m.userId)
-		if (userIds.length === 0) {
-			return { items: [], totalCount: 0 }
-		}
+		baseConditions.push(inArray(users.id, segmentSubquery))
 	}
 
 	const where = and(...baseConditions)
 
-	// Get customers first
+	// Get customers with pagination applied AFTER segment filter
 	const customerRows = await db
 		.select({
 			id: users.id,
@@ -56,10 +53,8 @@ export async function getCustomers(params: GetCustomersParams = {}) {
 
 	const [total] = await db.select({ count: count() }).from(users).where(where)
 
-	// Filter by segment if needed
-	const filteredRows = userIds
-		? customerRows.filter((i) => userIds!.includes(i.id))
-		: customerRows
+	// Use customerRows directly (segment filtering now happens in SQL)
+	const filteredRows = customerRows
 
 	// Get order stats for these users
 	const customerIds = filteredRows.map((c) => c.id)

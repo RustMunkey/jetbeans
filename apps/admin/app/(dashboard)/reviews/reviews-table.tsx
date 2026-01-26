@@ -116,7 +116,7 @@ export function ReviewsTable({ reviews, totalCount, currentPage, currentStatus }
 			data={reviews}
 			totalCount={totalCount}
 			currentPage={currentPage}
-			pageSize={20}
+			pageSize={30}
 			selectable
 			selectedIds={selectedIds}
 			onSelectionChange={setSelectedIds}

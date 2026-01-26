@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
 import { ArrowRight01Icon } from "@hugeicons/core-free-icons"
 import { motion, AnimatePresence } from "framer-motion"
@@ -19,6 +20,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
+const PREVIOUS_PATH_KEY = "jetbeans_messages_previous_path"
+
 export function NavMain({
   label,
   items,
@@ -36,7 +39,17 @@ export function NavMain({
   }[]
 }) {
   const { openItems, toggle } = useSidebarState()
-  const { isMobile, setOpenMobile } = useSidebar()
+  const { isMobile, setOpenMobile, state } = useSidebar()
+  const isCollapsed = state === "collapsed"
+  const pathname = usePathname()
+
+  // Save current path before navigating to messages
+  const handleLinkClick = (url: string) => {
+    if (url === "/notifications/messages" && pathname !== "/notifications/messages") {
+      sessionStorage.setItem(PREVIOUS_PATH_KEY, pathname)
+    }
+    if (isMobile) setOpenMobile(false)
+  }
 
   return (
     <SidebarGroup>
@@ -49,14 +62,23 @@ export function NavMain({
             <SidebarMenuItem key={item.title}>
               {item.items?.length ? (
                 <>
-                  <SidebarMenuButton
-                    tooltip={item.title}
-                    onClick={() => toggle(item.title)}
-                    data-state={isOpen ? "open" : "closed"}
-                  >
-                    <HugeiconsIcon icon={item.icon} size={16} />
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
+                  {isCollapsed ? (
+                    <SidebarMenuButton asChild tooltip={item.title}>
+                      <Link href={item.url || item.items![0].url} onClick={() => handleLinkClick(item.url || item.items![0].url)}>
+                        <HugeiconsIcon icon={item.icon} size={16} />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  ) : (
+                    <SidebarMenuButton
+                      tooltip={item.title}
+                      onClick={() => toggle(item.title)}
+                      data-state={isOpen ? "open" : "closed"}
+                    >
+                      <HugeiconsIcon icon={item.icon} size={16} />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  )}
                   <SidebarMenuAction
                     className="data-[state=open]:rotate-90 transition-transform duration-200"
                     onClick={() => toggle(item.title)}
@@ -78,7 +100,7 @@ export function NavMain({
                           {item.items.map((subItem) => (
                             <SidebarMenuSubItem key={subItem.title}>
                               <SidebarMenuSubButton asChild>
-                                <Link href={subItem.url} onClick={() => isMobile && setOpenMobile(false)}>
+                                <Link href={subItem.url} onClick={() => handleLinkClick(subItem.url)}>
                                   <span>{subItem.title}</span>
                                 </Link>
                               </SidebarMenuSubButton>
@@ -91,7 +113,7 @@ export function NavMain({
                 </>
               ) : (
                 <SidebarMenuButton asChild tooltip={item.title}>
-                  <Link href={item.url} onClick={() => isMobile && setOpenMobile(false)}>
+                  <Link href={item.url} onClick={() => handleLinkClick(item.url)}>
                     <HugeiconsIcon icon={item.icon} size={16} />
                     <span>{item.title}</span>
                   </Link>

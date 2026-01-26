@@ -14,7 +14,7 @@ export default async function InventoryPage({ searchParams }: PageProps) {
 	const page = Number(params.page) || 1
 	const { items, totalCount } = await getInventory({
 		page,
-		pageSize: 20,
+		pageSize: 30,
 		search: params.search,
 		filter: params.filter,
 	})

@@ -1,8 +1,20 @@
 import { getOrdersByStatus } from "../actions"
 import { FulfillmentClient } from "./fulfillment-client"
 
-export default async function FulfillmentPage() {
-	const orders = await getOrdersByStatus(["confirmed", "processing", "packed"])
+interface PageProps {
+	searchParams: Promise<{
+		page?: string
+	}>
+}
+
+export default async function FulfillmentPage({ searchParams }: PageProps) {
+	const params = await searchParams
+	const page = Number(params.page) || 1
+	const { items, totalCount } = await getOrdersByStatus({
+		statuses: ["confirmed", "processing", "packed"],
+		page,
+		pageSize: 30,
+	})
 
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 pt-0">
@@ -13,7 +25,7 @@ export default async function FulfillmentPage() {
 				</p>
 			</div>
 
-			<FulfillmentClient orders={orders} />
+			<FulfillmentClient orders={items} totalCount={totalCount} currentPage={page} />
 		</div>
 	)
 }

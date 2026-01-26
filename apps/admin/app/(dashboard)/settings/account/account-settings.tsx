@@ -60,6 +60,7 @@ import {
 } from "../music/actions"
 import { DraftsManagerDialog } from "@/components/drafts-manager"
 import { getAllDrafts, deleteDraft as deleteDraftFromStore, type Draft } from "@/lib/use-draft"
+import { KeyboardShortcutsSettings } from "@/components/keyboard-shortcuts-settings"
 
 function formatFileSize(bytes: number | null): string {
 	if (!bytes) return "Unknown"
@@ -758,6 +759,8 @@ export function AccountSettings({ user }: { user: User }) {
 					</div>
 				</CardContent>
 			</Card>
+
+			<KeyboardShortcutsSettings />
 
 			<Card>
 				<CardHeader>

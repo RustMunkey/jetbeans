@@ -17,6 +17,11 @@ export const env = createEnv({
 		LIVEKIT_API_KEY: z.string().optional(),
 		LIVEKIT_API_SECRET: z.string().optional(),
 		LIVEKIT_URL: z.string().optional(),
+		// Webhook secrets
+		POLAR_WEBHOOK_SECRET: z.string().optional(),
+		RESEND_WEBHOOK_SECRET: z.string().optional(),
+		// Tracking service (17track.net)
+		TRACK17_API_KEY: z.string().optional(),
 	},
 	client: {
 		NEXT_PUBLIC_ADMIN_URL: z.string().url(),
@@ -38,6 +43,9 @@ export const env = createEnv({
 		LIVEKIT_API_KEY: process.env.LIVEKIT_API_KEY,
 		LIVEKIT_API_SECRET: process.env.LIVEKIT_API_SECRET,
 		LIVEKIT_URL: process.env.LIVEKIT_URL,
+		POLAR_WEBHOOK_SECRET: process.env.POLAR_WEBHOOK_SECRET,
+		RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,
+		TRACK17_API_KEY: process.env.TRACK17_API_KEY,
 		NEXT_PUBLIC_ADMIN_URL: process.env.NEXT_PUBLIC_ADMIN_URL,
 		NEXT_PUBLIC_PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY,
 		NEXT_PUBLIC_PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,

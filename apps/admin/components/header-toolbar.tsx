@@ -4,14 +4,12 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  Notification01Icon,
   Search01Icon,
   Add01Icon,
   Store01Icon,
   Mail01Icon,
   Call02Icon,
-  Radio02Icon,
-  RadioButtonIcon,
+  Setting06Icon,
 } from "@hugeicons/core-free-icons"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -46,16 +44,20 @@ import { usePusher } from "@/components/pusher-provider"
 import { getUnreadCount, getTeamMessages, markAllRead, markMessageRead } from "@/app/(dashboard)/notifications/messages/actions"
 import { showMessageToast } from "@/components/message-toast"
 import { ActiveCallIndicator } from "@/components/calls"
-import { useMusicPlayer } from "@/components/music-player"
+import { useToolbar } from "@/components/toolbar"
+import { useRightSidebar } from "@/components/ui/right-sidebar"
+import { NotificationBell } from "@/components/notifications"
+import { OnlineUsers } from "@/components/presence"
 import Link from "next/link"
 
 type QuickMessage = {
   id: string
-  senderId: string
+  senderId: string | null
   senderName: string
   senderImage: string | null
   channel: string
-  body: string
+  body: string | null
+  attachments?: Array<{ type: string; url: string; name: string }> | null
   createdAt: string
   readAt: string | null
 }
@@ -107,12 +109,13 @@ export function HeaderToolbar() {
   const [unreadCount, setUnreadCount] = React.useState(0)
   const [recentMessages, setRecentMessages] = React.useState<QuickMessage[]>([])
   const [messagesPopoverOpen, setMessagesPopoverOpen] = React.useState(false)
-  const hasNotifications = false // TODO: replace with real notification count
   const { open: openCommandMenu } = useCommandMenu()
   const router = useRouter()
   const { data: session } = useSession()
   const { pusher } = usePusher()
-  const { isPlaying, isWidgetOpen, toggle: toggleMusic, openWidget: openMusicWidget } = useMusicPlayer()
+  const { isOpen: isToolbarOpen, toggleToolbar } = useToolbar()
+  const { toggleSidebar: toggleRightSidebar } = useRightSidebar()
+  const userId = session?.user?.id
 
   // Audio refs for notification sound
   const notificationSoundRef = React.useRef<HTMLAudioElement | null>(null)
@@ -166,15 +169,15 @@ export function HeaderToolbar() {
       setRecentMessages((prev) => [data, ...prev].slice(0, 20))
 
       // Only show notification if not viewing that conversation
-      if (shouldPlaySound(data.channel, data.senderId)) {
+      if (shouldPlaySound(data.channel, data.senderId || "")) {
         setUnreadCount((c) => c + 1)
         showMessageToast({
           senderName: data.senderName,
-          body: data.body,
+          body: data.body || "",
           messageId: data.id,
           channel: data.channel,
         })
-        playNotificationSound(data.channel, data.senderId)
+        playNotificationSound(data.channel, data.senderId || "")
       }
     })
 
@@ -345,49 +348,7 @@ export function HeaderToolbar() {
         </Link>
       </Button>
       <ActiveCallIndicator />
-      <Button
-        variant="ghost"
-        size="icon"
-        className="relative size-8"
-        onClick={() => {
-          if (isWidgetOpen) {
-            toggleMusic()
-          } else {
-            openMusicWidget()
-          }
-        }}
-      >
-        <HugeiconsIcon icon={isPlaying ? RadioButtonIcon : Radio02Icon} size={16} />
-        {isPlaying && (
-          <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-green-500 animate-pulse" />
-        )}
-        <span className="sr-only">Music Player</span>
-      </Button>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="ghost" size="icon" className="relative size-8">
-            <HugeiconsIcon icon={Notification01Icon} size={16} />
-            {hasNotifications && (
-              <span className="absolute top-1 right-1 size-2 rounded-full bg-destructive" />
-            )}
-            <span className="sr-only">Notifications</span>
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="end" collisionPadding={16} className="w-[calc(100vw-2rem)] md:w-80 p-0">
-          <div className="flex items-center justify-between border-b px-4 py-3">
-            <h4 className="text-sm font-semibold">Notifications</h4>
-            <Button variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs text-muted-foreground">
-              Mark all read
-            </Button>
-          </div>
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <p className="text-sm text-muted-foreground">No notifications yet</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">
-              You&apos;re all caught up
-            </p>
-          </div>
-        </PopoverContent>
-      </Popover>
+      {userId && <NotificationBell userId={userId} onOpenSidebar={toggleRightSidebar} />}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="size-8">
@@ -433,7 +394,17 @@ export function HeaderToolbar() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <Separator orientation="vertical" className="hidden md:block data-[orientation=vertical]:h-4" />
+      <Button
+        variant="ghost"
+        size="icon"
+        className={`size-8 ${isToolbarOpen ? "text-primary" : ""}`}
+        onClick={toggleToolbar}
+        title="Tools (Ctrl+\\ or Cmd+\\)"
+      >
+        <HugeiconsIcon icon={Setting06Icon} size={16} />
+        <span className="sr-only">Tools</span>
+      </Button>
+      <OnlineUsers className="hidden md:flex" />
       <button
         type="button"
         onClick={openCommandMenu}

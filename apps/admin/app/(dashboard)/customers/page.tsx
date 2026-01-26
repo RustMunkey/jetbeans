@@ -14,7 +14,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
 	const page = Number(params.page) || 1
 	const { items, totalCount } = await getCustomers({
 		page,
-		pageSize: 20,
+		pageSize: 30,
 		search: params.search,
 		segment: params.segment,
 	})

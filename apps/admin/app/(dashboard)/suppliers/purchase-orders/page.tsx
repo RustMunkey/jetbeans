@@ -11,7 +11,7 @@ export default async function PurchaseOrdersPage({ searchParams }: PageProps) {
 
 	const { items, totalCount } = await getPurchaseOrders({
 		page,
-		pageSize: 20,
+		pageSize: 30,
 		status: params.status,
 	})
 

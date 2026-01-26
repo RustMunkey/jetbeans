@@ -20,7 +20,13 @@ interface Order {
 	createdAt: Date
 }
 
-export function FulfillmentClient({ orders }: { orders: Order[] }) {
+interface FulfillmentClientProps {
+	orders: Order[]
+	totalCount: number
+	currentPage: number
+}
+
+export function FulfillmentClient({ orders, totalCount, currentPage }: FulfillmentClientProps) {
 	const router = useRouter()
 	const [selectedIds, setSelectedIds] = useState<string[]>([])
 	const [loading, setLoading] = useState(false)
@@ -120,6 +126,9 @@ export function FulfillmentClient({ orders }: { orders: Order[] }) {
 			onSelectionChange={setSelectedIds}
 			emptyMessage="No orders to fulfill"
 			emptyDescription="Confirmed and processing orders will appear here."
+			totalCount={totalCount}
+			currentPage={currentPage}
+			pageSize={30}
 			filters={
 				<Select value={statusFilter} onValueChange={setStatusFilter}>
 					<SelectTrigger className="h-9 w-full sm:w-[160px]">

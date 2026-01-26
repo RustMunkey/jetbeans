@@ -49,13 +49,23 @@ const sentColumns: Column<SentMessage>[] = [
 	},
 ]
 
+interface NotificationsClientProps {
+	templates: EmailTemplate[]
+	templatesTotalCount: number
+	templatesCurrentPage: number
+	messages: SentMessage[]
+	messagesTotalCount: number
+	messagesCurrentPage: number
+}
+
 export function NotificationsClient({
 	templates,
+	templatesTotalCount,
+	templatesCurrentPage,
 	messages,
-}: {
-	templates: EmailTemplate[]
-	messages: SentMessage[]
-}) {
+	messagesTotalCount,
+	messagesCurrentPage,
+}: NotificationsClientProps) {
 	return (
 		<div className="space-y-6">
 			<div>
@@ -68,7 +78,7 @@ export function NotificationsClient({
 					<TabsTrigger value="sent">Sent Log</TabsTrigger>
 				</TabsList>
 				<TabsContent value="templates" className="mt-4">
-					<TemplatesTable templates={templates} />
+					<TemplatesTable templates={templates} totalCount={templatesTotalCount} currentPage={templatesCurrentPage} />
 				</TabsContent>
 				<TabsContent value="sent" className="mt-4">
 					<DataTable
@@ -76,6 +86,8 @@ export function NotificationsClient({
 						columns={sentColumns}
 						searchKey="recipientEmail"
 						searchPlaceholder="Search by email..."
+						totalCount={messagesTotalCount}
+						currentPage={messagesCurrentPage}
 					/>
 				</TabsContent>
 			</Tabs>

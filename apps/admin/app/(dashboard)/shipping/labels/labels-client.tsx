@@ -83,7 +83,7 @@ export function LabelsClient({ labels, totalCount, currentPage, currentStatus }:
 			searchPlaceholder="Search labels..."
 			totalCount={totalCount}
 			currentPage={currentPage}
-			pageSize={20}
+			pageSize={30}
 			getId={(row) => row.id}
 			onRowClick={(row) => router.push(`/shipping/labels/${row.id}`)}
 			emptyMessage="No shipping labels"

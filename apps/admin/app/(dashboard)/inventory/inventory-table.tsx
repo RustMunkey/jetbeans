@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { adjustStock, updateThreshold } from "./actions"
+import { useLiveInventory, type LiveInventoryItem } from "@/hooks/use-live-inventory"
+import { cn } from "@/lib/utils"
 
 interface InventoryItem {
 	id: string
@@ -29,6 +31,7 @@ interface InventoryItem {
 	variantSku: string
 	productName: string
 	productId: string
+	isUpdated?: boolean
 }
 
 interface InventoryTableProps {
@@ -45,8 +48,13 @@ function getStockStatus(item: InventoryItem): string {
 	return "in_stock"
 }
 
-export function InventoryTable({ items, totalCount, currentPage, currentFilter }: InventoryTableProps) {
+export function InventoryTable({ items: initialItems, totalCount, currentPage, currentFilter }: InventoryTableProps) {
 	const router = useRouter()
+	const { items } = useLiveInventory({
+		initialItems: initialItems as LiveInventoryItem[],
+		onLowStock: (data) => toast.warning(`Low stock: ${data.productName}`),
+		onOutOfStock: (data) => toast.error(`Out of stock: ${data.productName}`),
+	})
 	const [adjustDialogOpen, setAdjustDialogOpen] = useState(false)
 	const [thresholdDialogOpen, setThresholdDialogOpen] = useState(false)
 	const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null)
@@ -60,7 +68,7 @@ export function InventoryTable({ items, totalCount, currentPage, currentFilter }
 			key: "product",
 			header: "Product",
 			cell: (row) => (
-				<div>
+				<div className={cn(row.isUpdated && "animate-pulse")}>
 					<span className="font-medium text-sm">{row.productName}</span>
 					<span className="block text-xs text-muted-foreground">{row.variantName}</span>
 				</div>
@@ -76,7 +84,11 @@ export function InventoryTable({ items, totalCount, currentPage, currentFilter }
 		{
 			key: "quantity",
 			header: "On Hand",
-			cell: (row) => <span className="font-medium">{row.quantity}</span>,
+			cell: (row) => (
+				<span className={cn("font-medium", row.isUpdated && "text-primary")}>
+					{row.quantity}
+				</span>
+			),
 		},
 		{
 			key: "reserved",
@@ -186,7 +198,7 @@ export function InventoryTable({ items, totalCount, currentPage, currentFilter }
 				searchPlaceholder="Search products, SKUs..."
 				totalCount={totalCount}
 				currentPage={currentPage}
-				pageSize={20}
+				pageSize={30}
 				getId={(row) => row.id}
 				onRowClick={(row) => {
 					setSelectedItem(row)

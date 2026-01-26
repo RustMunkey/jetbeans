@@ -1,12 +1,20 @@
 import { getSegments } from "./actions"
 import { SegmentsClient } from "./segments-client"
 
-export default async function SegmentsPage() {
-	const segments = await getSegments()
+interface PageProps {
+	searchParams: Promise<{
+		page?: string
+	}>
+}
+
+export default async function SegmentsPage({ searchParams }: PageProps) {
+	const params = await searchParams
+	const page = Number(params.page) || 1
+	const { items, totalCount } = await getSegments({ page, pageSize: 30 })
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 pt-0">
-			<SegmentsClient segments={segments} />
+			<SegmentsClient segments={items} totalCount={totalCount} currentPage={page} />
 		</div>
 	)
 }

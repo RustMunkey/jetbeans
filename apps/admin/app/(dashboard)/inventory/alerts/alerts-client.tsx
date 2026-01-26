@@ -36,7 +36,13 @@ function getStockStatus(item: AlertItem): string {
 	return "low_stock"
 }
 
-export function AlertsClient({ items }: { items: AlertItem[] }) {
+interface AlertsClientProps {
+	items: AlertItem[]
+	totalCount: number
+	currentPage: number
+}
+
+export function AlertsClient({ items, totalCount, currentPage }: AlertsClientProps) {
 	const router = useRouter()
 	const [adjustDialogOpen, setAdjustDialogOpen] = useState(false)
 	const [selectedItem, setSelectedItem] = useState<AlertItem | null>(null)
@@ -138,51 +144,22 @@ export function AlertsClient({ items }: { items: AlertItem[] }) {
 
 	return (
 		<>
-			{outOfStock.length > 0 && (
-				<div className="space-y-2">
-					<h3 className="text-sm font-medium text-red-600 dark:text-red-400">
-						Out of Stock ({outOfStock.length})
-					</h3>
-					<DataTable
-						columns={columns}
-						data={outOfStock}
-						getId={(row) => row.id}
-						onRowClick={(row) => {
-							setSelectedItem(row)
-							setNewQuantity(String(row.quantity))
-							setReason("Restock")
-							setAdjustDialogOpen(true)
-						}}
-						emptyMessage="No out of stock items"
-					/>
-				</div>
-			)}
-
-			{lowStock.length > 0 && (
-				<div className="space-y-2">
-					<h3 className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
-						Low Stock ({lowStock.length})
-					</h3>
-					<DataTable
-						columns={columns}
-						data={lowStock}
-						getId={(row) => row.id}
-						onRowClick={(row) => {
-							setSelectedItem(row)
-							setNewQuantity(String(row.quantity))
-							setReason("Restock")
-							setAdjustDialogOpen(true)
-						}}
-						emptyMessage="No low stock items"
-					/>
-				</div>
-			)}
-
-			{items.length === 0 && (
-				<div className="rounded-lg border p-8 text-center">
-					<p className="text-sm text-muted-foreground">All stock levels are healthy.</p>
-				</div>
-			)}
+			<DataTable
+				columns={columns}
+				data={items}
+				totalCount={totalCount}
+				currentPage={currentPage}
+				pageSize={30}
+				getId={(row) => row.id}
+				onRowClick={(row) => {
+					setSelectedItem(row)
+					setNewQuantity(String(row.quantity))
+					setReason("Restock")
+					setAdjustDialogOpen(true)
+				}}
+				emptyMessage="All stock levels are healthy"
+				emptyDescription="No items are below their low stock threshold."
+			/>
 
 			<Dialog open={adjustDialogOpen} onOpenChange={setAdjustDialogOpen}>
 				<DialogContent>

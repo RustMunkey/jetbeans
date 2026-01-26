@@ -9,20 +9,9 @@ import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { formatCurrency, formatDate } from "@/lib/format"
+import { useLiveProducts, type LiveProduct } from "@/hooks/use-live-products"
+import { cn } from "@/lib/utils"
 import { bulkUpdateProducts } from "./actions"
-
-interface Product {
-	id: string
-	name: string
-	slug: string
-	price: string
-	thumbnail: string | null
-	isActive: boolean | null
-	isFeatured: boolean | null
-	categoryId: string | null
-	categoryName: string | null
-	createdAt: Date
-}
 
 interface Category {
 	id: string
@@ -31,7 +20,7 @@ interface Category {
 }
 
 interface ProductsTableProps {
-	products: Product[]
+	products: LiveProduct[]
 	categories: Category[]
 	totalCount: number
 	currentPage: number
@@ -40,7 +29,7 @@ interface ProductsTableProps {
 }
 
 export function ProductsTable({
-	products,
+	products: initialProducts,
 	categories,
 	totalCount,
 	currentPage,
@@ -48,16 +37,20 @@ export function ProductsTable({
 	currentStatus,
 }: ProductsTableProps) {
 	const router = useRouter()
+	const { products } = useLiveProducts({ initialProducts })
 	const [selectedIds, setSelectedIds] = useState<string[]>([])
 	const [loading, setLoading] = useState(false)
 
-	const columns: Column<Product>[] = [
+	const columns: Column<LiveProduct>[] = [
 		{
 			key: "thumbnail",
 			header: "",
 			className: "w-10",
 			cell: (row) => (
-				<div className="w-8 h-8 rounded bg-muted flex items-center justify-center overflow-hidden">
+				<div className={cn(
+					"w-8 h-8 rounded bg-muted flex items-center justify-center overflow-hidden",
+					row.isNew && "ring-2 ring-stat-up ring-offset-1"
+				)}>
 					{row.thumbnail ? (
 						<img src={row.thumbnail} alt="" className="w-full h-full object-cover" />
 					) : (
@@ -70,10 +63,15 @@ export function ProductsTable({
 			key: "name",
 			header: "Name",
 			cell: (row) => (
-				<div>
+				<div className="flex items-center gap-2">
 					<span className="font-medium">{row.name}</span>
+					{row.isNew && (
+						<span className="text-[10px] px-1.5 py-0.5 rounded bg-stat-up/10 text-stat-up font-medium animate-pulse">
+							NEW
+						</span>
+					)}
 					{row.isFeatured && (
-						<span className="ml-2 text-[10px] text-amber-600 dark:text-amber-400">Featured</span>
+						<span className="text-[10px] text-amber-600 dark:text-amber-400">Featured</span>
 					)}
 				</div>
 			),
@@ -138,7 +136,7 @@ export function ProductsTable({
 			searchPlaceholder="Search products..."
 			totalCount={totalCount}
 			currentPage={currentPage}
-			pageSize={20}
+			pageSize={30}
 			selectable
 			selectedIds={selectedIds}
 			onSelectionChange={setSelectedIds}

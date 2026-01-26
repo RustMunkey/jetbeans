@@ -6,6 +6,8 @@ import { db } from "@jetbeans/db/client"
 import { subscriptions, subscriptionItems, users, productVariants, products } from "@jetbeans/db/schema"
 import { auth } from "@/lib/auth"
 import { logAudit } from "@/lib/audit"
+import { pusherServer } from "@/lib/pusher-server"
+import { fireWebhooks } from "@/lib/webhooks/outgoing"
 
 async function requireAdmin() {
 	const session = await auth.api.getSession({ headers: await headers() })
@@ -23,7 +25,7 @@ interface GetSubscriptionsParams {
 }
 
 export async function getSubscriptions(params: GetSubscriptionsParams = {}) {
-	const { page = 1, pageSize = 20, status } = params
+	const { page = 1, pageSize = 30, status } = params
 	const offset = (page - 1) * pageSize
 
 	const conditions = []
@@ -135,16 +137,46 @@ export async function updateSubscriptionStatus(id: string, status: string) {
 		targetType: "subscription",
 		targetId: id,
 	})
+
+	// Broadcast update
+	if (pusherServer) {
+		await pusherServer.trigger("private-subscriptions", "subscription:updated", {
+			id,
+			status,
+			...(status === "cancelled" && { cancelledAt: new Date().toISOString() }),
+		})
+	}
+
+	// Fire outgoing webhooks based on status
+	if (status === "cancelled") {
+		await fireWebhooks("subscription.cancelled", {
+			subscriptionId: id,
+			status,
+			cancelledAt: new Date().toISOString(),
+		})
+	} else if (status === "paused") {
+		await fireWebhooks("subscription.paused", {
+			subscriptionId: id,
+			status,
+		})
+	} else if (status === "active") {
+		await fireWebhooks("subscription.resumed", {
+			subscriptionId: id,
+			status,
+		})
+	}
 }
 
 export async function cancelSubscription(id: string, reason: string) {
 	await requireAdmin()
 
+	const cancelledAt = new Date()
+
 	await db
 		.update(subscriptions)
 		.set({
 			status: "cancelled",
-			cancelledAt: new Date(),
+			cancelledAt,
 			cancellationReason: reason,
 			nextDeliveryAt: null,
 			updatedAt: new Date(),
@@ -156,6 +188,23 @@ export async function cancelSubscription(id: string, reason: string) {
 		targetType: "subscription",
 		targetId: id,
 		metadata: { reason },
+	})
+
+	// Broadcast cancellation
+	if (pusherServer) {
+		await pusherServer.trigger("private-subscriptions", "subscription:canceled", {
+			id,
+			cancelledAt: cancelledAt.toISOString(),
+			reason,
+		})
+	}
+
+	// Fire outgoing webhook
+	await fireWebhooks("subscription.cancelled", {
+		subscriptionId: id,
+		status: "cancelled",
+		cancelledAt: cancelledAt.toISOString(),
+		reason,
 	})
 }
 
@@ -181,6 +230,24 @@ export async function resumeSubscription(id: string) {
 		targetType: "subscription",
 		targetId: id,
 	})
+
+	// Broadcast update
+	if (pusherServer) {
+		await pusherServer.trigger("private-subscriptions", "subscription:updated", {
+			id,
+			status: "active",
+			cancelledAt: null,
+			cancellationReason: null,
+			nextDeliveryAt: nextDelivery.toISOString(),
+		})
+	}
+
+	// Fire outgoing webhook
+	await fireWebhooks("subscription.resumed", {
+		subscriptionId: id,
+		status: "active",
+		nextDeliveryAt: nextDelivery.toISOString(),
+	})
 }
 
 export async function updateFrequency(id: string, frequency: string) {
@@ -197,4 +264,12 @@ export async function updateFrequency(id: string, frequency: string) {
 		targetId: id,
 		metadata: { frequency },
 	})
+
+	// Broadcast update
+	if (pusherServer) {
+		await pusherServer.trigger("private-subscriptions", "subscription:updated", {
+			id,
+			frequency,
+		})
+	}
 }

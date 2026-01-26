@@ -9,7 +9,7 @@ export default async function DunningSubscriptionsPage({ searchParams }: PagePro
 	const params = await searchParams
 	const page = Number(params.page) || 1
 
-	const { items, totalCount } = await getSubscriptions({ page, pageSize: 20, status: "dunning" })
+	const { items, totalCount } = await getSubscriptions({ page, pageSize: 30, status: "dunning" })
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 p-4 pt-0">

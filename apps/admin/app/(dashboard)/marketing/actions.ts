@@ -2,24 +2,42 @@
 
 import { db } from "@jetbeans/db/client"
 import * as schema from "@jetbeans/db/schema"
-import { eq, desc, sql, ilike, and, or, isNull, isNotNull } from "@jetbeans/db/drizzle"
+import { eq, desc, sql, ilike, and, or, isNull, isNotNull, count } from "@jetbeans/db/drizzle"
 
 // --- DISCOUNTS ---
-export async function getDiscounts(params?: { status?: string }) {
+interface GetDiscountsParams {
+	page?: number
+	pageSize?: number
+	status?: string
+}
+
+export async function getDiscounts(params: GetDiscountsParams = {}) {
+	const { page = 1, pageSize = 30, status } = params
+	const offset = (page - 1) * pageSize
+
 	const conditions = []
-	if (params?.status === "active") {
+	if (status === "active") {
 		conditions.push(eq(schema.discounts.isActive, true))
-	} else if (params?.status === "inactive") {
+	} else if (status === "inactive") {
 		conditions.push(eq(schema.discounts.isActive, false))
-	} else if (params?.status === "expired") {
+	} else if (status === "expired") {
 		conditions.push(sql`${schema.discounts.expiresAt} < NOW()`)
 	}
 
-	return db
-		.select()
-		.from(schema.discounts)
-		.where(conditions.length > 0 ? and(...conditions) : undefined)
-		.orderBy(desc(schema.discounts.createdAt))
+	const where = conditions.length > 0 ? and(...conditions) : undefined
+
+	const [items, [total]] = await Promise.all([
+		db
+			.select()
+			.from(schema.discounts)
+			.where(where)
+			.orderBy(desc(schema.discounts.createdAt))
+			.limit(pageSize)
+			.offset(offset),
+		db.select({ count: count() }).from(schema.discounts).where(where),
+	])
+
+	return { items, totalCount: total.count }
 }
 
 export async function getDiscount(id: string) {
@@ -100,17 +118,35 @@ export async function toggleDiscount(id: string, isActive: boolean) {
 }
 
 // --- CAMPAIGNS ---
-export async function getCampaigns(params?: { status?: string }) {
+interface GetCampaignsParams {
+	page?: number
+	pageSize?: number
+	status?: string
+}
+
+export async function getCampaigns(params: GetCampaignsParams = {}) {
+	const { page = 1, pageSize = 30, status } = params
+	const offset = (page - 1) * pageSize
+
 	const conditions = []
-	if (params?.status && params.status !== "all") {
-		conditions.push(eq(schema.campaigns.status, params.status))
+	if (status && status !== "all") {
+		conditions.push(eq(schema.campaigns.status, status))
 	}
 
-	return db
-		.select()
-		.from(schema.campaigns)
-		.where(conditions.length > 0 ? and(...conditions) : undefined)
-		.orderBy(desc(schema.campaigns.createdAt))
+	const where = conditions.length > 0 ? and(...conditions) : undefined
+
+	const [items, [total]] = await Promise.all([
+		db
+			.select()
+			.from(schema.campaigns)
+			.where(where)
+			.orderBy(desc(schema.campaigns.createdAt))
+			.limit(pageSize)
+			.offset(offset),
+		db.select({ count: count() }).from(schema.campaigns).where(where),
+	])
+
+	return { items, totalCount: total.count }
 }
 
 export async function getCampaign(id: string) {
@@ -161,45 +197,71 @@ export async function deleteCampaign(id: string) {
 }
 
 // --- REFERRALS ---
-export async function getReferrals() {
-	const rows = await db
-		.select({
-			id: schema.referrals.id,
-			referrerId: schema.referrals.referrerId,
-			referredId: schema.referrals.referredId,
-			referralCode: schema.referrals.referralCode,
-			status: schema.referrals.status,
-			rewardAmount: schema.referrals.rewardAmount,
-			rewardType: schema.referrals.rewardType,
-			completedAt: schema.referrals.completedAt,
-			createdAt: schema.referrals.createdAt,
-			referrerName: sql<string | null>`(SELECT name FROM users WHERE id = ${schema.referrals.referrerId})`,
-			referrerEmail: sql<string | null>`(SELECT email FROM users WHERE id = ${schema.referrals.referrerId})`,
-			referredName: sql<string | null>`(SELECT name FROM users WHERE id = ${schema.referrals.referredId})`,
-			referredEmail: sql<string | null>`(SELECT email FROM users WHERE id = ${schema.referrals.referredId})`,
-		})
-		.from(schema.referrals)
-		.orderBy(desc(schema.referrals.createdAt))
-
-	return rows
+interface GetReferralsParams {
+	page?: number
+	pageSize?: number
 }
 
-export async function getReferralCodes() {
-	const rows = await db
-		.select({
-			id: schema.referralCodes.id,
-			userId: schema.referralCodes.userId,
-			code: schema.referralCodes.code,
-			totalReferrals: schema.referralCodes.totalReferrals,
-			totalEarnings: schema.referralCodes.totalEarnings,
-			createdAt: schema.referralCodes.createdAt,
-			userName: sql<string | null>`(SELECT name FROM users WHERE id = ${schema.referralCodes.userId})`,
-			userEmail: sql<string | null>`(SELECT email FROM users WHERE id = ${schema.referralCodes.userId})`,
-		})
-		.from(schema.referralCodes)
-		.orderBy(desc(schema.referralCodes.totalReferrals))
+export async function getReferrals(params: GetReferralsParams = {}) {
+	const { page = 1, pageSize = 30 } = params
+	const offset = (page - 1) * pageSize
 
-	return rows
+	const [items, [total]] = await Promise.all([
+		db
+			.select({
+				id: schema.referrals.id,
+				referrerId: schema.referrals.referrerId,
+				referredId: schema.referrals.referredId,
+				referralCode: schema.referrals.referralCode,
+				status: schema.referrals.status,
+				rewardAmount: schema.referrals.rewardAmount,
+				rewardType: schema.referrals.rewardType,
+				completedAt: schema.referrals.completedAt,
+				createdAt: schema.referrals.createdAt,
+				referrerName: sql<string | null>`(SELECT name FROM users WHERE id = ${schema.referrals.referrerId})`,
+				referrerEmail: sql<string | null>`(SELECT email FROM users WHERE id = ${schema.referrals.referrerId})`,
+				referredName: sql<string | null>`(SELECT name FROM users WHERE id = ${schema.referrals.referredId})`,
+				referredEmail: sql<string | null>`(SELECT email FROM users WHERE id = ${schema.referrals.referredId})`,
+			})
+			.from(schema.referrals)
+			.orderBy(desc(schema.referrals.createdAt))
+			.limit(pageSize)
+			.offset(offset),
+		db.select({ count: count() }).from(schema.referrals),
+	])
+
+	return { items, totalCount: total.count }
+}
+
+interface GetReferralCodesParams {
+	page?: number
+	pageSize?: number
+}
+
+export async function getReferralCodes(params: GetReferralCodesParams = {}) {
+	const { page = 1, pageSize = 30 } = params
+	const offset = (page - 1) * pageSize
+
+	const [items, [total]] = await Promise.all([
+		db
+			.select({
+				id: schema.referralCodes.id,
+				userId: schema.referralCodes.userId,
+				code: schema.referralCodes.code,
+				totalReferrals: schema.referralCodes.totalReferrals,
+				totalEarnings: schema.referralCodes.totalEarnings,
+				createdAt: schema.referralCodes.createdAt,
+				userName: sql<string | null>`(SELECT name FROM users WHERE id = ${schema.referralCodes.userId})`,
+				userEmail: sql<string | null>`(SELECT email FROM users WHERE id = ${schema.referralCodes.userId})`,
+			})
+			.from(schema.referralCodes)
+			.orderBy(desc(schema.referralCodes.totalReferrals))
+			.limit(pageSize)
+			.offset(offset),
+		db.select({ count: count() }).from(schema.referralCodes),
+	])
+
+	return { items, totalCount: total.count }
 }
 
 // --- SEO ---

@@ -5,25 +5,10 @@ import { DataTable, type Column } from "@/components/data-table"
 import { StatusBadge } from "@/components/status-badge"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { formatCurrency, formatDate } from "@/lib/format"
-
-interface Subscription {
-	id: string
-	userId: string
-	status: string
-	frequency: string
-	pricePerDelivery: string
-	nextDeliveryAt: Date | null
-	lastDeliveryAt: Date | null
-	totalDeliveries: number | null
-	cancelledAt: Date | null
-	cancellationReason: string | null
-	createdAt: Date
-	customerName: string | null
-	customerEmail: string | null
-}
+import { useLiveSubscriptions, type LiveSubscription } from "@/hooks/use-live-subscriptions"
 
 interface SubscriptionsTableProps {
-	subscriptions: Subscription[]
+	subscriptions: LiveSubscription[]
 	totalCount: number
 	currentPage: number
 	currentStatus?: string
@@ -35,7 +20,7 @@ interface SubscriptionsTableProps {
 const statuses = ["active", "paused", "cancelled", "dunning"]
 
 export function SubscriptionsTable({
-	subscriptions,
+	subscriptions: initialSubscriptions,
 	totalCount,
 	currentPage,
 	currentStatus,
@@ -44,16 +29,24 @@ export function SubscriptionsTable({
 	description = "Manage recurring delivery subscriptions.",
 }: SubscriptionsTableProps) {
 	const router = useRouter()
+	const { subscriptions } = useLiveSubscriptions({ initialSubscriptions })
 
-	const columns: Column<Subscription>[] = [
+	const columns: Column<LiveSubscription>[] = [
 		{
 			key: "customer",
 			header: "Customer",
 			cell: (row) => (
-				<div>
-					<span className="text-sm font-medium">{row.customerName ?? "—"}</span>
-					{row.customerEmail && (
-						<p className="text-xs text-muted-foreground">{row.customerEmail}</p>
+				<div className="flex items-center gap-2">
+					<div>
+						<span className="text-sm font-medium">{row.customerName ?? "—"}</span>
+						{row.customerEmail && (
+							<p className="text-xs text-muted-foreground">{row.customerEmail}</p>
+						)}
+					</div>
+					{row.isNew && (
+						<span className="text-[10px] px-1.5 py-0.5 rounded bg-stat-up/10 text-stat-up font-medium animate-pulse">
+							NEW
+						</span>
 					)}
 				</div>
 			),
@@ -116,7 +109,7 @@ export function SubscriptionsTable({
 			searchPlaceholder="Search subscriptions..."
 			totalCount={totalCount}
 			currentPage={currentPage}
-			pageSize={20}
+			pageSize={30}
 			getId={(row) => row.id}
 			onRowClick={(row) => router.push(`/subscriptions/${row.id}`)}
 			emptyMessage="No subscriptions"

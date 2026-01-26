@@ -48,7 +48,7 @@ export function DataTable<T>({
 	searchPlaceholder = "Search...",
 	searchKey = "search",
 	totalCount,
-	pageSize = 20,
+	pageSize = 30,
 	currentPage = 1,
 	onRowClick,
 	selectable = false,
@@ -81,7 +81,7 @@ export function DataTable<T>({
 	const totalPages = Math.ceil(total / pageSize)
 
 	const updateParams = React.useCallback(
-		(updates: Record<string, string | null>) => {
+		(updates: Record<string, string | null>, scrollToTop = false) => {
 			const params = new URLSearchParams(searchParams.toString())
 			for (const [key, value] of Object.entries(updates)) {
 				if (value === null || value === "") {
@@ -90,7 +90,7 @@ export function DataTable<T>({
 					params.set(key, value)
 				}
 			}
-			router.push(`${pathname}?${params.toString()}`)
+			router.push(`${pathname}?${params.toString()}`, { scroll: scrollToTop })
 		},
 		[router, pathname, searchParams]
 	)
@@ -236,7 +236,7 @@ export function DataTable<T>({
 							variant="outline"
 							size="sm"
 							disabled={currentPage <= 1}
-							onClick={() => updateParams({ page: String(currentPage - 1) })}
+							onClick={() => updateParams({ page: String(currentPage - 1) }, true)}
 						>
 							Previous
 						</Button>
@@ -247,7 +247,7 @@ export function DataTable<T>({
 							variant="outline"
 							size="sm"
 							disabled={currentPage >= totalPages}
-							onClick={() => updateParams({ page: String(currentPage + 1) })}
+							onClick={() => updateParams({ page: String(currentPage + 1) }, true)}
 						>
 							Next
 						</Button>

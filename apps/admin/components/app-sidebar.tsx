@@ -27,6 +27,8 @@ import {
   ChartLineData01Icon,
   CheckListIcon,
   Call02Icon,
+  ArrowLeft01Icon,
+  WorkflowSquare10Icon,
 } from "@hugeicons/core-free-icons"
 
 import Link from "next/link"
@@ -34,6 +36,8 @@ import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
 import { useCommandMenu } from "@/components/command-menu"
 import { useSidebarStateProvider, SidebarStateContext } from "@/lib/use-sidebar-state"
+import { useSidebarMode } from "@/lib/sidebar-mode"
+import { ChatSidebar, useChat } from "@/components/messages"
 import {
   Sidebar,
   SidebarContent,
@@ -172,6 +176,7 @@ const data = {
         { title: "Zones", url: "/shipping/zones" },
         { title: "Labels", url: "/shipping/labels" },
         { title: "Tracking", url: "/shipping/tracking" },
+        { title: "Pending Review", url: "/shipping/tracking/pending" },
       ],
     },
     {
@@ -181,6 +186,16 @@ const data = {
       items: [
         { title: "All Suppliers", url: "/suppliers" },
         { title: "Purchase Orders", url: "/suppliers/purchase-orders" },
+      ],
+    },
+    {
+      title: "Automation",
+      url: "/automation",
+      icon: WorkflowSquare10Icon,
+      items: [
+        { title: "Workflows", url: "/automation" },
+        { title: "Triggers", url: "/automation/triggers" },
+        { title: "History", url: "/automation/history" },
       ],
     },
   ],
@@ -258,9 +273,123 @@ type UserData = {
   role: string
 }
 
+function MessagesHeader({ exitMessagesMode }: { exitMessagesMode: () => void }) {
+  return (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton size="lg" onClick={exitMessagesMode} className="cursor-pointer" tooltip="Back to Dashboard">
+          <div className="bg-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg overflow-hidden">
+            <img src="/logos/coffee-white.png" alt="JetBeans" className="size-5 dark:hidden" />
+            <img src="/logos/coffee.png" alt="JetBeans" className="size-5 hidden dark:block" />
+          </div>
+          <div className="grid flex-1 text-left leading-tight">
+            <span className="truncate font-medium text-sm">
+              Back
+            </span>
+            <span className="truncate font-sans text-xs text-muted-foreground">
+              Exit Messages
+            </span>
+          </div>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    </SidebarMenu>
+  )
+}
+
+function NormalHeader({ openCommandMenu }: { openCommandMenu: () => void }) {
+  return (
+    <>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton size="lg" asChild>
+            <Link href="/">
+              <div className="bg-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg overflow-hidden">
+                <img src="/logos/coffee-white.png" alt="JetBeans" className="size-5 dark:hidden" />
+                <img src="/logos/coffee.png" alt="JetBeans" className="size-5 hidden dark:block" />
+              </div>
+              <div className="grid flex-1 text-left leading-tight">
+                <span className="truncate font-[family-name:var(--font-rubik-mono)] text-base">
+                  JETBEANS
+                </span>
+                <span className="truncate font-sans text-xs text-muted-foreground">
+                  Admin Panel
+                </span>
+              </div>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+      <button
+        type="button"
+        onClick={openCommandMenu}
+        className="flex md:hidden h-8 w-full items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/50 px-3 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent"
+      >
+        <HugeiconsIcon icon={Search01Icon} size={14} />
+        <span className="flex-1 text-left">Search...</span>
+      </button>
+    </>
+  )
+}
+
+function MessagesSidebarContent() {
+  const chat = useChat()
+
+  // Show loading state if chat data is not yet initialized
+  if (!chat.isInitialized) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full py-8 text-muted-foreground">
+        <span className="text-sm">Loading...</span>
+      </div>
+    )
+  }
+
+  return (
+    <ChatSidebar
+      active={chat.active}
+      onSelect={chat.setActive}
+      teamMembers={chat.teamMembers}
+      userId={chat.userId}
+      messages={chat.messages}
+    />
+  )
+}
+
+function NormalSidebarContent({
+  navSystem,
+  sidebarState
+}: {
+  navSystem: typeof data.navSystem
+  sidebarState: ReturnType<typeof useSidebarStateProvider>
+}) {
+  return (
+    <>
+      <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={sidebarState.collapseAll}>
+              <span className="text-xs font-medium text-sidebar-foreground/70">Collapse All</span>
+              <HugeiconsIcon icon={UnfoldMoreIcon} size={16} className="ml-auto" />
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarGroup>
+      <NavMain label="Overview" items={data.navOverview} />
+      <NavMain label="Store" items={data.navStore} />
+      <NavMain label="Sales" items={data.navSales} />
+      <NavMain label="Operations" items={data.navOperations} />
+      <NavMain label="Growth" items={data.navGrowth} />
+      <NavMain label="System" items={navSystem} />
+      <NavMain label="Developers" items={data.navDevelopers} />
+    </>
+  )
+}
+
 export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sidebar> & { user: UserData }) {
   const { open: openCommandMenu } = useCommandMenu()
   const sidebarState = useSidebarStateProvider()
+  const { mode, exitMessagesMode } = useSidebarMode()
+  // Messages mode is sticky - stays active until explicitly exited via back button
+  const isMessagesMode = mode === "messages"
 
   // Filter out Integrations link for non-owners
   const navSystem = React.useMemo(() => {
@@ -280,56 +409,21 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
     <SidebarStateContext.Provider value={sidebarState}>
       <Sidebar variant="inset" collapsible="icon" {...props}>
         <SidebarHeader>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton size="lg" asChild>
-                <Link href="/">
-                  <div className="bg-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg overflow-hidden">
-                    <img src="/logos/coffee-white.png" alt="JetBeans" className="size-5 dark:hidden" />
-                    <img src="/logos/coffee.png" alt="JetBeans" className="size-5 hidden dark:block" />
-                  </div>
-                  <div className="grid flex-1 text-left leading-tight">
-                    <span className="truncate font-[family-name:var(--font-rubik-mono)] text-base">
-                      JETBEANS
-                    </span>
-                    <span className="truncate font-sans text-xs text-muted-foreground">
-                      Admin Panel
-                    </span>
-                  </div>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-          <button
-            type="button"
-            onClick={openCommandMenu}
-            className="flex md:hidden h-8 w-full items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/50 px-3 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent"
-          >
-            <HugeiconsIcon icon={Search01Icon} size={14} />
-            <span className="flex-1 text-left">Search...</span>
-          </button>
+          {isMessagesMode ? (
+            <MessagesHeader exitMessagesMode={exitMessagesMode} />
+          ) : (
+            <NormalHeader openCommandMenu={openCommandMenu} />
+          )}
         </SidebarHeader>
         <SidebarContent
-          onScrollPosition={sidebarState.setScrollPosition}
-          initialScrollTop={sidebarState.scrollPosition}
+          onScrollPosition={isMessagesMode ? undefined : sidebarState.setScrollPosition}
+          initialScrollTop={isMessagesMode ? 0 : sidebarState.scrollPosition}
         >
-          <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton onClick={sidebarState.collapseAll}>
-                  <span className="text-xs font-medium text-sidebar-foreground/70">Collapse All</span>
-                  <HugeiconsIcon icon={UnfoldMoreIcon} size={16} className="ml-auto" />
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroup>
-          <NavMain label="Overview" items={data.navOverview} />
-          <NavMain label="Store" items={data.navStore} />
-          <NavMain label="Sales" items={data.navSales} />
-          <NavMain label="Operations" items={data.navOperations} />
-          <NavMain label="Growth" items={data.navGrowth} />
-          <NavMain label="System" items={navSystem} />
-          <NavMain label="Developers" items={data.navDevelopers} />
+          {isMessagesMode ? (
+            <MessagesSidebarContent />
+          ) : (
+            <NormalSidebarContent navSystem={navSystem} sidebarState={sidebarState} />
+          )}
         </SidebarContent>
         <SidebarFooter>
           <NavUser user={user} />

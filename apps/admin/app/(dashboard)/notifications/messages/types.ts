@@ -1,18 +1,22 @@
 export type MessageAttachment = {
-	type: "image"
+	type: "image" | "video" | "file" | "audio"
 	url: string
 	name: string
 	size?: number
+	mimeType?: string
+	width?: number
+	height?: number
+	duration?: number
 }
 
 export type TeamMessage = {
 	id: string
-	senderId: string
+	senderId: string | null // null for webhook-originated messages
 	senderName: string
 	senderImage: string | null
 	channel: string
-	body: string
-	attachments?: MessageAttachment[]
+	body: string | null
+	attachments?: MessageAttachment[] | null
 	createdAt: string
 	readAt: string | null
 }

@@ -49,7 +49,13 @@ const columns: Column<Order>[] = [
 	},
 ]
 
-export function ReturnsClient({ orders }: { orders: Order[] }) {
+interface ReturnsClientProps {
+	orders: Order[]
+	totalCount: number
+	currentPage: number
+}
+
+export function ReturnsClient({ orders, totalCount, currentPage }: ReturnsClientProps) {
 	const router = useRouter()
 	const [statusFilter, setStatusFilter] = useState("all")
 
@@ -66,6 +72,9 @@ export function ReturnsClient({ orders }: { orders: Order[] }) {
 			onRowClick={(row) => router.push(`/orders/${row.id}`)}
 			emptyMessage="No returns or refunds"
 			emptyDescription="Refunded and returned orders will appear here."
+			totalCount={totalCount}
+			currentPage={currentPage}
+			pageSize={30}
 			filters={
 				<Select value={statusFilter} onValueChange={setStatusFilter}>
 					<SelectTrigger className="h-9 w-full sm:w-[160px]">

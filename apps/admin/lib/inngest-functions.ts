@@ -1,4 +1,8 @@
 import { inngest } from "./inngest"
+import { polarHandlers } from "./inngest/polar-handlers"
+import { resendHandlers } from "./inngest/resend-handlers"
+import { presenceHandlers } from "./inngest/presence-handlers"
+import { webhookDeliver, webhookDeliveryCleanup } from "./inngest/outgoing-webhooks"
 
 // Order confirmation email
 export const sendOrderConfirmation = inngest.createFunction(
@@ -102,10 +106,19 @@ export const generateDailySalesReport = inngest.createFunction(
 
 // All functions to register with the serve handler
 export const inngestFunctions = [
+	// Core functions
 	sendOrderConfirmation,
 	sendLowStockAlert,
 	sendSubscriptionReminder,
 	processSubscriptionRenewal,
 	checkExpiringSubscriptions,
 	generateDailySalesReport,
+	// Webhook handlers
+	...polarHandlers,
+	...resendHandlers,
+	// Outgoing webhooks
+	webhookDeliver,
+	webhookDeliveryCleanup,
+	// Presence
+	...presenceHandlers,
 ]

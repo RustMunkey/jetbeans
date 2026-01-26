@@ -1117,3 +1117,108 @@ SomaFM integration for background music while working.
 - Click to toggle play/pause
 - Dropdown to switch stations
 - Volume controlled by station (0.3)
+
+---
+
+## Scheduling System
+
+Internal scheduling and calendar system for team coordination.
+
+### Calendar Widget (Implemented)
+
+Floating, draggable calendar widget accessible from the header toolbar.
+
+**Features:**
+- Quick date picker
+- Draggable/minimizable widget (like Music Player)
+- Today highlight
+- Date selection
+
+### Scheduled Events (Planned)
+
+| Event Type | Description |
+|------------|-------------|
+| `shift` | Team member work shifts |
+| `meeting` | Internal team meetings |
+| `task` | Scheduled tasks/reminders |
+| `delivery` | Supplier delivery windows |
+| `promotion` | Marketing campaign schedules |
+
+### Database Schema (Planned)
+
+```sql
+-- scheduled_events table
+- id
+- title
+- description
+- type (shift | meeting | task | delivery | promotion)
+- startAt (timestamp)
+- endAt (timestamp)
+- allDay (boolean)
+- recurrence (none | daily | weekly | monthly)
+- assignedTo (userId[], nullable)
+- createdBy (userId)
+- createdAt
+- updatedAt
+
+-- event_reminders table
+- id
+- eventId
+- userId
+- reminderAt (timestamp)
+- notificationType (push | email | sms)
+- sent (boolean)
+```
+
+### UI Components (Planned)
+
+**Calendar Views:**
+- Day view
+- Week view
+- Month view (default)
+- Agenda/list view
+
+**Event Creation:**
+- Quick add from calendar click
+- Full form with recurrence options
+- Assign to team members
+- Set reminders
+
+**Integrations:**
+- Google Calendar sync (future)
+- iCal export
+- Slack/Discord notifications (future)
+
+---
+
+## Utility Widgets
+
+Floating toolbar widgets for quick access to common tools.
+
+### Calculator Widget (Planned)
+
+Quick calculator accessible from header toolbar.
+
+**Features:**
+- Basic arithmetic (+, -, ×, ÷)
+- Percentage calculations
+- Memory functions (M+, M-, MR, MC)
+- History of recent calculations
+- Copy result to clipboard
+- Draggable/minimizable widget
+
+### Widget System
+
+All utility widgets share common behavior:
+
+**Common Features:**
+- Floating, draggable positioning
+- Minimize to pill/icon
+- Remember position across sessions
+- Keyboard shortcuts to toggle
+- Z-index management (active widget on top)
+
+**Header Toolbar Icons:**
+- Calendar (Calendar03Icon)
+- Calculator (CalculateIcon)
+- Radio/Music (Radio02Icon)

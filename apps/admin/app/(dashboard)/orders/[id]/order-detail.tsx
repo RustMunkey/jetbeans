@@ -18,6 +18,18 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format"
 import { useBreadcrumbOverride } from "@/components/breadcrumb-context"
 import { updateOrderStatus, addTracking, removeTracking, processRefund, cancelOrder, clearOrderActivity } from "../actions"
+import { detectCarrier, type CarrierInfo } from "@/lib/tracking/carrier-detector"
+import { TrackingTimeline } from "@/components/tracking-timeline"
+
+interface TrackingData {
+	id: string
+	trackingNumber: string
+	status: string
+	statusHistory: Array<{ status: string; timestamp: string; location?: string }>
+	estimatedDelivery: Date | null
+	lastUpdatedAt: Date
+	carrierName: string
+}
 
 interface OrderDetailProps {
 	order: {
@@ -71,6 +83,7 @@ interface OrderDetailProps {
 		metadata: Record<string, unknown> | null
 		createdAt: Date
 	}>
+	tracking?: TrackingData | null
 }
 
 const statusFlow = ["pending", "confirmed", "processing", "packed", "shipped", "delivered"]
@@ -88,7 +101,7 @@ function formatAction(action: string, metadata: Record<string, unknown> | null):
 	return verb.charAt(0).toUpperCase() + verb.slice(1)
 }
 
-export function OrderDetail({ order, activity }: OrderDetailProps) {
+export function OrderDetail({ order, activity, tracking }: OrderDetailProps) {
 	const router = useRouter()
 	useBreadcrumbOverride(order.id, `#${order.orderNumber}`)
 	const [statusDialog, setStatusDialog] = useState(false)
@@ -99,8 +112,23 @@ export function OrderDetail({ order, activity }: OrderDetailProps) {
 	const [newStatus, setNewStatus] = useState(order.status)
 	const [trackingNumber, setTrackingNumber] = useState("")
 	const [trackingUrl, setTrackingUrl] = useState("")
+	const [detectedCarrier, setDetectedCarrier] = useState<CarrierInfo | null>(null)
 	const [refundAmount, setRefundAmount] = useState(order.total)
 	const [refundReason, setRefundReason] = useState("")
+
+	// Auto-detect carrier when tracking number changes
+	const handleTrackingNumberChange = (value: string) => {
+		setTrackingNumber(value)
+		if (value.trim().length >= 10) {
+			const carrier = detectCarrier(value)
+			setDetectedCarrier(carrier)
+			if (carrier && !trackingUrl) {
+				setTrackingUrl(carrier.trackingUrl)
+			}
+		} else {
+			setDetectedCarrier(null)
+		}
+	}
 
 	const handleStatusUpdate = async () => {
 		setLoading(true)
@@ -308,12 +336,25 @@ export function OrderDetail({ order, activity }: OrderDetailProps) {
 								</Button>
 							)}
 						</div>
-						{order.trackingNumber ? (
+						{tracking ? (
+							<TrackingTimeline
+								trackingNumber={tracking.trackingNumber}
+								carrierName={tracking.carrierName}
+								status={tracking.status}
+								statusHistory={tracking.statusHistory}
+								estimatedDelivery={tracking.estimatedDelivery}
+								lastUpdatedAt={tracking.lastUpdatedAt}
+								trackingUrl={order.trackingUrl}
+							/>
+						) : order.trackingNumber ? (
 							<>
-								<p className="text-sm">{order.trackingNumber}</p>
+								<p className="text-sm font-mono">{order.trackingNumber}</p>
+								<p className="text-xs text-muted-foreground mt-1">
+									Waiting for tracking updates...
+								</p>
 								{order.trackingUrl && (
-									<a href={order.trackingUrl} target="_blank" rel="noopener" className="text-xs text-blue-600 hover:underline">
-										Track shipment
+									<a href={order.trackingUrl} target="_blank" rel="noopener" className="text-xs text-primary hover:underline mt-2 inline-block">
+										Track shipment →
 									</a>
 								)}
 							</>
@@ -518,7 +559,14 @@ export function OrderDetail({ order, activity }: OrderDetailProps) {
 			</Dialog>
 
 			{/* Tracking Dialog */}
-			<Dialog open={trackingDialog} onOpenChange={setTrackingDialog}>
+			<Dialog open={trackingDialog} onOpenChange={(open) => {
+				setTrackingDialog(open)
+				if (!open) {
+					setTrackingNumber("")
+					setTrackingUrl("")
+					setDetectedCarrier(null)
+				}
+			}}>
 				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>Add Tracking</DialogTitle>
@@ -526,16 +574,40 @@ export function OrderDetail({ order, activity }: OrderDetailProps) {
 					<div className="space-y-4 py-4">
 						<div className="space-y-2">
 							<Label>Tracking Number</Label>
-							<Input value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)} />
+							<Input
+								value={trackingNumber}
+								onChange={(e) => handleTrackingNumberChange(e.target.value)}
+								placeholder="Enter tracking number..."
+							/>
+							{detectedCarrier && (
+								<div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+									<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+									</svg>
+									<span>Detected: <strong>{detectedCarrier.name}</strong></span>
+								</div>
+							)}
+							{trackingNumber.length >= 10 && !detectedCarrier && (
+								<p className="text-xs text-muted-foreground">
+									Carrier not detected. You can still add the tracking manually.
+								</p>
+							)}
 						</div>
 						<div className="space-y-2">
-							<Label>Tracking URL (optional)</Label>
-							<Input value={trackingUrl} onChange={(e) => setTrackingUrl(e.target.value)} placeholder="https://..." />
+							<Label>
+								Tracking URL
+								{detectedCarrier && <span className="text-xs text-muted-foreground ml-2">(auto-generated)</span>}
+							</Label>
+							<Input
+								value={trackingUrl}
+								onChange={(e) => setTrackingUrl(e.target.value)}
+								placeholder="https://..."
+							/>
 						</div>
 					</div>
 					<DialogFooter>
 						<Button variant="outline" onClick={() => setTrackingDialog(false)}>Cancel</Button>
-						<Button onClick={handleAddTracking} disabled={loading}>
+						<Button onClick={handleAddTracking} disabled={loading || !trackingNumber.trim()}>
 							{loading ? "Adding..." : "Add Tracking"}
 						</Button>
 					</DialogFooter>

@@ -7,6 +7,8 @@ import { products, productVariants, categories, inventory } from "@jetbeans/db/s
 import { auth } from "@/lib/auth"
 import { logAudit } from "@/lib/audit"
 import { slugify } from "@/lib/format"
+import { pusherServer } from "@/lib/pusher-server"
+import { fireWebhooks } from "@/lib/webhooks/outgoing"
 
 async function requireAdmin() {
 	const session = await auth.api.getSession({ headers: await headers() })
@@ -26,7 +28,7 @@ interface GetProductsParams {
 }
 
 export async function getProducts(params: GetProductsParams = {}) {
-	const { page = 1, pageSize = 20, search, category, status } = params
+	const { page = 1, pageSize = 30, search, category, status } = params
 	const offset = (page - 1) * pageSize
 
 	const conditions = []
@@ -161,6 +163,33 @@ export async function createProduct(data: ProductData) {
 		targetLabel: product.name,
 	})
 
+	// Broadcast for live updates
+	if (pusherServer) {
+		await pusherServer.trigger("private-products", "product:created", {
+			id: product.id,
+			name: product.name,
+			slug: product.slug,
+			price: product.price,
+			thumbnail: product.thumbnail,
+			isActive: product.isActive,
+			isFeatured: product.isFeatured,
+			categoryId: product.categoryId,
+			createdAt: product.createdAt?.toISOString(),
+		})
+	}
+
+	// Fire outgoing webhook
+	await fireWebhooks("product.created", {
+		productId: product.id,
+		name: product.name,
+		slug: product.slug,
+		price: product.price,
+		isActive: product.isActive,
+		isFeatured: product.isFeatured,
+		categoryId: product.categoryId,
+		createdAt: product.createdAt?.toISOString(),
+	})
+
 	return product
 }
 
@@ -201,6 +230,32 @@ export async function updateProduct(id: string, data: Partial<ProductData>) {
 		targetLabel: product.name,
 	})
 
+	// Broadcast for live updates
+	if (pusherServer) {
+		await pusherServer.trigger("private-products", "product:updated", {
+			id: product.id,
+			name: product.name,
+			slug: product.slug,
+			price: product.price,
+			thumbnail: product.thumbnail,
+			isActive: product.isActive,
+			isFeatured: product.isFeatured,
+			categoryId: product.categoryId,
+		})
+	}
+
+	// Fire outgoing webhook
+	await fireWebhooks("product.updated", {
+		productId: product.id,
+		name: product.name,
+		slug: product.slug,
+		price: product.price,
+		isActive: product.isActive,
+		isFeatured: product.isFeatured,
+		categoryId: product.categoryId,
+		updatedAt: product.updatedAt?.toISOString(),
+	})
+
 	return product
 }
 
@@ -221,6 +276,12 @@ export async function deleteProduct(id: string) {
 		targetId: id,
 		targetLabel: product?.name,
 	})
+
+	// Fire outgoing webhook
+	await fireWebhooks("product.deleted", {
+		productId: id,
+		name: product?.name,
+	})
 }
 
 export async function bulkUpdateProducts(ids: string[], action: "activate" | "deactivate" | "delete") {
@@ -233,6 +294,17 @@ export async function bulkUpdateProducts(ids: string[], action: "activate" | "de
 			targetType: "product",
 			metadata: { count: ids.length, bulk: true },
 		})
+		// Broadcast deletions
+		if (pusherServer) {
+			await pusherServer.trigger("private-products", "product:deleted", { ids })
+		}
+		// Fire webhooks for each deleted product
+		for (const productId of ids) {
+			await fireWebhooks("product.deleted", {
+				productId,
+				bulk: true,
+			})
+		}
 	} else {
 		const isActive = action === "activate"
 		await db
@@ -244,6 +316,18 @@ export async function bulkUpdateProducts(ids: string[], action: "activate" | "de
 			targetType: "product",
 			metadata: { count: ids.length, bulk: true, action },
 		})
+		// Broadcast updates
+		if (pusherServer) {
+			await pusherServer.trigger("private-products", "product:bulk-updated", { ids, isActive })
+		}
+		// Fire webhooks for each updated product
+		for (const productId of ids) {
+			await fireWebhooks("product.updated", {
+				productId,
+				isActive,
+				bulk: true,
+			})
+		}
 	}
 }
 

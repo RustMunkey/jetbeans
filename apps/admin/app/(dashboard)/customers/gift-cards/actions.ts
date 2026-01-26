@@ -1,7 +1,7 @@
 "use server"
 
 import { headers } from "next/headers"
-import { eq, desc } from "@jetbeans/db/drizzle"
+import { eq, desc, count } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { giftCards, giftCardTransactions, users } from "@jetbeans/db/schema"
 import { auth } from "@/lib/auth"
@@ -26,23 +26,36 @@ function generateCode(): string {
 	return code
 }
 
-export async function getGiftCards() {
-	const cards = await db
-		.select({
-			id: giftCards.id,
-			code: giftCards.code,
-			initialBalance: giftCards.initialBalance,
-			currentBalance: giftCards.currentBalance,
-			issuedTo: giftCards.issuedTo,
-			issuedBy: giftCards.issuedBy,
-			status: giftCards.status,
-			expiresAt: giftCards.expiresAt,
-			createdAt: giftCards.createdAt,
-		})
-		.from(giftCards)
-		.orderBy(desc(giftCards.createdAt))
+interface GetGiftCardsParams {
+	page?: number
+	pageSize?: number
+}
 
-	return cards
+export async function getGiftCards(params: GetGiftCardsParams = {}) {
+	const { page = 1, pageSize = 30 } = params
+	const offset = (page - 1) * pageSize
+
+	const [items, [total]] = await Promise.all([
+		db
+			.select({
+				id: giftCards.id,
+				code: giftCards.code,
+				initialBalance: giftCards.initialBalance,
+				currentBalance: giftCards.currentBalance,
+				issuedTo: giftCards.issuedTo,
+				issuedBy: giftCards.issuedBy,
+				status: giftCards.status,
+				expiresAt: giftCards.expiresAt,
+				createdAt: giftCards.createdAt,
+			})
+			.from(giftCards)
+			.orderBy(desc(giftCards.createdAt))
+			.limit(pageSize)
+			.offset(offset),
+		db.select({ count: count() }).from(giftCards),
+	])
+
+	return { items, totalCount: total.count }
 }
 
 export async function getGiftCard(id: string) {

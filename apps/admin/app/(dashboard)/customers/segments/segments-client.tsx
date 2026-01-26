@@ -36,6 +36,8 @@ interface Segment {
 
 interface SegmentsClientProps {
 	segments: Segment[]
+	totalCount: number
+	currentPage: number
 }
 
 const COLORS = [
@@ -49,7 +51,7 @@ const COLORS = [
 	{ label: "Pink", value: "#ec4899" },
 ]
 
-export function SegmentsClient({ segments }: SegmentsClientProps) {
+export function SegmentsClient({ segments, totalCount, currentPage }: SegmentsClientProps) {
 	const router = useRouter()
 	const [open, setOpen] = useState(false)
 	const [name, setName] = useState("")
@@ -170,6 +172,8 @@ export function SegmentsClient({ segments }: SegmentsClientProps) {
 				onRowClick={(row) => router.push(`/customers/segments/${row.id}`)}
 				emptyMessage="No segments yet"
 				emptyDescription="Create segments to organize customers into groups."
+				totalCount={totalCount}
+				currentPage={currentPage}
 			/>
 
 			<Dialog open={open} onOpenChange={setOpen}>

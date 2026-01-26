@@ -16,8 +16,24 @@ async function requireAdmin() {
 	return session.user
 }
 
-export async function getSegments() {
-	const segments = await db.select().from(customerSegments).orderBy(customerSegments.name)
+interface GetSegmentsParams {
+	page?: number
+	pageSize?: number
+}
+
+export async function getSegments(params: GetSegmentsParams = {}) {
+	const { page = 1, pageSize = 30 } = params
+	const offset = (page - 1) * pageSize
+
+	const [segments, [total]] = await Promise.all([
+		db
+			.select()
+			.from(customerSegments)
+			.orderBy(customerSegments.name)
+			.limit(pageSize)
+			.offset(offset),
+		db.select({ count: count() }).from(customerSegments),
+	])
 
 	// Get member counts
 	const counts = await db
@@ -30,10 +46,12 @@ export async function getSegments() {
 
 	const countMap = Object.fromEntries(counts.map((c) => [c.segmentId, Number(c.count)]))
 
-	return segments.map((s) => ({
+	const items = segments.map((s) => ({
 		...s,
 		memberCount: countMap[s.id] ?? 0,
 	}))
+
+	return { items, totalCount: total.count }
 }
 
 export async function getSegment(id: string) {

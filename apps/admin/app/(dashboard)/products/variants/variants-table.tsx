@@ -1,7 +1,6 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { DataTable, type Column } from "@/components/data-table"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
@@ -18,20 +17,28 @@ interface Variant {
 	lowStockThreshold: number | null
 }
 
-export function VariantsTable({ variants }: { variants: Variant[] }) {
-	const router = useRouter()
-	const [stockFilter, setStockFilter] = useState("all")
+interface VariantsTableProps {
+	variants: Variant[]
+	totalCount: number
+	currentPage: number
+	currentFilter?: string
+}
 
-	const filtered = stockFilter === "all"
-		? variants
-		: variants.filter((v) => {
-			const qty = v.quantity ?? 0
-			const threshold = v.lowStockThreshold ?? 10
-			if (stockFilter === "out") return qty === 0
-			if (stockFilter === "low") return qty > 0 && qty <= threshold
-			if (stockFilter === "in") return qty > threshold
-			return true
-		})
+export function VariantsTable({ variants, totalCount, currentPage, currentFilter }: VariantsTableProps) {
+	const router = useRouter()
+	const pathname = usePathname()
+	const searchParams = useSearchParams()
+
+	const updateFilter = (value: string) => {
+		const params = new URLSearchParams(searchParams.toString())
+		if (value === "all") {
+			params.delete("filter")
+		} else {
+			params.set("filter", value)
+		}
+		params.delete("page") // Reset to page 1 on filter change
+		router.push(`${pathname}?${params.toString()}`)
+	}
 
 	const columns: Column<Variant>[] = [
 		{
@@ -80,14 +87,17 @@ export function VariantsTable({ variants }: { variants: Variant[] }) {
 	return (
 		<DataTable
 			columns={columns}
-			data={filtered}
+			data={variants}
+			totalCount={totalCount}
+			currentPage={currentPage}
+			pageSize={30}
 			searchPlaceholder="Search variants..."
 			getId={(row) => row.id}
 			onRowClick={(row) => router.push(`/products/${row.productId}`)}
 			emptyMessage="No variants yet"
 			emptyDescription="Variants are created from product pages."
 			filters={
-				<Select value={stockFilter} onValueChange={setStockFilter}>
+				<Select value={currentFilter || "all"} onValueChange={updateFilter}>
 					<SelectTrigger className="h-9 w-full sm:w-[150px]">
 						<SelectValue placeholder="All Stock" />
 					</SelectTrigger>

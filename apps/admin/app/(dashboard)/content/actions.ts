@@ -2,20 +2,38 @@
 
 import { db } from "@jetbeans/db/client"
 import * as schema from "@jetbeans/db/schema"
-import { eq, desc, and, ilike } from "@jetbeans/db/drizzle"
+import { eq, desc, and, ilike, count } from "@jetbeans/db/drizzle"
 
 // --- BLOG POSTS ---
-export async function getBlogPosts(params?: { status?: string }) {
+interface GetBlogPostsParams {
+	page?: number
+	pageSize?: number
+	status?: string
+}
+
+export async function getBlogPosts(params: GetBlogPostsParams = {}) {
+	const { page = 1, pageSize = 30, status } = params
+	const offset = (page - 1) * pageSize
+
 	const conditions = []
-	if (params?.status && params.status !== "all") {
-		conditions.push(eq(schema.blogPosts.status, params.status))
+	if (status && status !== "all") {
+		conditions.push(eq(schema.blogPosts.status, status))
 	}
 
-	return db
-		.select()
-		.from(schema.blogPosts)
-		.where(conditions.length > 0 ? and(...conditions) : undefined)
-		.orderBy(desc(schema.blogPosts.createdAt))
+	const where = conditions.length > 0 ? and(...conditions) : undefined
+
+	const [items, [total]] = await Promise.all([
+		db
+			.select()
+			.from(schema.blogPosts)
+			.where(where)
+			.orderBy(desc(schema.blogPosts.createdAt))
+			.limit(pageSize)
+			.offset(offset),
+		db.select({ count: count() }).from(schema.blogPosts).where(where),
+	])
+
+	return { items, totalCount: total.count }
 }
 
 export async function getBlogPost(id: string) {
@@ -83,11 +101,26 @@ export async function deleteBlogPost(id: string) {
 }
 
 // --- SITE PAGES ---
-export async function getSitePages() {
-	return db
-		.select()
-		.from(schema.sitePages)
-		.orderBy(desc(schema.sitePages.updatedAt))
+interface GetSitePagesParams {
+	page?: number
+	pageSize?: number
+}
+
+export async function getSitePages(params: GetSitePagesParams = {}) {
+	const { page = 1, pageSize = 30 } = params
+	const offset = (page - 1) * pageSize
+
+	const [items, [total]] = await Promise.all([
+		db
+			.select()
+			.from(schema.sitePages)
+			.orderBy(desc(schema.sitePages.updatedAt))
+			.limit(pageSize)
+			.offset(offset),
+		db.select({ count: count() }).from(schema.sitePages),
+	])
+
+	return { items, totalCount: total.count }
 }
 
 export async function getSitePage(id: string) {

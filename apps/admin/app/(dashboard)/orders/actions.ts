@@ -6,6 +6,10 @@ import { db } from "@jetbeans/db/client"
 import { orders, orderItems, orderNotes, users, payments, addresses, inventory, auditLog } from "@jetbeans/db/schema"
 import { auth } from "@/lib/auth"
 import { logAudit } from "@/lib/audit"
+import { pusherServer } from "@/lib/pusher-server"
+import { fireWebhooks } from "@/lib/webhooks/outgoing"
+import { registerTracking, isTracktryConfigured } from "@/lib/tracking/service"
+import { detectCarrier } from "@/lib/tracking/carrier-detector"
 
 async function requireAdmin() {
 	const session = await auth.api.getSession({ headers: await headers() })
@@ -26,7 +30,7 @@ interface GetOrdersParams {
 }
 
 export async function getOrders(params: GetOrdersParams = {}) {
-	const { page = 1, pageSize = 20, status, search } = params
+	const { page = 1, pageSize = 30, status, search } = params
 	const offset = (page - 1) * pageSize
 
 	const conditions = []
@@ -62,22 +66,37 @@ export async function getOrders(params: GetOrdersParams = {}) {
 	return { items, totalCount: Number(total.count) }
 }
 
-export async function getOrdersByStatus(statuses: string[]) {
-	return db
-		.select({
-			id: orders.id,
-			orderNumber: orders.orderNumber,
-			status: orders.status,
-			total: orders.total,
-			customerName: users.name,
-			trackingNumber: orders.trackingNumber,
-			createdAt: orders.createdAt,
-		})
-		.from(orders)
-		.leftJoin(users, eq(orders.userId, users.id))
-		.where(inArray(orders.status, statuses))
-		.orderBy(desc(orders.createdAt))
-		.limit(100)
+interface GetOrdersByStatusParams {
+	statuses: string[]
+	page?: number
+	pageSize?: number
+}
+
+export async function getOrdersByStatus(params: GetOrdersByStatusParams) {
+	const { statuses, page = 1, pageSize = 30 } = params
+	const offset = (page - 1) * pageSize
+
+	const [items, [total]] = await Promise.all([
+		db
+			.select({
+				id: orders.id,
+				orderNumber: orders.orderNumber,
+				status: orders.status,
+				total: orders.total,
+				customerName: users.name,
+				trackingNumber: orders.trackingNumber,
+				createdAt: orders.createdAt,
+			})
+			.from(orders)
+			.leftJoin(users, eq(orders.userId, users.id))
+			.where(inArray(orders.status, statuses))
+			.orderBy(desc(orders.createdAt))
+			.limit(pageSize)
+			.offset(offset),
+		db.select({ count: count() }).from(orders).where(inArray(orders.status, statuses)),
+	])
+
+	return { items, totalCount: Number(total.count) }
 }
 
 export async function getOrder(id: string) {
@@ -139,17 +158,57 @@ export async function updateOrderStatus(id: string, status: string) {
 		metadata: { newStatus: status },
 	})
 
+	// Broadcast real-time order update
+	if (pusherServer) {
+		await pusherServer.trigger("private-orders", "order:updated", {
+			orderId: order.id,
+			orderNumber: order.orderNumber,
+			status: order.status,
+			previousStatus: status,
+		})
+	}
+
+	// Fire outgoing webhooks based on status
+	const webhookData = {
+		orderId: order.id,
+		orderNumber: order.orderNumber,
+		status: order.status,
+		total: order.total,
+		updatedAt: order.updatedAt?.toISOString(),
+	}
+
+	await fireWebhooks("order.updated", webhookData)
+
+	if (status === "shipped") {
+		await fireWebhooks("order.shipped", {
+			...webhookData,
+			shippedAt: order.shippedAt?.toISOString(),
+			trackingNumber: order.trackingNumber,
+		})
+	} else if (status === "delivered") {
+		await fireWebhooks("order.delivered", {
+			...webhookData,
+			deliveredAt: order.deliveredAt?.toISOString(),
+		})
+	}
+
 	return order
 }
 
 export async function addTracking(id: string, trackingNumber: string, trackingUrl?: string) {
 	await requireAdmin()
 
+	// Auto-detect carrier from tracking number
+	const detectedCarrier = detectCarrier(trackingNumber)
+
+	// Generate tracking URL if not provided and carrier detected
+	const finalTrackingUrl = trackingUrl || detectedCarrier?.trackingUrl || null
+
 	const [order] = await db
 		.update(orders)
 		.set({
 			trackingNumber,
-			trackingUrl: trackingUrl || null,
+			trackingUrl: finalTrackingUrl,
 			updatedAt: new Date(),
 		})
 		.where(eq(orders.id, id))
@@ -160,7 +219,36 @@ export async function addTracking(id: string, trackingNumber: string, trackingUr
 		targetType: "order",
 		targetId: id,
 		targetLabel: order.orderNumber,
-		metadata: { action: "tracking_added", trackingNumber },
+		metadata: {
+			action: "tracking_added",
+			trackingNumber,
+			carrier: detectedCarrier?.name,
+		},
+	})
+
+	// Register with Tracktry for live updates (if configured)
+	if (isTracktryConfigured() && detectedCarrier) {
+		const result = await registerTracking(
+			trackingNumber,
+			detectedCarrier.code,
+			order.id
+		)
+		if (result.success) {
+			console.log(`[Tracking] Registered ${trackingNumber} with Tracktry`)
+		} else {
+			console.warn(`[Tracking] Failed to register with Tracktry: ${result.error}`)
+		}
+	}
+
+	// Fire webhook for order update
+	await fireWebhooks("order.updated", {
+		orderId: order.id,
+		orderNumber: order.orderNumber,
+		status: order.status,
+		trackingNumber: order.trackingNumber,
+		trackingUrl: order.trackingUrl,
+		carrier: detectedCarrier?.name,
+		updatedAt: order.updatedAt?.toISOString(),
 	})
 
 	return order
@@ -185,6 +273,16 @@ export async function removeTracking(id: string) {
 		targetId: id,
 		targetLabel: order.orderNumber,
 		metadata: { action: "tracking_removed" },
+	})
+
+	// Fire webhook for order update
+	await fireWebhooks("order.updated", {
+		orderId: order.id,
+		orderNumber: order.orderNumber,
+		status: order.status,
+		trackingNumber: null,
+		trackingUrl: null,
+		updatedAt: order.updatedAt?.toISOString(),
 	})
 
 	return order
@@ -227,6 +325,16 @@ export async function processRefund(id: string, amount: string, reason: string) 
 		targetLabel: order.orderNumber,
 		metadata: { amount: refundAmount, reason, isFullRefund },
 	})
+
+	// Fire webhook for refund
+	await fireWebhooks("order.refunded", {
+		orderId: order.id,
+		orderNumber: order.orderNumber,
+		refundAmount,
+		isFullRefund,
+		reason,
+		status: isFullRefund ? "refunded" : "partially_refunded",
+	})
 }
 
 export async function cancelOrder(id: string) {
@@ -267,6 +375,14 @@ export async function cancelOrder(id: string) {
 		targetId: id,
 		targetLabel: order.orderNumber,
 		metadata: { action: "cancelled" },
+	})
+
+	// Fire webhook for cancellation
+	await fireWebhooks("order.cancelled", {
+		orderId: order.id,
+		orderNumber: order.orderNumber,
+		total: order.total,
+		itemsRestored: items.length,
 	})
 }
 
@@ -364,4 +480,27 @@ export async function bulkUpdateOrderStatus(ids: string[], status: string) {
 		targetType: "order",
 		metadata: { count: ids.length, newStatus: status, bulk: true },
 	})
+
+	// Fire webhooks for each order in bulk update
+	for (const orderId of ids) {
+		await fireWebhooks("order.updated", {
+			orderId,
+			status,
+			bulk: true,
+		})
+
+		if (status === "shipped") {
+			await fireWebhooks("order.shipped", {
+				orderId,
+				status,
+				shippedAt: new Date().toISOString(),
+			})
+		} else if (status === "delivered") {
+			await fireWebhooks("order.delivered", {
+				orderId,
+				status,
+				deliveredAt: new Date().toISOString(),
+			})
+		}
+	}
 }

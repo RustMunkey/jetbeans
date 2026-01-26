@@ -1,13 +1,11 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { DataTable, type Column } from "@/components/data-table"
 import { StatusBadge } from "@/components/status-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getBlogPosts, deleteBlogPost } from "./actions"
 
 type BlogPost = {
 	id: string
@@ -19,15 +17,26 @@ type BlogPost = {
 	createdAt: Date
 }
 
-export function BlogPostsTable({ posts: initialPosts }: { posts: BlogPost[] }) {
-	const router = useRouter()
-	const [posts, setPosts] = useState(initialPosts)
-	const [statusFilter, setStatusFilter] = useState("all")
+interface BlogPostsTableProps {
+	posts: BlogPost[]
+	totalCount: number
+	currentPage: number
+	currentStatus?: string
+}
 
-	async function handleFilterChange(status: string) {
-		setStatusFilter(status)
-		const filtered = await getBlogPosts({ status })
-		setPosts(filtered)
+export function BlogPostsTable({ posts, totalCount, currentPage, currentStatus }: BlogPostsTableProps) {
+	const router = useRouter()
+	const searchParams = useSearchParams()
+
+	function handleFilterChange(status: string) {
+		const params = new URLSearchParams(searchParams.toString())
+		if (status === "all") {
+			params.delete("status")
+		} else {
+			params.set("status", status)
+		}
+		params.delete("page")
+		router.push(`/content?${params.toString()}`)
 	}
 
 	const columns: Column<BlogPost>[] = [
@@ -76,7 +85,7 @@ export function BlogPostsTable({ posts: initialPosts }: { posts: BlogPost[] }) {
 					<p className="text-muted-foreground text-sm">Create and manage blog content.</p>
 				</div>
 				<div className="flex items-center gap-2">
-					<Select value={statusFilter} onValueChange={handleFilterChange}>
+					<Select value={currentStatus || "all"} onValueChange={handleFilterChange}>
 						<SelectTrigger className="w-[140px]">
 							<SelectValue />
 						</SelectTrigger>
@@ -96,6 +105,8 @@ export function BlogPostsTable({ posts: initialPosts }: { posts: BlogPost[] }) {
 				searchKey="title"
 				searchPlaceholder="Search posts..."
 				onRowClick={(row) => router.push(`/content/${row.id}`)}
+				totalCount={totalCount}
+				currentPage={currentPage}
 			/>
 		</div>
 	)

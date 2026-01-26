@@ -6,6 +6,7 @@ import { db } from "@jetbeans/db/client"
 import { reviews, products, users } from "@jetbeans/db/schema"
 import { auth } from "@/lib/auth"
 import { logAudit } from "@/lib/audit"
+import { fireWebhooks } from "@/lib/webhooks/outgoing"
 
 async function requireAdmin() {
 	const session = await auth.api.getSession({ headers: await headers() })
@@ -23,7 +24,7 @@ interface GetReviewsParams {
 }
 
 export async function getReviews(params: GetReviewsParams = {}) {
-	const { page = 1, pageSize = 20, status } = params
+	const { page = 1, pageSize = 30, status } = params
 	const offset = (page - 1) * pageSize
 
 	const conditions = []
@@ -112,6 +113,18 @@ export async function moderateReview(id: string, status: "approved" | "rejected"
 		metadata: { action: `review_${status}` },
 	})
 
+	// Fire webhook when review is approved
+	if (status === "approved") {
+		await fireWebhooks("review.approved", {
+			reviewId: review.id,
+			productId: review.productId,
+			rating: review.rating,
+			title: review.title,
+			status: review.status,
+			moderatedAt: review.moderatedAt?.toISOString(),
+		})
+	}
+
 	return review
 }
 
@@ -146,4 +159,15 @@ export async function bulkModerate(ids: string[], status: "approved" | "rejected
 		targetType: "review",
 		metadata: { action: `bulk_${status}`, count: ids.length },
 	})
+
+	// Fire webhooks for approved reviews
+	if (status === "approved") {
+		for (const reviewId of ids) {
+			await fireWebhooks("review.approved", {
+				reviewId,
+				status,
+				bulk: true,
+			})
+		}
+	}
 }

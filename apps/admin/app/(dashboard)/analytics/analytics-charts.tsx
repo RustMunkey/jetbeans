@@ -117,6 +117,7 @@ export function AnalyticsCharts({
                   stroke="var(--color-revenue)"
                   strokeWidth={2}
                   fill="url(#analyticsRevenueGradient)"
+                  isAnimationActive={true}
                   animationDuration={1500}
                   animationEasing="ease-in-out"
                 />
@@ -157,6 +158,7 @@ export function AnalyticsCharts({
                   dataKey="orders"
                   fill="var(--chart-2)"
                   radius={[4, 4, 0, 0]}
+                  isAnimationActive={true}
                   animationDuration={1200}
                   animationEasing="ease-in-out"
                 />
@@ -197,6 +199,7 @@ export function AnalyticsCharts({
               <Bar
                 dataKey="revenue"
                 radius={[0, 4, 4, 0]}
+                isAnimationActive={true}
                 animationDuration={1400}
                 animationEasing="ease-in-out"
               >

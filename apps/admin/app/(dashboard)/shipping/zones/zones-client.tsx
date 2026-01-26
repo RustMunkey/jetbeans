@@ -28,7 +28,13 @@ interface Zone {
 	updatedAt: Date
 }
 
-export function ZonesClient({ zones }: { zones: Zone[] }) {
+interface ZonesClientProps {
+	zones: Zone[]
+	totalCount: number
+	currentPage: number
+}
+
+export function ZonesClient({ zones, totalCount, currentPage }: ZonesClientProps) {
 	const router = useRouter()
 	const [statusFilter, setStatusFilter] = useState("all")
 	const [createOpen, setCreateOpen] = useState(false)
@@ -134,6 +140,8 @@ export function ZonesClient({ zones }: { zones: Zone[] }) {
 				onRowClick={(row) => router.push(`/shipping/zones/${row.id}`)}
 				emptyMessage="No shipping zones"
 				emptyDescription="Create zones to configure regional shipping rates."
+				totalCount={totalCount}
+				currentPage={currentPage}
 				filters={
 					<Select value={statusFilter} onValueChange={setStatusFilter}>
 						<SelectTrigger className="h-9 w-full sm:w-[160px]">

@@ -11,7 +11,7 @@ export default async function TrackingPage({ searchParams }: PageProps) {
 
 	const { items, totalCount } = await getTracking({
 		page,
-		pageSize: 20,
+		pageSize: 30,
 		status: params.status,
 	})
 

@@ -61,6 +61,7 @@ export function SalesCharts({ salesByDay }: { salesByDay: SalesPoint[] }) {
             stroke="var(--color-sales)"
             strokeWidth={2}
             fill="url(#salesGradient)"
+            isAnimationActive={true}
             animationDuration={1500}
             animationEasing="ease-in-out"
           />

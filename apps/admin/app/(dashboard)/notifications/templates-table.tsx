@@ -18,7 +18,13 @@ type EmailTemplate = {
 	updatedAt: Date
 }
 
-export function TemplatesTable({ templates: initial }: { templates: EmailTemplate[] }) {
+interface TemplatesTableProps {
+	templates: EmailTemplate[]
+	totalCount: number
+	currentPage: number
+}
+
+export function TemplatesTable({ templates: initial, totalCount, currentPage }: TemplatesTableProps) {
 	const router = useRouter()
 	const [templates, setTemplates] = useState(initial)
 
@@ -75,6 +81,8 @@ export function TemplatesTable({ templates: initial }: { templates: EmailTemplat
 				searchKey="name"
 				searchPlaceholder="Search templates..."
 				onRowClick={(row) => router.push(`/notifications/${row.id}`)}
+				totalCount={totalCount}
+				currentPage={currentPage}
 			/>
 		</div>
 	)

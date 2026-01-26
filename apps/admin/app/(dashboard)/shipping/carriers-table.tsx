@@ -29,7 +29,13 @@ interface Carrier {
 	updatedAt: Date
 }
 
-export function CarriersTable({ carriers }: { carriers: Carrier[] }) {
+interface CarriersTableProps {
+	carriers: Carrier[]
+	totalCount: number
+	currentPage: number
+}
+
+export function CarriersTable({ carriers, totalCount, currentPage }: CarriersTableProps) {
 	const router = useRouter()
 	const [statusFilter, setStatusFilter] = useState("all")
 	const [createOpen, setCreateOpen] = useState(false)
@@ -116,6 +122,9 @@ export function CarriersTable({ carriers }: { carriers: Carrier[] }) {
 				onRowClick={(row) => router.push(`/shipping/${row.id}`)}
 				emptyMessage="No carriers configured"
 				emptyDescription="Add a shipping carrier to get started."
+				totalCount={totalCount}
+				currentPage={currentPage}
+				pageSize={30}
 				filters={
 					<Select value={statusFilter} onValueChange={setStatusFilter}>
 						<SelectTrigger className="h-9 w-full sm:w-[160px]">

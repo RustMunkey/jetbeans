@@ -1,7 +1,7 @@
 "use server"
 
 import { headers } from "next/headers"
-import { eq, and, desc, count } from "@jetbeans/db/drizzle"
+import { eq, and, desc, count, sql } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import {
 	shippingCarriers,
@@ -10,6 +10,7 @@ import {
 	shippingZoneRates,
 	shippingLabels,
 	shipmentTracking,
+	trustedSenders,
 	orders,
 } from "@jetbeans/db/schema"
 import { auth } from "@/lib/auth"
@@ -26,11 +27,26 @@ async function requireAdmin() {
 
 // --- CARRIERS ---
 
-export async function getCarriers() {
-	return db
-		.select()
-		.from(shippingCarriers)
-		.orderBy(desc(shippingCarriers.createdAt))
+interface GetCarriersParams {
+	page?: number
+	pageSize?: number
+}
+
+export async function getCarriers(params: GetCarriersParams = {}) {
+	const { page = 1, pageSize = 30 } = params
+	const offset = (page - 1) * pageSize
+
+	const [items, [total]] = await Promise.all([
+		db
+			.select()
+			.from(shippingCarriers)
+			.orderBy(desc(shippingCarriers.createdAt))
+			.limit(pageSize)
+			.offset(offset),
+		db.select({ count: count() }).from(shippingCarriers),
+	])
+
+	return { items, totalCount: total.count }
 }
 
 export async function getCarrier(id: string) {
@@ -155,11 +171,26 @@ export async function deleteRate(id: string) {
 
 // --- ZONES ---
 
-export async function getZones() {
-	return db
-		.select()
-		.from(shippingZones)
-		.orderBy(shippingZones.name)
+interface GetZonesParams {
+	page?: number
+	pageSize?: number
+}
+
+export async function getZones(params: GetZonesParams = {}) {
+	const { page = 1, pageSize = 30 } = params
+	const offset = (page - 1) * pageSize
+
+	const [items, [total]] = await Promise.all([
+		db
+			.select()
+			.from(shippingZones)
+			.orderBy(shippingZones.name)
+			.limit(pageSize)
+			.offset(offset),
+		db.select({ count: count() }).from(shippingZones),
+	])
+
+	return { items, totalCount: total.count }
 }
 
 export async function getZone(id: string) {
@@ -269,7 +300,7 @@ interface GetLabelsParams {
 }
 
 export async function getLabels(params: GetLabelsParams = {}) {
-	const { page = 1, pageSize = 20, status } = params
+	const { page = 1, pageSize = 30, status } = params
 	const offset = (page - 1) * pageSize
 
 	const conditions = []
@@ -356,7 +387,7 @@ interface GetTrackingParams {
 }
 
 export async function getTracking(params: GetTrackingParams = {}) {
-	const { page = 1, pageSize = 20, status } = params
+	const { page = 1, pageSize = 30, status } = params
 	const offset = (page - 1) * pageSize
 
 	const conditions = []
@@ -415,4 +446,285 @@ export async function getTrackingDetail(id: string) {
 		.limit(1)
 
 	return item ?? null
+}
+
+export async function getTrackingByOrderId(orderId: string) {
+	const [item] = await db
+		.select({
+			id: shipmentTracking.id,
+			orderId: shipmentTracking.orderId,
+			carrierId: shipmentTracking.carrierId,
+			trackingNumber: shipmentTracking.trackingNumber,
+			status: shipmentTracking.status,
+			statusHistory: shipmentTracking.statusHistory,
+			estimatedDelivery: shipmentTracking.estimatedDelivery,
+			lastUpdatedAt: shipmentTracking.lastUpdatedAt,
+			createdAt: shipmentTracking.createdAt,
+			carrierName: shippingCarriers.name,
+		})
+		.from(shipmentTracking)
+		.innerJoin(shippingCarriers, eq(shipmentTracking.carrierId, shippingCarriers.id))
+		.where(eq(shipmentTracking.orderId, orderId))
+		.orderBy(desc(shipmentTracking.createdAt))
+		.limit(1)
+
+	return item ?? null
+}
+
+// --- REVIEW QUEUE ---
+
+interface GetPendingTrackingParams {
+	page?: number
+	pageSize?: number
+}
+
+export async function getPendingTracking(params: GetPendingTrackingParams = {}) {
+	const { page = 1, pageSize = 30 } = params
+	const offset = (page - 1) * pageSize
+
+	const [rawItems, [total]] = await Promise.all([
+		db
+			.select({
+				id: shipmentTracking.id,
+				trackingNumber: shipmentTracking.trackingNumber,
+				status: shipmentTracking.status,
+				source: shipmentTracking.source,
+				sourceDetails: shipmentTracking.sourceDetails,
+				createdAt: shipmentTracking.createdAt,
+				orderId: orders.id,
+				orderNumber: orders.orderNumber,
+				customerName: sql<string | null>`COALESCE(${orders.shippingAddress}->>'name', ${orders.billingAddress}->>'name')`,
+				carrierId: shippingCarriers.id,
+				carrierName: shippingCarriers.name,
+				carrierCode: shippingCarriers.code,
+			})
+			.from(shipmentTracking)
+			.leftJoin(shippingCarriers, eq(shipmentTracking.carrierId, shippingCarriers.id))
+			.leftJoin(orders, eq(shipmentTracking.orderId, orders.id))
+			.where(eq(shipmentTracking.reviewStatus, "pending_review"))
+			.orderBy(desc(shipmentTracking.createdAt))
+			.limit(pageSize)
+			.offset(offset),
+		db.select({ count: count() }).from(shipmentTracking).where(eq(shipmentTracking.reviewStatus, "pending_review")),
+	])
+
+	// Transform to expected shape
+	const items = rawItems.map((item) => ({
+		id: item.id,
+		trackingNumber: item.trackingNumber,
+		status: item.status,
+		source: item.source,
+		sourceDetails: item.sourceDetails,
+		createdAt: item.createdAt,
+		order: item.orderId
+			? {
+					id: item.orderId,
+					orderNumber: item.orderNumber || "",
+					customerName: item.customerName,
+				}
+			: null,
+		carrier: item.carrierId
+			? {
+					id: item.carrierId,
+					name: item.carrierName || "",
+					code: item.carrierCode || "",
+				}
+			: null,
+	}))
+
+	return { items, totalCount: total.count }
+}
+
+export async function approveTracking(id: string) {
+	try {
+		await requireAdmin()
+
+		// Get tracking details
+		const [tracking] = await db
+			.select()
+			.from(shipmentTracking)
+			.where(eq(shipmentTracking.id, id))
+			.limit(1)
+
+		if (!tracking) {
+			return { success: false, error: "Tracking not found" }
+		}
+
+		if (!tracking.orderId) {
+			return { success: false, error: "No order associated with this tracking" }
+		}
+
+		// Update review status
+		await db
+			.update(shipmentTracking)
+			.set({ reviewStatus: "approved", lastUpdatedAt: new Date() })
+			.where(eq(shipmentTracking.id, id))
+
+		// Get carrier for tracking URL
+		const [carrier] = await db
+			.select()
+			.from(shippingCarriers)
+			.where(eq(shippingCarriers.id, tracking.carrierId))
+			.limit(1)
+
+		// Update order with tracking info
+		const trackingUrl = carrier?.trackingUrlTemplate
+			? carrier.trackingUrlTemplate.replace("{tracking}", tracking.trackingNumber)
+			: null
+
+		await db
+			.update(orders)
+			.set({
+				trackingNumber: tracking.trackingNumber,
+				trackingUrl,
+				updatedAt: new Date(),
+			})
+			.where(eq(orders.id, tracking.orderId))
+
+		await logAudit({
+			action: "tracking.approved",
+			targetType: "tracking",
+			targetId: id,
+		})
+
+		return { success: true }
+	} catch (error) {
+		return { success: false, error: error instanceof Error ? error.message : "Failed to approve tracking" }
+	}
+}
+
+export async function rejectTracking(id: string) {
+	try {
+		await requireAdmin()
+
+		// Delete the tracking record instead of just marking rejected
+		await db.delete(shipmentTracking).where(eq(shipmentTracking.id, id))
+
+		await logAudit({
+			action: "tracking.rejected",
+			targetType: "tracking",
+			targetId: id,
+		})
+
+		return { success: true }
+	} catch (error) {
+		return { success: false, error: error instanceof Error ? error.message : "Failed to reject tracking" }
+	}
+}
+
+export async function updateTrackingOrder(id: string, orderId: string) {
+	try {
+		await requireAdmin()
+
+		// Verify order exists
+		const [order] = await db
+			.select({ id: orders.id })
+			.from(orders)
+			.where(eq(orders.id, orderId))
+			.limit(1)
+
+		if (!order) {
+			return { success: false, error: "Order not found" }
+		}
+
+		// Update tracking record
+		await db
+			.update(shipmentTracking)
+			.set({ orderId, lastUpdatedAt: new Date() })
+			.where(eq(shipmentTracking.id, id))
+
+		// Get tracking details
+		const [tracking] = await db
+			.select()
+			.from(shipmentTracking)
+			.where(eq(shipmentTracking.id, id))
+			.limit(1)
+
+		if (tracking) {
+			// Get carrier for tracking URL
+			const [carrier] = await db
+				.select()
+				.from(shippingCarriers)
+				.where(eq(shippingCarriers.id, tracking.carrierId))
+				.limit(1)
+
+			// Update order with tracking
+			const trackingUrl = carrier?.trackingUrlTemplate
+				? carrier.trackingUrlTemplate.replace("{tracking}", tracking.trackingNumber)
+				: null
+
+			await db
+				.update(orders)
+				.set({
+					trackingNumber: tracking.trackingNumber,
+					trackingUrl,
+					updatedAt: new Date(),
+				})
+				.where(eq(orders.id, orderId))
+		}
+
+		await logAudit({
+			action: "tracking.order_updated",
+			targetType: "tracking",
+			targetId: id,
+			metadata: { orderId },
+		})
+
+		return { success: true }
+	} catch (error) {
+		return { success: false, error: error instanceof Error ? error.message : "Failed to update tracking" }
+	}
+}
+
+// --- TRUSTED SENDERS ---
+
+export async function getTrustedSenders() {
+	return db
+		.select()
+		.from(trustedSenders)
+		.orderBy(trustedSenders.email)
+}
+
+export async function addTrustedSender(email: string, name?: string) {
+	await requireAdmin()
+
+	const [sender] = await db
+		.insert(trustedSenders)
+		.values({ email: email.toLowerCase(), name })
+		.onConflictDoUpdate({
+			target: trustedSenders.email,
+			set: { name, autoApprove: true },
+		})
+		.returning()
+
+	await logAudit({
+		action: "trusted_sender.created",
+		targetType: "trusted_sender",
+		targetId: sender.id,
+		metadata: { email },
+	})
+
+	return sender
+}
+
+export async function removeTrustedSender(id: string) {
+	await requireAdmin()
+
+	await db.delete(trustedSenders).where(eq(trustedSenders.id, id))
+
+	await logAudit({
+		action: "trusted_sender.deleted",
+		targetType: "trusted_sender",
+		targetId: id,
+	})
+}
+
+export async function isTrustedSender(email: string): Promise<boolean> {
+	const [sender] = await db
+		.select()
+		.from(trustedSenders)
+		.where(and(eq(trustedSenders.email, email.toLowerCase()), eq(trustedSenders.autoApprove, true)))
+		.limit(1)
+
+	return !!sender
 }

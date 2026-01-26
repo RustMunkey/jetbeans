@@ -5,6 +5,8 @@ import { DataTable, type Column } from "@/components/data-table"
 import { StatusBadge } from "@/components/status-badge"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { formatCurrency, formatDate } from "@/lib/format"
+import { useLiveOrders, type LiveOrder } from "@/hooks/use-live-orders"
+import { cn } from "@/lib/utils"
 
 interface Order {
 	id: string
@@ -14,6 +16,7 @@ interface Order {
 	customerName: string | null
 	customerEmail: string | null
 	createdAt: Date
+	isNew?: boolean
 }
 
 interface OrdersTableProps {
@@ -29,14 +32,20 @@ const statuses = [
 	"partially_refunded", "returned",
 ]
 
-export function OrdersTable({ orders, totalCount, currentPage, currentStatus }: OrdersTableProps) {
+export function OrdersTable({ orders: initialOrders, totalCount, currentPage, currentStatus }: OrdersTableProps) {
 	const router = useRouter()
+	const { orders } = useLiveOrders({ initialOrders: initialOrders as LiveOrder[] })
 
 	const columns: Column<Order>[] = [
 		{
 			key: "orderNumber",
 			header: "Order",
-			cell: (row) => <span className="font-medium">#{row.orderNumber}</span>,
+			cell: (row) => (
+				<span className={cn("font-medium", row.isNew && "text-primary")}>
+					#{row.orderNumber}
+					{row.isNew && <span className="ml-2 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">NEW</span>}
+				</span>
+			),
 		},
 		{
 			key: "customer",
@@ -78,7 +87,7 @@ export function OrdersTable({ orders, totalCount, currentPage, currentStatus }: 
 			searchPlaceholder="Search orders..."
 			totalCount={totalCount}
 			currentPage={currentPage}
-			pageSize={20}
+			pageSize={30}
 			getId={(row) => row.id}
 			onRowClick={(row) => router.push(`/orders/${row.id}`)}
 			emptyMessage="No orders yet"

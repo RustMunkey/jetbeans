@@ -1,13 +1,6 @@
-import { HugeiconsIcon } from "@hugeicons/react"
-import {
-  DollarCircleIcon,
-  ShoppingBag01Icon,
-  Invoice02Icon,
-  Discount01Icon,
-  ShoppingCartRemove01Icon,
-  DeliveryReturn01Icon,
-} from "@hugeicons/core-free-icons"
 import { SalesCharts } from "./sales-charts"
+import { SalesStats } from "./sales-stats"
+import { TopProductsLive } from "@/components/top-products-live"
 import {
   getGrossSales,
   getRevenueStats,
@@ -19,16 +12,6 @@ import { getRefunds, getCartAbandonment, getSkuMargins } from "@/lib/analytics"
 
 function formatCurrency(value: number): string {
   return `$${value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
-}
-
-function ChangeIndicator({ change }: { change: number }) {
-  if (change === 0) return <span className="text-xs text-muted-foreground">No change</span>
-  const isUp = change > 0
-  return (
-    <span className={`text-xs ${isUp ? "text-stat-up" : "text-stat-down"}`}>
-      {isUp ? "+" : ""}{change}%
-    </span>
-  )
 }
 
 export default async function SalesReportsPage() {
@@ -49,14 +32,6 @@ export default async function SalesReportsPage() {
       getSkuMargins(range, 10),
     ])
 
-  const stats = [
-    { label: "Gross Sales", icon: DollarCircleIcon, value: formatCurrency(grossSales.value), change: grossSales.change },
-    { label: "Net Revenue", icon: Invoice02Icon, value: formatCurrency(netRevenue.value), change: netRevenue.change },
-    { label: "Refunds", icon: DeliveryReturn01Icon, value: `${refunds.count} (${formatCurrency(refunds.total)})`, change: 0 },
-    { label: "Discounts Given", icon: Discount01Icon, value: formatCurrency(discounts.value), change: discounts.change },
-    { label: "Cart Abandonment", icon: ShoppingCartRemove01Icon, value: `${cartAbandonment.rate}%`, change: 0 },
-  ]
-
   const salesData = salesByDay.map((p) => ({ date: p.date, sales: p.value }))
 
   return (
@@ -68,55 +43,27 @@ export default async function SalesReportsPage() {
         </p>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {stats.map((stat) => (
-          <div key={stat.label} className="rounded-xl border bg-card p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">{stat.label}</span>
-              <div className="flex size-8 items-center justify-center rounded-md bg-muted">
-                <HugeiconsIcon icon={stat.icon} size={16} className="text-muted-foreground" />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <p className="text-2xl font-semibold tracking-tight">{stat.value}</p>
-              <ChangeIndicator change={stat.change} />
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* KPI Cards - Live updating */}
+      <SalesStats
+        grossSales={grossSales}
+        netRevenue={netRevenue}
+        refunds={refunds}
+        discounts={discounts}
+        cartAbandonment={cartAbandonment}
+      />
 
       {/* Sales by Day Chart */}
       <SalesCharts salesByDay={salesData} />
 
       {/* Middle Row */}
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Top Products */}
+        {/* Top Products - Live updating */}
         <div className="rounded-xl border bg-card p-4">
           <div className="mb-4">
             <h3 className="text-sm font-medium">Top Products</h3>
             <p className="text-xs text-muted-foreground">Best sellers by revenue</p>
           </div>
-          {topProducts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <p className="text-sm text-muted-foreground">No products yet</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {topProducts.map((product, i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground w-4">{i + 1}.</span>
-                    <span className="text-sm font-medium">{product.name}</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium">{formatCurrency(product.revenue)}</p>
-                    <p className="text-xs text-muted-foreground">{product.units} units</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <TopProductsLive initialProducts={topProducts} />
         </div>
 
         {/* Cart Abandonment Details */}

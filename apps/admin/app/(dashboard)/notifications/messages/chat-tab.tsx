@@ -8,19 +8,19 @@ import { Image02Icon, Cancel01Icon, Link04Icon } from "@hugeicons/core-free-icon
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePusher } from "@/components/pusher-provider"
 import { CallButtonGroup } from "@/components/calls"
+import { useChat } from "@/components/messages"
 import { sendTeamMessage, markMessageRead, getMessageReadStatus, clearConversationMessages, getTeamMessages, uploadChatImage, fetchLinkPreview } from "./actions"
-import type { TeamMessage, TeamMember, Conversation, MessageAttachment } from "./types"
-import { CHANNELS } from "./types"
+import type { TeamMessage, Conversation, MessageAttachment } from "./types"
 
 // URL regex for detecting links in messages
 const URL_REGEX = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/g
 
 // Parse message body and convert URLs to clickable links
-function MessageBody({ body, className }: { body: string; className?: string }) {
+function MessageBody({ body, className }: { body: string | null; className?: string }) {
+	if (!body) return null
 	const parts = body.split(URL_REGEX)
 	return (
 		<span className={className}>
@@ -164,131 +164,23 @@ function timeAgo(dateStr: string) {
 	return new Date(dateStr).toLocaleDateString()
 }
 
-function ChatSidebar({
-	active,
-	onSelect,
-	teamMembers,
-	userId,
-	messages,
-}: {
-	active: Conversation
-	onSelect: (c: Conversation) => void
-	teamMembers: TeamMember[]
-	userId: string
-	messages: TeamMessage[]
-}) {
-	const getUnreadCount = (channel: string) =>
-		messages.filter((m) => m.channel === channel && !m.readAt && m.senderId !== userId).length
-
-	return (
-		<div className="flex flex-col h-full overflow-y-auto">
-			<div className="px-3 pt-4 pb-2">
-				<span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-					Channels
-				</span>
-			</div>
-			{CHANNELS.map((ch) => {
-				const unread = getUnreadCount(ch)
-				const isActive = active.type === "channel" && active.id === ch
-				return (
-					<button
-						key={ch}
-						type="button"
-						className={`mx-2 flex items-center gap-2 px-3 py-1.5 text-sm rounded-md cursor-pointer transition-colors ${
-							isActive ? "bg-muted font-medium" : "hover:bg-muted/50"
-						}`}
-						onClick={() => onSelect({ type: "channel", id: ch, label: `#${ch}` })}
-					>
-						<span className="text-muted-foreground font-mono text-xs">#</span>
-						<span className="flex-1 text-left capitalize">{ch}</span>
-						{unread > 0 && (
-							<span className="bg-primary text-primary-foreground text-[10px] rounded-full px-1.5 min-w-[18px] text-center">
-								{unread}
-							</span>
-						)}
-					</button>
-				)
-			})}
-
-			<div className="px-3 pt-6 pb-2">
-				<span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-					Direct Messages
-				</span>
-			</div>
-			{teamMembers
-				.filter((m) => m.id !== userId)
-				.map((member) => {
-					const isActive = active.type === "dm" && active.id === member.id
-					return (
-						<button
-							key={member.id}
-							type="button"
-							className={`mx-2 flex items-center gap-2 px-3 py-1.5 text-sm rounded-md cursor-pointer transition-colors ${
-								isActive ? "bg-muted font-medium" : "hover:bg-muted/50"
-							}`}
-							onClick={() => onSelect({ type: "dm", id: member.id, label: member.name })}
-						>
-							<Avatar className="h-5 w-5">
-								{member.image && <AvatarImage src={member.image} alt={member.name} />}
-								<AvatarFallback className="text-[9px]">{getInitials(member.name)}</AvatarFallback>
-							</Avatar>
-							<span className="flex-1 text-left truncate">{member.name}</span>
-						</button>
-					)
-				})}
-		</div>
-	)
-}
-
-const CHAT_STATE_KEY = "jetbeans_chat_state"
-
-function loadChatState(): Conversation | null {
-	if (typeof window === "undefined") return null
-	try {
-		const stored = localStorage.getItem(CHAT_STATE_KEY)
-		return stored ? JSON.parse(stored) : null
-	} catch {
-		return null
-	}
-}
-
-function saveChatState(conversation: Conversation) {
-	if (typeof window === "undefined") return
-	try {
-		localStorage.setItem(CHAT_STATE_KEY, JSON.stringify(conversation))
-	} catch {}
-}
 
 export function ChatTab({
-	messages: initialMessages,
 	userId,
 	userName,
 	userImage,
-	teamMembers,
 	activeTab,
 	onTabChange,
 }: {
-	messages: TeamMessage[]
 	userId: string
 	userName: string
 	userImage: string | null
-	teamMembers: TeamMember[]
 	activeTab: "chat" | "inbox"
 	onTabChange: (tab: "chat" | "inbox") => void
 }) {
-	const [messages, setMessages] = useState<TeamMessage[]>(initialMessages)
-	const [active, setActive] = useState<Conversation>({ type: "channel", id: "general", label: "#general" })
-	const [hydrated, setHydrated] = useState(false)
-
-	// Load saved chat state after hydration
-	useEffect(() => {
-		const saved = loadChatState()
-		if (saved) setActive(saved)
-		setHydrated(true)
-	}, [])
+	const { active, setActive, messages, setMessages, teamMembers, userId: chatUserId } = useChat()
 	const [body, setBody] = useState("")
 	const [sending, setSending] = useState(false)
-	const [sheetOpen, setSheetOpen] = useState(false)
 	const [readReceipts, setReadReceipts] = useState<Record<string, {
 		allRead: boolean
 		readCount: number
@@ -333,7 +225,7 @@ export function ChatTab({
 		// Switch to the correct channel/conversation
 		if (channel && channel !== active.id) {
 			if (channel === "dm") {
-				if (msg) {
+				if (msg && msg.senderId) {
 					const otherId = msg.senderId === userId ? active.id : msg.senderId
 					const member = teamMembers.find(m => m.id === otherId)
 					if (member) {
@@ -575,12 +467,6 @@ export function ChatTab({
 		}
 	}
 
-	function handleSelectConversation(c: Conversation) {
-		setActive(c)
-		saveChatState(c)
-		setSheetOpen(false)
-		// Don't mark as read here - only mark when message is scrolled into view
-	}
 
 	// Mark message as read when it scrolls into view
 	const observerRef = useRef<IntersectionObserver | null>(null)
@@ -626,39 +512,12 @@ export function ChatTab({
 		? `Message #${active.id}...`
 		: `Message ${active.label}...`
 
-	const sidebarContent = (
-		<ChatSidebar
-			active={active}
-			onSelect={handleSelectConversation}
-			teamMembers={teamMembers}
-			userId={userId}
-			messages={messages}
-		/>
-	)
-
 	return (
 		<div className="flex h-[calc(100vh-6rem)] rounded-lg border overflow-hidden">
-			{/* Desktop sidebar */}
-			<div className="hidden md:flex md:w-64 md:shrink-0 border-r bg-muted/30 flex-col">
-				{sidebarContent}
-			</div>
-
 			{/* Main chat area */}
 			<div className="flex-1 flex flex-col min-w-0">
 				{/* Chat header */}
 				<div className="h-12 border-b px-4 flex items-center gap-2 shrink-0">
-					<Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-						<SheetTrigger asChild>
-							<Button variant="ghost" size="sm" className="md:hidden -ml-2 px-2">
-								<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-									<path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-								</svg>
-							</Button>
-						</SheetTrigger>
-						<SheetContent side="left" className="w-64 p-0">
-							{sidebarContent}
-						</SheetContent>
-					</Sheet>
 					<span className="text-sm font-medium">
 						{active.type === "channel" ? `# ${active.id}` : active.label}
 					</span>
@@ -790,7 +649,7 @@ export function ChatTab({
 											<button
 												type="button"
 												onClick={() => {
-													navigator.clipboard.writeText(msg.body)
+													navigator.clipboard.writeText(msg.body || "")
 													toast.success("Copied to clipboard")
 												}}
 												className="opacity-0 group-hover:opacity-100 transition-opacity mb-0.5"

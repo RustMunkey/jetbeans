@@ -42,7 +42,13 @@ interface Discount {
 	createdAt: Date
 }
 
-export function DiscountsTable({ discounts }: { discounts: Discount[] }) {
+interface DiscountsTableProps {
+	discounts: Discount[]
+	totalCount: number
+	currentPage: number
+}
+
+export function DiscountsTable({ discounts, totalCount, currentPage }: DiscountsTableProps) {
 	const router = useRouter()
 	const [statusFilter, setStatusFilter] = useState("all")
 	const [createOpen, setCreateOpen] = useState(false)
@@ -208,6 +214,8 @@ export function DiscountsTable({ discounts }: { discounts: Discount[] }) {
 				onRowClick={(row) => router.push(`/marketing/${row.id}`)}
 				emptyMessage="No discounts"
 				emptyDescription="Create a discount code to offer promotions."
+				totalCount={totalCount}
+				currentPage={currentPage}
 				filters={
 					<Select value={statusFilter} onValueChange={setStatusFilter}>
 						<SelectTrigger className="h-9 w-full sm:w-[160px]">

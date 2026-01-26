@@ -11,7 +11,7 @@ export function ThemeScript() {
 	try {
 		var presets = ${presetsJson};
 		var savedAccent = localStorage.getItem("jetbeans-accent-theme") || "coffee";
-		var savedTheme = localStorage.getItem("theme") || "system";
+		var savedTheme = localStorage.getItem("jetbeans-theme") || "system";
 
 		// Determine if dark mode
 		var isDark = savedTheme === "dark" ||

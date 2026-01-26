@@ -1,12 +1,20 @@
 import { getGiftCards } from "./actions"
 import { GiftCardsClient } from "./gift-cards-client"
 
-export default async function GiftCardsPage() {
-	const cards = await getGiftCards()
+interface PageProps {
+	searchParams: Promise<{
+		page?: string
+	}>
+}
+
+export default async function GiftCardsPage({ searchParams }: PageProps) {
+	const params = await searchParams
+	const page = Number(params.page) || 1
+	const { items, totalCount } = await getGiftCards({ page, pageSize: 30 })
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 pt-0">
-			<GiftCardsClient cards={cards} />
+			<GiftCardsClient cards={items} totalCount={totalCount} currentPage={page} />
 		</div>
 	)
 }

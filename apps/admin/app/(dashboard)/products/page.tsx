@@ -17,7 +17,7 @@ export default async function ProductsPage({ searchParams }: PageProps) {
 	const page = Number(params.page) || 1
 	const { items, totalCount } = await getProducts({
 		page,
-		pageSize: 20,
+		pageSize: 30,
 		search: params.search,
 		category: params.category,
 		status: params.status,

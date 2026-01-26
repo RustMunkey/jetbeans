@@ -11,8 +11,11 @@ import { CommandMenuWrapper } from "@/components/command-menu-wrapper"
 import { HeaderToolbar } from "@/components/header-toolbar"
 import { PusherProvider } from "@/components/pusher-provider"
 import { CallProvider, IncomingCallModal, CallInterface } from "@/components/calls"
-import { MusicPlayerProvider, MusicPlayerWidget, MusicPlayerLoader } from "@/components/music-player"
+import { MusicPlayerProvider, MusicPlayerLoader } from "@/components/music-player"
+import { ToolbarProvider, ToolbarPanel, WidgetPanels } from "@/components/toolbar"
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts"
+import { SidebarModeProvider } from "@/lib/sidebar-mode"
+import { ChatProvider } from "@/components/messages"
 import { SidebarSwipe } from "@/components/sidebar-swipe"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -20,6 +23,8 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
+import { RightSidebarProvider } from "@/components/ui/right-sidebar"
+import { AppRightSidebar } from "@/components/app-right-sidebar"
 
 export default async function DashboardLayout({
   children,
@@ -54,6 +59,7 @@ export default async function DashboardLayout({
 
   const cookieStore = await cookies()
   const sidebarOpen = cookieStore.get("sidebar_state")?.value !== "false"
+  const rightSidebarOpen = cookieStore.get("right_sidebar_state")?.value === "true"
 
   return (
     <PusherProvider
@@ -66,40 +72,52 @@ export default async function DashboardLayout({
         userImage={user?.image || null}
       >
         <MusicPlayerProvider>
-          <SidebarProvider defaultOpen={sidebarOpen}>
-            <CommandMenuWrapper />
-            <KeyboardShortcutsProvider>
-              <AppSidebar user={{
-                name: user?.name || session.user.name,
-                email: session.user.email,
-                avatar: user?.image || "",
-                role: user?.role || "member",
-              }} />
-              <SidebarSwipe />
-              <SidebarInset className="md:flex md:flex-col">
-                <BreadcrumbProvider>
-                  <header className="flex h-16 shrink-0 items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 px-4 min-w-0">
-                      <SidebarTrigger className="-ml-1 shrink-0" />
-                      <Separator
-                        orientation="vertical"
-                        className="mr-2 shrink-0 data-[orientation=vertical]:h-4"
-                      />
-                      <div className="min-w-0 overflow-x-auto sm:overflow-hidden [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
-                        <BreadcrumbNav />
-                      </div>
-                    </div>
-                    <HeaderToolbar />
-                  </header>
-                  {children}
-                </BreadcrumbProvider>
-              </SidebarInset>
-            </KeyboardShortcutsProvider>
-          </SidebarProvider>
+          <ToolbarProvider>
+            <ChatProvider>
+              <SidebarModeProvider>
+                <SidebarProvider defaultOpen={sidebarOpen}>
+                <RightSidebarProvider defaultOpen={rightSidebarOpen}>
+                  <CommandMenuWrapper />
+                  <KeyboardShortcutsProvider>
+                    <AppSidebar user={{
+                      name: user?.name || session.user.name,
+                      email: session.user.email,
+                      avatar: user?.image || "",
+                      role: user?.role || "member",
+                    }} />
+                    <SidebarSwipe />
+                    <SidebarInset className="md:flex md:flex-col">
+                      <BreadcrumbProvider>
+                        <header className="flex h-16 shrink-0 items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 px-4 min-w-0">
+                            <SidebarTrigger className="-ml-1 shrink-0" />
+                            <Separator
+                              orientation="vertical"
+                              className="mr-2 shrink-0 data-[orientation=vertical]:h-4"
+                            />
+                            <div className="min-w-0 overflow-x-auto sm:overflow-hidden [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
+                              <BreadcrumbNav />
+                            </div>
+                          </div>
+                          <HeaderToolbar />
+                        </header>
+                        {children}
+                      </BreadcrumbProvider>
+                    </SidebarInset>
+                    <AppRightSidebar />
+                  </KeyboardShortcutsProvider>
+                </RightSidebarProvider>
+              </SidebarProvider>
+              </SidebarModeProvider>
+            </ChatProvider>
 
-          {/* Music Player - loads user tracks and renders widget */}
-          <MusicPlayerLoader />
-          <MusicPlayerWidget />
+            {/* Music Player - loads user tracks */}
+            <MusicPlayerLoader />
+
+            {/* Toolbar Panel */}
+            <ToolbarPanel />
+            <WidgetPanels />
+          </ToolbarProvider>
 
           {/* Call UI overlays */}
           <IncomingCallModal />

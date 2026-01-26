@@ -29,7 +29,13 @@ interface Supplier {
 	createdAt: Date
 }
 
-export function SuppliersTable({ suppliers }: { suppliers: Supplier[] }) {
+interface SuppliersTableProps {
+	suppliers: Supplier[]
+	totalCount: number
+	currentPage: number
+}
+
+export function SuppliersTable({ suppliers, totalCount, currentPage }: SuppliersTableProps) {
 	const router = useRouter()
 	const [countryFilter, setCountryFilter] = useState("all")
 	const [createOpen, setCreateOpen] = useState(false)
@@ -128,6 +134,9 @@ export function SuppliersTable({ suppliers }: { suppliers: Supplier[] }) {
 				onRowClick={(row) => router.push(`/suppliers/${row.id}`)}
 				emptyMessage="No suppliers"
 				emptyDescription="Add a supplier to manage your product sourcing."
+				totalCount={totalCount}
+				currentPage={currentPage}
+				pageSize={30}
 				filters={
 					<Select value={countryFilter} onValueChange={setCountryFilter}>
 						<SelectTrigger className="h-9 w-full sm:w-[160px]">

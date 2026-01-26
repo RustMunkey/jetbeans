@@ -5,37 +5,34 @@ import { useRouter } from "next/navigation"
 import { DataTable, type Column } from "@/components/data-table"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { formatCurrency, formatDate } from "@/lib/format"
-
-interface Customer {
-	id: string
-	name: string
-	email: string
-	image: string | null
-	phone: string | null
-	createdAt: Date
-	orderCount: number
-	totalSpent: string
-	lastOrderAt: Date | null
-}
+import { useLiveCustomers, type LiveCustomer } from "@/hooks/use-live-customers"
 
 interface CustomersTableProps {
-	customers: Customer[]
+	customers: LiveCustomer[]
 	totalCount: number
 	currentPage: number
 }
 
-export function CustomersTable({ customers, totalCount, currentPage }: CustomersTableProps) {
+export function CustomersTable({ customers: initialCustomers, totalCount, currentPage }: CustomersTableProps) {
 	const router = useRouter()
+	const { customers } = useLiveCustomers({ initialCustomers })
 	const [activityFilter, setActivityFilter] = useState("all")
 
-	const columns: Column<Customer>[] = [
+	const columns: Column<LiveCustomer>[] = [
 		{
 			key: "name",
 			header: "Customer",
 			cell: (row) => (
-				<div>
-					<span className="text-sm font-medium">{row.name}</span>
-					<p className="text-xs text-muted-foreground">{row.email}</p>
+				<div className="flex items-center gap-2">
+					<div>
+						<span className="text-sm font-medium">{row.name}</span>
+						<p className="text-xs text-muted-foreground">{row.email}</p>
+					</div>
+					{row.isNew && (
+						<span className="text-[10px] px-1.5 py-0.5 rounded bg-stat-up/10 text-stat-up font-medium animate-pulse">
+							NEW
+						</span>
+					)}
 				</div>
 			),
 		},
@@ -82,7 +79,7 @@ export function CustomersTable({ customers, totalCount, currentPage }: Customers
 			searchPlaceholder="Search customers..."
 			totalCount={totalCount}
 			currentPage={currentPage}
-			pageSize={20}
+			pageSize={30}
 			getId={(row) => row.id}
 			onRowClick={(row) => router.push(`/customers/${row.id}`)}
 			emptyMessage="No customers yet"
