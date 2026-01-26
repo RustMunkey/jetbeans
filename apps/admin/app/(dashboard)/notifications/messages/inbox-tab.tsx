@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { DataTable, type Column } from "@/components/data-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -9,7 +10,8 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import { formatDate } from "@/lib/format"
-import type { InboxEmail } from "./types"
+import { sendInboxReply, markInboxEmailRead } from "./actions"
+import type { InboxEmail, InboxEmailReply } from "./types"
 
 const statusStyles: Record<string, string> = {
 	unread: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
@@ -20,21 +22,32 @@ const statusStyles: Record<string, string> = {
 function InboxThread({
 	email,
 	onBack,
+	onReplyAdded,
 }: {
 	email: InboxEmail
 	onBack: () => void
+	onReplyAdded: (emailId: string, reply: InboxEmailReply) => void
 }) {
 	const [replyBody, setReplyBody] = useState("")
-	const [sending, setSending] = useState(false)
+	const [isPending, startTransition] = useTransition()
 
 	async function handleSendReply() {
 		if (!replyBody.trim()) return
-		setSending(true)
-		// Mock send — functionality comes later
-		await new Promise((resolve) => setTimeout(resolve, 500))
-		setSending(false)
-		setReplyBody("")
-		toast.success("Reply sent")
+
+		startTransition(async () => {
+			try {
+				const reply = await sendInboxReply({
+					emailId: email.id,
+					body: replyBody.trim(),
+				})
+				onReplyAdded(email.id, reply)
+				setReplyBody("")
+				toast.success("Reply sent")
+			} catch (err) {
+				toast.error("Failed to send reply")
+				console.error(err)
+			}
+		})
 	}
 
 	return (
@@ -96,9 +109,9 @@ function InboxThread({
 					<Button
 						size="sm"
 						onClick={handleSendReply}
-						disabled={sending || !replyBody.trim()}
+						disabled={isPending || !replyBody.trim()}
 					>
-						{sending ? "Sending..." : "Send Reply"}
+						{isPending ? "Sending..." : "Send Reply"}
 					</Button>
 				</div>
 			</div>
@@ -107,7 +120,7 @@ function InboxThread({
 }
 
 export function InboxTab({
-	emails,
+	emails: initialEmails,
 	activeTab,
 	onTabChange,
 }: {
@@ -115,13 +128,50 @@ export function InboxTab({
 	activeTab: "chat" | "inbox"
 	onTabChange: (tab: "chat" | "inbox") => void
 }) {
+	const [emails, setEmails] = useState(initialEmails)
 	const [selectedId, setSelectedId] = useState<string | null>(null)
 	const [statusFilter, setStatusFilter] = useState("all")
 
 	const selectedEmail = emails.find((e) => e.id === selectedId)
 
+	// Handle marking email as read and selecting it
+	async function handleSelectEmail(id: string) {
+		const email = emails.find((e) => e.id === id)
+		if (email?.status === "unread") {
+			// Optimistically mark as read
+			setEmails((prev) =>
+				prev.map((e) => (e.id === id ? { ...e, status: "read" as const } : e))
+			)
+			// Update server
+			markInboxEmailRead(id).catch(() => {
+				// Revert on error
+				setEmails((prev) =>
+					prev.map((e) => (e.id === id ? { ...e, status: "unread" as const } : e))
+				)
+			})
+		}
+		setSelectedId(id)
+	}
+
+	// Handle reply being added
+	function handleReplyAdded(emailId: string, reply: InboxEmailReply) {
+		setEmails((prev) =>
+			prev.map((e) =>
+				e.id === emailId
+					? { ...e, status: "replied" as const, replies: [...e.replies, reply] }
+					: e
+			)
+		)
+	}
+
 	if (selectedEmail) {
-		return <InboxThread email={selectedEmail} onBack={() => setSelectedId(null)} />
+		return (
+			<InboxThread
+				email={selectedEmail}
+				onBack={() => setSelectedId(null)}
+				onReplyAdded={handleReplyAdded}
+			/>
+		)
 	}
 
 	const filteredEmails = statusFilter === "all"
@@ -190,7 +240,7 @@ export function InboxTab({
 					currentPage={1}
 					pageSize={30}
 					getId={(row) => row.id}
-					onRowClick={(row) => setSelectedId(row.id)}
+					onRowClick={(row) => handleSelectEmail(row.id)}
 					emptyMessage="No emails yet"
 					emptyDescription="Customer inquiries from the contact page will appear here."
 					filters={

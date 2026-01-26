@@ -347,107 +347,196 @@ export async function fetchLinkPreview(url: string): Promise<{
 	}
 }
 
-// --- INBOX (mock data until contact form schema exists) ---
+// --- INBOX ---
+import { inboxEmails, inboxReplies } from "@jetbeans/db/schema"
+import { Resend } from "resend"
 import type { InboxEmail } from "./types"
 
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
+
 export async function getInboxEmails(): Promise<InboxEmail[]> {
-	return [
-		{
-			id: "inbox-1",
-			fromName: "Marcus Johnson",
-			fromEmail: "marcus.j@gmail.com",
-			subject: "Question about bulk ordering",
-			body: "Hi there,\n\nI'm interested in ordering 50+ bags of your Ethiopian single origin for our office. Do you offer bulk pricing or corporate accounts?\n\nThanks,\nMarcus",
-			receivedAt: "2025-01-22T10:30:00Z",
-			status: "unread",
-			replies: [],
-		},
-		{
-			id: "inbox-2",
-			fromName: "Sarah Chen",
-			fromEmail: "sarah.chen@outlook.com",
-			subject: "Subscription delivery issue",
-			body: "Hello,\n\nMy last subscription delivery (order #4521) seems to have been lost in transit. The tracking hasn't updated in 5 days. Can someone help?\n\nBest,\nSarah",
-			receivedAt: "2025-01-21T14:15:00Z",
-			status: "replied",
-			replies: [
-				{
-					id: "reply-1",
-					from: "Reese",
-					body: "Hi Sarah, I've looked into this and filed a claim with the carrier. A replacement is on its way — you should receive a new tracking number within 24 hours. Sorry for the inconvenience!",
-					sentAt: "2025-01-21T16:45:00Z",
-				},
-			],
-		},
-		{
-			id: "inbox-3",
-			fromName: "David Park",
-			fromEmail: "dpark.design@gmail.com",
-			subject: "Collaboration inquiry",
-			body: "Hey JetBeans team!\n\nI run a ceramics studio and would love to discuss a potential collab — custom mugs featuring your branding for a limited edition release. Would anyone be interested in chatting?\n\nDavid",
-			receivedAt: "2025-01-20T09:00:00Z",
+	// Get all emails with their replies
+	const emails = await db
+		.select()
+		.from(inboxEmails)
+		.orderBy(desc(inboxEmails.receivedAt))
+		.limit(100)
+
+	// Get replies for all emails
+	const emailIds = emails.map(e => e.id)
+	const replies = emailIds.length > 0
+		? await db
+				.select({
+					id: inboxReplies.id,
+					emailId: inboxReplies.emailId,
+					senderName: inboxReplies.senderName,
+					body: inboxReplies.body,
+					sentAt: inboxReplies.sentAt,
+				})
+				.from(inboxReplies)
+				.orderBy(asc(inboxReplies.sentAt))
+		: []
+
+	// Group replies by email ID
+	const repliesByEmail = replies.reduce((acc, reply) => {
+		if (!acc[reply.emailId]) acc[reply.emailId] = []
+		acc[reply.emailId].push({
+			id: reply.id,
+			from: reply.senderName,
+			body: reply.body,
+			sentAt: reply.sentAt.toISOString(),
+		})
+		return acc
+	}, {} as Record<string, { id: string; from: string; body: string; sentAt: string }[]>)
+
+	return emails.map(email => ({
+		id: email.id,
+		fromName: email.fromName,
+		fromEmail: email.fromEmail,
+		subject: email.subject,
+		body: email.body,
+		receivedAt: email.receivedAt.toISOString(),
+		status: email.status as "unread" | "read" | "replied",
+		replies: repliesByEmail[email.id] || [],
+	}))
+}
+
+export async function markInboxEmailRead(emailId: string) {
+	const session = await auth.api.getSession({ headers: await headers() })
+	if (!session) throw new Error("Unauthorized")
+
+	await db
+		.update(inboxEmails)
+		.set({
 			status: "read",
-			replies: [],
-		},
-		{
-			id: "inbox-4",
-			fromName: "Emily Rodriguez",
-			fromEmail: "emily.r@yahoo.com",
-			subject: "Allergen information request",
-			body: "Hi,\n\nCould you provide detailed allergen information for your flavored coffee products? Specifically the hazelnut and vanilla options. My daughter has a severe nut allergy and I want to be sure.\n\nThank you,\nEmily",
-			receivedAt: "2025-01-19T11:20:00Z",
-			status: "unread",
-			replies: [],
-		},
-		{
-			id: "inbox-5",
-			fromName: "Tom Williams",
-			fromEmail: "twilliams@company.co",
-			subject: "Re: Wholesale partnership",
-			body: "Following up on my previous email about stocking JetBeans in our 12 locations across the city. Happy to set up a call whenever works for your team.\n\nTom",
-			receivedAt: "2025-01-18T16:30:00Z",
-			status: "replied",
-			replies: [
-				{
-					id: "reply-2",
-					from: "Ash",
-					body: "Tom, thanks for following up! I'd love to chat. Are you available Thursday or Friday this week? We can do a video call — I'll send a calendar invite.",
-					sentAt: "2025-01-18T17:00:00Z",
-				},
-				{
-					id: "reply-3",
-					from: "Tom Williams",
-					body: "Friday at 2pm works perfectly. Looking forward to it!",
-					sentAt: "2025-01-18T18:30:00Z",
-				},
-			],
-		},
-		{
-			id: "inbox-6",
-			fromName: "Priya Sharma",
-			fromEmail: "priya.s@techcorp.io",
-			subject: "Gift cards for team appreciation",
-			body: "Hello!\n\nWe'd like to purchase 25 digital gift cards ($50 each) for our engineering team as a holiday gift. Is there a way to buy in bulk and have them emailed to individual recipients?\n\nBest regards,\nPriya",
-			receivedAt: "2025-01-17T08:45:00Z",
-			status: "read",
-			replies: [],
-		},
-		{
-			id: "inbox-7",
-			fromName: "Jake Morrison",
-			fromEmail: "jake.m@protonmail.com",
-			subject: "Missing item in order",
-			body: "Hi JetBeans,\n\nI received my order (#6789) today but the ceramic pour-over set was missing from the box. The packing slip shows it should have been included. Can you help resolve this?\n\nJake",
-			receivedAt: "2025-01-16T13:10:00Z",
-			status: "replied",
-			replies: [
-				{
-					id: "reply-4",
-					from: "Lorena",
-					body: "Hi Jake, I'm so sorry about that! I've shipped a replacement pour-over set today with express delivery at no extra cost. You should have it by Thursday. Tracking number will be emailed shortly.",
-					sentAt: "2025-01-16T14:30:00Z",
-				},
-			],
-		},
-	]
+			readAt: new Date(),
+		})
+		.where(
+			and(
+				eq(inboxEmails.id, emailId),
+				eq(inboxEmails.status, "unread")
+			)
+		)
+}
+
+export async function sendInboxReply(data: { emailId: string; body: string }) {
+	const session = await auth.api.getSession({ headers: await headers() })
+	if (!session) throw new Error("Unauthorized")
+
+	// Get the original email
+	const [email] = await db
+		.select()
+		.from(inboxEmails)
+		.where(eq(inboxEmails.id, data.emailId))
+		.limit(1)
+
+	if (!email) throw new Error("Email not found")
+
+	// Get sender's name from database
+	const [sender] = await db
+		.select({ name: users.name })
+		.from(users)
+		.where(eq(users.id, session.user.id))
+		.limit(1)
+
+	const senderName = sender?.name || session.user.name || "JetBeans Support"
+
+	// Send email via Resend
+	let resendId: string | undefined
+	if (resend) {
+		try {
+			const result = await resend.emails.send({
+				from: `${senderName} <support@jetbeans.cafe>`,
+				to: email.fromEmail,
+				replyTo: "support@jetbeans.cafe",
+				subject: `Re: ${email.subject}`,
+				text: data.body,
+				html: `<div style="font-family: sans-serif; font-size: 14px; line-height: 1.6;">
+					<p>${data.body.replace(/\n/g, "<br>")}</p>
+					<hr style="border: none; border-top: 1px solid #e5e5e5; margin: 24px 0;">
+					<p style="color: #666; font-size: 12px;">
+						${senderName}<br>
+						JetBeans Support<br>
+						<a href="https://jetbeans.cafe">jetbeans.cafe</a>
+					</p>
+				</div>`,
+			})
+			resendId = result.data?.id
+		} catch (err) {
+			console.error("Failed to send email via Resend:", err)
+			// Continue anyway - save the reply even if email fails
+		}
+	}
+
+	// Save the reply to database
+	const [reply] = await db
+		.insert(inboxReplies)
+		.values({
+			emailId: data.emailId,
+			senderId: session.user.id,
+			senderName,
+			body: data.body,
+			resendId,
+			deliveryStatus: resendId ? "sent" : "failed",
+		})
+		.returning()
+
+	// Update email status to replied
+	await db
+		.update(inboxEmails)
+		.set({ status: "replied" })
+		.where(eq(inboxEmails.id, data.emailId))
+
+	return {
+		id: reply.id,
+		from: senderName,
+		body: data.body,
+		sentAt: reply.sentAt.toISOString(),
+	}
+}
+
+export async function createInboxEmail(data: {
+	fromName: string
+	fromEmail: string
+	subject: string
+	body: string
+	bodyHtml?: string
+	source?: string
+	sourceId?: string
+}) {
+	const [email] = await db
+		.insert(inboxEmails)
+		.values({
+			fromName: data.fromName,
+			fromEmail: data.fromEmail,
+			subject: data.subject,
+			body: data.body,
+			bodyHtml: data.bodyHtml,
+			source: data.source || "contact_form",
+			sourceId: data.sourceId,
+		})
+		.returning()
+
+	return email
+}
+
+export async function archiveInboxEmail(emailId: string) {
+	const session = await auth.api.getSession({ headers: await headers() })
+	if (!session) throw new Error("Unauthorized")
+
+	await db
+		.update(inboxEmails)
+		.set({
+			status: "archived" as any,
+			archivedAt: new Date(),
+		})
+		.where(eq(inboxEmails.id, emailId))
+}
+
+export async function getInboxUnreadCount() {
+	const result = await db
+		.select({ id: inboxEmails.id })
+		.from(inboxEmails)
+		.where(eq(inboxEmails.status, "unread"))
+	return result.length
 }

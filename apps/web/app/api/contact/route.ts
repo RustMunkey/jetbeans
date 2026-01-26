@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { Resend } from "resend"
+import { db } from "@jetbeans/db/client"
+import { inboxEmails } from "@jetbeans/db/schema"
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
@@ -11,31 +13,20 @@ export async function POST(request: Request) {
 			return NextResponse.json({ error: "All fields are required" }, { status: 400 })
 		}
 
+		// Save to inbox database
+		await db.insert(inboxEmails).values({
+			fromName: name,
+			fromEmail: email,
+			subject: subject,
+			body: message,
+			source: "contact_form",
+		})
+
 		// If Resend not configured, just log and return success (for dev)
 		if (!resend) {
-			console.log("[Contact Form] Resend not configured, logging instead:")
-			console.log({ name, email, subject, message })
+			console.log("[Contact Form] Saved to inbox, Resend not configured")
 			return NextResponse.json({ success: true, dev: true })
 		}
-
-		// Send to support inbox
-		await resend.emails.send({
-			from: "JetBeans Contact <noreply@jetbeans.cafe>",
-			to: ["support@jetbeans.cafe"],
-			replyTo: email,
-			subject: `[Contact] ${subject}`,
-			text: `Name: ${name}\nEmail: ${email}\n\n${message}`,
-			html: `
-				<div style="font-family: sans-serif; max-width: 600px;">
-					<h2 style="margin-bottom: 16px;">New Contact Form Submission</h2>
-					<p><strong>Name:</strong> ${name}</p>
-					<p><strong>Email:</strong> ${email}</p>
-					<p><strong>Subject:</strong> ${subject}</p>
-					<hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;" />
-					<p style="white-space: pre-wrap;">${message}</p>
-				</div>
-			`,
-		})
 
 		// Send confirmation to user
 		await resend.emails.send({

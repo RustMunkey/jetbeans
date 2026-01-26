@@ -33,3 +33,4 @@ export * from "./user-audio";
 export * from "./webhooks";
 export * from "./presence";
 export * from "./notifications";
+export * from "./inbox";
