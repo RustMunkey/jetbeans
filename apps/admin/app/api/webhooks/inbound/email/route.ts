@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server"
 import { db } from "@jetbeans/db/client"
-import { inboxEmails } from "@jetbeans/db/schema"
+import { eq, sql } from "@jetbeans/db/drizzle"
+import { inboxEmails, users, notifications, orders, shipmentTracking, shippingCarriers } from "@jetbeans/db/schema"
 import { pusherServer } from "@/lib/pusher-server"
+import { isShippingEmail, parseShippingEmail } from "@/lib/tracking/parser"
+import { sendShippingNotification } from "@/lib/email/shipping-notifications"
+import { registerTracking, isTrackingServiceConfigured } from "@/lib/tracking/service"
 
 // Types for different inbound email formats
 interface ContactFormPayload {
@@ -146,10 +150,200 @@ export async function POST(request: Request) {
 			})
 		}
 
+		// Create notifications for all admin users
+		try {
+			const adminUsers = await db
+				.select({ id: users.id })
+				.from(users)
+
+			for (const user of adminUsers) {
+				const [notification] = await db
+					.insert(notifications)
+					.values({
+						userId: user.id,
+						type: "inbox",
+						title: `New email from ${fromName}`,
+						body: subject,
+						link: "/notifications/messages",
+					})
+					.returning()
+
+				// Push real-time notification to each user
+				if (pusherServer && notification) {
+					await pusherServer.trigger(`private-user-${user.id}`, "notification", {
+						id: notification.id,
+						type: "inbox",
+						title: `New email from ${fromName}`,
+						body: subject,
+						link: "/notifications/messages",
+						createdAt: notification.createdAt.toISOString(),
+						readAt: null,
+					})
+				}
+			}
+		} catch (notifError) {
+			console.error("[Inbound Email] Failed to create notifications:", notifError)
+		}
+
+		// Check if this is a shipping email and process tracking
+		let shippingProcessed = false
+		if (isShippingEmail(fromEmail, subject)) {
+			try {
+				const parsed = parseShippingEmail(fromEmail, subject, body)
+				console.log("[Inbound Email] Detected shipping email:", {
+					trackingNumbers: parsed.trackingNumbers.length,
+					orderRefs: parsed.orderReferences,
+					confidence: parsed.confidence,
+				})
+
+				// Process each tracking number found
+				for (const { trackingNumber, carrier } of parsed.trackingNumbers) {
+					// Try to match to an order
+					let orderId: string | null = null
+
+					// First try order references from the email
+					for (const ref of parsed.orderReferences) {
+						const [order] = await db
+							.select({ id: orders.id })
+							.from(orders)
+							.where(eq(orders.orderNumber, ref))
+							.limit(1)
+						if (order) {
+							orderId = order.id
+							break
+						}
+
+						// Try partial match
+						const [partialOrder] = await db
+							.select({ id: orders.id })
+							.from(orders)
+							.where(sql`${orders.orderNumber} ILIKE ${`%${ref}%`}`)
+							.limit(1)
+						if (partialOrder) {
+							orderId = partialOrder.id
+							break
+						}
+					}
+
+					// Check if tracking already exists
+					const [existingTracking] = await db
+						.select({ id: shipmentTracking.id })
+						.from(shipmentTracking)
+						.where(eq(shipmentTracking.trackingNumber, trackingNumber))
+						.limit(1)
+
+					if (!existingTracking && orderId) {
+						// Use auto-detect if carrier not confidently identified
+						const carrierCode = carrier?.code || "other"
+
+						// Look up or create carrier
+						let [existingCarrier] = await db
+							.select({ id: shippingCarriers.id })
+							.from(shippingCarriers)
+							.where(eq(shippingCarriers.code, carrierCode))
+							.limit(1)
+
+						if (!existingCarrier) {
+							// Create carrier if it doesn't exist
+							const [newCarrier] = await db
+								.insert(shippingCarriers)
+								.values({
+									name: carrier?.name || carrierCode.toUpperCase(),
+									code: carrierCode,
+									trackingUrlTemplate: carrier?.trackingUrl || null,
+								})
+								.returning({ id: shippingCarriers.id })
+							existingCarrier = newCarrier
+						}
+
+						// Add new tracking to order
+						const [newTracking] = await db
+							.insert(shipmentTracking)
+							.values({
+								orderId,
+								trackingNumber,
+								carrierId: existingCarrier.id,
+								status: "label_created",
+								statusHistory: [{
+									status: "label_created",
+									timestamp: new Date().toISOString(),
+								}],
+								source: "email",
+								sourceDetails: {
+									sender: fromEmail,
+									subject: subject,
+									confidence: parsed.confidence || "low",
+								},
+							})
+							.returning()
+
+						console.log("[Inbound Email] Created tracking:", newTracking.id)
+
+						// Register with 17track for live status updates
+						if (isTrackingServiceConfigured()) {
+							registerTracking(trackingNumber, carrierCode, orderId)
+								.then(result => {
+									if (result.success) {
+										console.log("[Inbound Email] Registered with 17track:", trackingNumber)
+									} else {
+										console.warn("[Inbound Email] 17track registration failed:", result.error)
+									}
+								})
+								.catch(err => {
+									console.error("[Inbound Email] 17track registration error:", err)
+								})
+						}
+
+						// Update order status to shipped
+						await db
+							.update(orders)
+							.set({
+								status: "shipped",
+								trackingNumber: trackingNumber,
+							})
+							.where(eq(orders.id, orderId))
+
+						// Send customer shipped notification
+						sendShippingNotification({
+							orderId,
+							trackingNumber,
+							trackingUrl: carrier?.trackingUrl,
+							carrierName: carrier?.name,
+							status: "shipped",
+						}).catch(err => {
+							console.error("[Inbound Email] Failed to send shipping notification:", err)
+						})
+
+						shippingProcessed = true
+
+						// Broadcast tracking update
+						if (pusherServer) {
+							await pusherServer.trigger("private-orders", "shipment:created", {
+								trackingId: newTracking.id,
+								orderId,
+								trackingNumber,
+								carrier: carrier?.code,
+							})
+						}
+					} else if (!existingTracking && !orderId) {
+						// Tracking found but no order match - log for manual review
+						console.log("[Inbound Email] Tracking found but no order match:", {
+							trackingNumber,
+							carrier: carrier?.code || "auto",
+							orderRefs: parsed.orderReferences,
+						})
+					}
+				}
+			} catch (shippingError) {
+				console.error("[Inbound Email] Shipping processing error:", shippingError)
+			}
+		}
+
 		return NextResponse.json({
 			success: true,
 			id: email.id,
 			message: "Email received",
+			shippingProcessed,
 		})
 	} catch (error) {
 		console.error("[Inbound Email] Failed to save:", error)

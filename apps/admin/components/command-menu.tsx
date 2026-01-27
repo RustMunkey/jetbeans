@@ -56,6 +56,8 @@ const pages = [
   { title: "Notification Alerts", url: "/notifications/alerts" },
   { title: "Activity Log", url: "/activity-log" },
   { title: "Settings", url: "/settings" },
+  { title: "Account", url: "/settings/account" },
+  { title: "Notification Preferences", url: "/settings/notifications" },
   { title: "Team & Permissions", url: "/settings/team" },
   { title: "Payments", url: "/settings/payments" },
   { title: "Tax", url: "/settings/tax" },

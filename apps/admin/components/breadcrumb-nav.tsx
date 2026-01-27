@@ -11,6 +11,8 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { useBreadcrumbOverrides } from "@/components/breadcrumb-context"
+import { useSidebarMode } from "@/lib/sidebar-mode"
+import { useChat } from "@/components/messages"
 import Link from "next/link"
 
 const labels: Record<string, string> = {
@@ -68,7 +70,32 @@ const labels: Record<string, string> = {
 export function BreadcrumbNav() {
   const pathname = usePathname()
   const overrides = useBreadcrumbOverrides()
+  const { mode } = useSidebarMode()
+  const chat = useChat()
   const segments = pathname.split("/").filter(Boolean)
+
+  // Messages mode - show active conversation
+  if (mode === "messages") {
+    const conversationLabel = chat.active.type === "channel"
+      ? `#${chat.active.id}`
+      : chat.active.label
+
+    return (
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem className="shrink-0">
+            <BreadcrumbPage>Messages</BreadcrumbPage>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem className="min-w-0">
+            <BreadcrumbPage className="whitespace-nowrap sm:truncate">
+              {conversationLabel}
+            </BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+    )
+  }
 
   if (segments.length === 0) {
     return (

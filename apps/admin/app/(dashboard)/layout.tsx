@@ -16,16 +16,18 @@ import { ToolbarProvider, ToolbarPanel, WidgetPanels } from "@/components/toolba
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts"
 import { SidebarModeProvider } from "@/lib/sidebar-mode"
 import { ChatProvider } from "@/components/messages"
+import { ServersSidebarWrapper, ServersBarLayout } from "@/components/servers-sidebar-wrapper"
 import { SidebarSwipe } from "@/components/sidebar-swipe"
 import { Separator } from "@/components/ui/separator"
 import {
   SidebarInset,
   SidebarProvider,
-  SidebarTrigger,
 } from "@/components/ui/sidebar"
+import { ConditionalSidebarTrigger } from "@/components/conditional-sidebar-trigger"
 import { RightSidebarProvider } from "@/components/ui/right-sidebar"
 import { AppRightSidebar } from "@/components/app-right-sidebar"
 import { NotificationProvider } from "@/components/notifications/notification-context"
+import { UserStatusProvider } from "@/components/user-status-provider"
 
 export default async function DashboardLayout({
   children,
@@ -60,13 +62,14 @@ export default async function DashboardLayout({
 
   const cookieStore = await cookies()
   const sidebarOpen = cookieStore.get("sidebar_state")?.value !== "false"
-  const rightSidebarOpen = cookieStore.get("right_sidebar_state")?.value === "true"
+  const rightSidebarOpen = cookieStore.get("right_sidebar_state")?.value !== "false"
 
   return (
     <PusherProvider
       pusherKey={process.env.NEXT_PUBLIC_PUSHER_KEY}
       pusherCluster={process.env.NEXT_PUBLIC_PUSHER_CLUSTER}
     >
+      <UserStatusProvider>
       <CallProvider
         userId={session.user.id}
         userName={user?.name || session.user.name || "User"}
@@ -76,6 +79,8 @@ export default async function DashboardLayout({
           <ToolbarProvider>
             <ChatProvider>
               <SidebarModeProvider>
+                <ServersSidebarWrapper />
+                <ServersBarLayout>
                 <NotificationProvider userId={session.user.id}>
                 <SidebarProvider defaultOpen={sidebarOpen}>
                 <RightSidebarProvider defaultOpen={rightSidebarOpen}>
@@ -92,7 +97,7 @@ export default async function DashboardLayout({
                       <BreadcrumbProvider>
                         <header className="flex h-16 shrink-0 items-center justify-between gap-2">
                           <div className="flex items-center gap-2 px-4 min-w-0">
-                            <SidebarTrigger className="-ml-1 shrink-0" />
+                            <ConditionalSidebarTrigger className="-ml-1 shrink-0" />
                             <Separator
                               orientation="vertical"
                               className="mr-2 shrink-0 data-[orientation=vertical]:h-4"
@@ -114,6 +119,7 @@ export default async function DashboardLayout({
                 </RightSidebarProvider>
               </SidebarProvider>
               </NotificationProvider>
+              </ServersBarLayout>
               </SidebarModeProvider>
             </ChatProvider>
 
@@ -126,6 +132,7 @@ export default async function DashboardLayout({
           <CallInterface />
         </MusicPlayerProvider>
       </CallProvider>
+      </UserStatusProvider>
     </PusherProvider>
   )
 }

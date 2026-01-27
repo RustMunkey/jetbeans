@@ -18,7 +18,7 @@ export default async function MessagesPage() {
 	])
 
 	return (
-		<div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 pt-0">
+		<div className="flex flex-1 flex-col overflow-hidden">
 			<MessagesClient
 				messages={messages.map((m) => ({
 					...m,

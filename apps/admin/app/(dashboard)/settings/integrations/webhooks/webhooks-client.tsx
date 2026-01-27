@@ -405,7 +405,7 @@ export function WebhooksClient({
 											</div>
 											<p className="text-xs text-muted-foreground">
 												{webhook.messageCount} messages received
-												{webhook.lastUsedAt && ` • Last used ${new Date(webhook.lastUsedAt).toLocaleDateString()}`}
+												{webhook.lastUsedAt && ` • Last used ${new Date(webhook.lastUsedAt).toLocaleDateString("en-US")}`}
 											</p>
 										</div>
 									))}

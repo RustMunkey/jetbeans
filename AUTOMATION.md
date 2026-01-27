@@ -228,6 +228,36 @@ When email parsing extracts tracking but isn't 100% confident:
 
 ---
 
+## Testing
+
+### Test Page Location
+Go to **Developers → Test Page** (`/developers/test`) to test all webhook integrations.
+
+### Testing Shipping Webhooks
+1. Navigate to `/developers/test`
+2. Find the "Shipping Webhook Test" section
+3. Select a carrier (USPS, UPS, FedEx, etc.)
+4. Choose a status to simulate (in_transit, delivered, etc.)
+5. Enter an order ID to update
+6. Click "Send Test Webhook"
+7. Check the order page for real-time updates
+
+### Testing Tracking Registration
+1. Go to any order detail page
+2. Click "Add Tracking"
+3. Enter a tracking number (carrier auto-detects)
+4. Enable "Track with live updates"
+5. Save - tracking registers with 17track
+6. Check `/developers/webhooks` for registration logs
+
+### Testing Email Ingestion
+1. Send a test email to your Resend inbound address
+2. Include a tracking number in the body (e.g., "Tracking: 1Z999AA10123456784")
+3. Check `/shipping/tracking/pending` for the parsed result
+4. Approve to link with an order
+
+---
+
 ## Future: Subscription Pipelines
 
 Automation for recurring orders:

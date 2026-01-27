@@ -42,7 +42,7 @@ export function PagesTable({ pages, totalCount, currentPage }: PagesTableProps) 
 		{
 			key: "updatedAt",
 			header: "Last Updated",
-			cell: (row) => new Date(row.updatedAt).toLocaleDateString(),
+			cell: (row) => new Date(row.updatedAt).toLocaleDateString("en-US"),
 		},
 	]
 

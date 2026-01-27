@@ -329,7 +329,7 @@ export function NotesTable({
 		{
 			key: "createdAt",
 			header: "Created",
-			cell: (row) => new Date(row.createdAt).toLocaleDateString(),
+			cell: (row) => new Date(row.createdAt).toLocaleDateString("en-US"),
 		},
 		{
 			key: "actions",
@@ -553,7 +553,7 @@ export function NotesTable({
 						<DialogTitle>{viewingNote?.title}</DialogTitle>
 						<DialogDescription>
 							Reported by {viewingNote?.authorName || "Unknown"} on{" "}
-							{viewingNote?.createdAt && new Date(viewingNote.createdAt).toLocaleDateString()}
+							{viewingNote?.createdAt && new Date(viewingNote.createdAt).toLocaleDateString("en-US")}
 						</DialogDescription>
 					</DialogHeader>
 					<div className="py-4">

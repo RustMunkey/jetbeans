@@ -104,6 +104,92 @@ export const generateDailySalesReport = inngest.createFunction(
 	}
 )
 
+// Scheduled: Data retention cleanup - runs daily at 3 AM
+// Keeps database lean to minimize storage costs
+export const dataRetentionCleanup = inngest.createFunction(
+	{ id: "data-retention-cleanup" },
+	{ cron: "0 3 * * *" },
+	async ({ step }) => {
+		const { db } = await import("@jetbeans/db/client")
+		const { lt, and, isNotNull, eq, or, inArray } = await import("@jetbeans/db/drizzle")
+		const schema = await import("@jetbeans/db/schema")
+
+		const now = new Date()
+		const daysAgo = (n: number) => new Date(now.getTime() - n * 24 * 60 * 60 * 1000)
+
+		// Delete read notifications older than 30 days
+		const notifCount = await step.run("cleanup-notifications", async () => {
+			const result = await db
+				.delete(schema.notifications)
+				.where(
+					and(
+						lt(schema.notifications.createdAt, daysAgo(30)),
+						isNotNull(schema.notifications.readAt)
+					)
+				)
+				.returning({ id: schema.notifications.id })
+			return result.length
+		})
+
+		// Delete team messages older than 90 days (cascade deletes recipients)
+		const msgCount = await step.run("cleanup-messages", async () => {
+			const result = await db
+				.delete(schema.teamMessages)
+				.where(lt(schema.teamMessages.createdAt, daysAgo(90)))
+				.returning({ id: schema.teamMessages.id })
+			return result.length
+		})
+
+		// Delete replied/archived inbox emails older than 180 days
+		const inboxCount = await step.run("cleanup-inbox", async () => {
+			const result = await db
+				.delete(schema.inboxEmails)
+				.where(
+					and(
+						lt(schema.inboxEmails.receivedAt, daysAgo(180)),
+						or(
+							eq(schema.inboxEmails.status, "replied"),
+							eq(schema.inboxEmails.status, "archived")
+						)
+					)
+				)
+				.returning({ id: schema.inboxEmails.id })
+			return result.length
+		})
+
+		// Delete webhook events older than 30 days
+		const webhookCount = await step.run("cleanup-webhooks", async () => {
+			const result = await db
+				.delete(schema.webhookEvents)
+				.where(lt(schema.webhookEvents.createdAt, daysAgo(30)))
+				.returning({ id: schema.webhookEvents.id })
+			return result.length
+		})
+
+		// Delete stale presence records older than 1 day
+		const presenceCount = await step.run("cleanup-presence", async () => {
+			const result = await db
+				.delete(schema.userPresence)
+				.where(lt(schema.userPresence.lastSeenAt, daysAgo(1)))
+				.returning({ id: schema.userPresence.id })
+			return result.length
+		})
+
+		console.log("[Data Retention] Cleanup:", {
+			notifications: notifCount,
+			messages: msgCount,
+			inbox: inboxCount,
+			webhooks: webhookCount,
+			presence: presenceCount,
+		})
+
+		return {
+			success: true,
+			deleted: { notifCount, msgCount, inboxCount, webhookCount, presenceCount }
+		}
+	}
+)
+
 // All functions to register with the serve handler
 export const inngestFunctions = [
 	// Core functions
@@ -113,6 +199,7 @@ export const inngestFunctions = [
 	processSubscriptionRenewal,
 	checkExpiringSubscriptions,
 	generateDailySalesReport,
+	dataRetentionCleanup,
 	// Webhook handlers
 	...polarHandlers,
 	...resendHandlers,

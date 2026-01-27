@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useEffect, useRef } from "react"
 import { usePathname } from "next/navigation"
 import { ChatTab } from "./chat-tab"
 import { InboxTab } from "./inbox-tab"
@@ -8,25 +8,7 @@ import { useChat } from "@/components/messages"
 import { useSidebarMode } from "@/lib/sidebar-mode"
 import type { TeamMessage, TeamMember, InboxEmail } from "./types"
 
-const MESSAGES_TAB_KEY = "jetbeans_messages_tab"
 const PREVIOUS_PATH_KEY = "jetbeans_messages_previous_path"
-
-function loadTab(): "chat" | "inbox" {
-	if (typeof window === "undefined") return "chat"
-	try {
-		const stored = localStorage.getItem(MESSAGES_TAB_KEY)
-		return stored === "inbox" ? "inbox" : "chat"
-	} catch {
-		return "chat"
-	}
-}
-
-function saveTab(tab: string) {
-	if (typeof window === "undefined") return
-	try {
-		localStorage.setItem(MESSAGES_TAB_KEY, tab)
-	} catch {}
-}
 
 export function MessagesClient({
 	messages,
@@ -43,9 +25,8 @@ export function MessagesClient({
 	teamMembers: TeamMember[]
 	inboxEmails: InboxEmail[]
 }) {
-	const [activeTab, setActiveTab] = useState<"chat" | "inbox">("chat")
 	const { setMode, setPreviousPath } = useSidebarMode()
-	const { initialize } = useChat()
+	const { initialize, viewMode, setViewMode } = useChat()
 	const hasSetPrevPath = useRef(false)
 	const pathname = usePathname()
 
@@ -74,20 +55,16 @@ export function MessagesClient({
 		// The user must click the exit button to leave messages mode
 	}, [setMode, setPreviousPath, pathname])
 
-	useEffect(() => {
-		setActiveTab(loadTab())
-	}, [])
-
 	function handleTabChange(value: "chat" | "inbox") {
-		setActiveTab(value)
-		saveTab(value)
+		setViewMode(value)
 	}
 
-	if (activeTab === "inbox") {
+	// Always show chat or inbox - navigation is done via sidebar
+	if (viewMode === "inbox") {
 		return (
 			<InboxTab
 				emails={inboxEmails}
-				activeTab={activeTab}
+				activeTab={viewMode}
 				onTabChange={handleTabChange}
 			/>
 		)
@@ -98,8 +75,6 @@ export function MessagesClient({
 			userId={userId}
 			userName={userName}
 			userImage={userImage}
-			activeTab={activeTab}
-			onTabChange={handleTabChange}
 		/>
 	)
 }

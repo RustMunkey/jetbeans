@@ -43,10 +43,8 @@ function InboxThread({
 				})
 				onReplyAdded(email.id, reply)
 				setReplyBody("")
-				toast.success("Reply sent")
 			} catch (err) {
-				toast.error("Failed to send reply")
-				console.error(err)
+				console.error("Reply error:", err)
 			}
 		})
 	}

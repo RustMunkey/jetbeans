@@ -43,6 +43,42 @@ export async function getUnreadCount(userId: string) {
 	return unread.length
 }
 
+export async function getRecentMessages(userId: string, limit = 5) {
+	const messages = await db
+		.select({
+			id: teamMessages.id,
+			content: teamMessages.body,
+			createdAt: teamMessages.createdAt,
+			senderId: teamMessages.senderId,
+			senderName: users.name,
+			senderImage: users.image,
+			channel: teamMessages.channel,
+		})
+		.from(teamMessageRecipients)
+		.innerJoin(teamMessages, eq(teamMessageRecipients.messageId, teamMessages.id))
+		.innerJoin(users, eq(teamMessages.senderId, users.id))
+		.where(
+			and(
+				eq(teamMessageRecipients.recipientId, userId),
+				ne(teamMessages.senderId, userId) // Don't show own messages
+			)
+		)
+		.orderBy(desc(teamMessages.createdAt))
+		.limit(limit)
+
+	return messages.map(m => ({
+		id: m.id,
+		content: m.content,
+		createdAt: m.createdAt,
+		sender: {
+			id: m.senderId,
+			name: m.senderName || "Unknown",
+			image: m.senderImage,
+		},
+		channel: m.channel,
+	}))
+}
+
 export async function sendTeamMessage(data: {
 	body: string
 	channel?: string

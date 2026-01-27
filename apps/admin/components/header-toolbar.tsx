@@ -7,11 +7,12 @@ import {
   Search01Icon,
   Add01Icon,
   Store01Icon,
-  Mail01Icon,
   Call02Icon,
-  Setting06Icon,
+  ComputerTerminal02Icon,
+  Video01Icon,
+  InboxIcon,
+  GridIcon,
 } from "@hugeicons/core-free-icons"
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Separator } from "@/components/ui/separator"
@@ -24,11 +25,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -39,330 +35,141 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useCommandMenu } from "@/components/command-menu"
-import { useSession } from "@/lib/auth-client"
-import { usePusher } from "@/components/pusher-provider"
-import { getUnreadCount, getTeamMessages, markAllRead, markMessageRead } from "@/app/(dashboard)/notifications/messages/actions"
-import { ActiveCallIndicator } from "@/components/calls"
+import { ActiveCallIndicator, useCall } from "@/components/calls"
 import { useToolbar } from "@/components/toolbar"
 import { useRightSidebar } from "@/components/ui/right-sidebar"
 import { NotificationBell } from "@/components/notifications"
-import Link from "next/link"
-
-type QuickMessage = {
-  id: string
-  senderId: string | null
-  senderName: string
-  senderImage: string | null
-  channel: string
-  body: string | null
-  attachments?: Array<{ type: string; url: string; name: string }> | null
-  createdAt: string
-  readAt: string | null
-}
-
-function timeAgo(dateStr: string) {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return "just now"
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  const days = Math.floor(hrs / 24)
-  return `${days}d ago`
-}
-
-function formatCount(count: number): string {
-  if (count < 1000) return String(count)
-  if (count < 1000000) return `${Math.floor(count / 1000)}K+`
-  return `${Math.floor(count / 1000000)}M+`
-}
-
-const SOUND_THROTTLE_MS = 800
-
-function shouldPlaySound(messageChannel: string, senderId: string): boolean {
-  if (typeof window === "undefined") return false
-  if (!window.location.pathname.includes("/notifications/messages")) return true
-
-  try {
-    const stored = localStorage.getItem("jetbeans_chat_state")
-    if (!stored) return true
-    const active = JSON.parse(stored) as { type: string; id: string }
-
-    if (messageChannel === "dm" && active.type === "dm" && active.id === senderId) {
-      return false
-    }
-    if (messageChannel !== "dm" && active.type === "channel" && active.id === messageChannel) {
-      return false
-    }
-    return true
-  } catch {
-    return true
-  }
-}
-
+import { MessagesPopover } from "@/components/messages/messages-popover"
+import { useChat } from "@/components/messages"
+import { useSidebarMode } from "@/lib/sidebar-mode"
 
 export function HeaderToolbar() {
   const [storeOnline, setStoreOnline] = React.useState(true)
   const [confirmOpen, setConfirmOpen] = React.useState(false)
-  const [unreadCount, setUnreadCount] = React.useState(0)
-  const [recentMessages, setRecentMessages] = React.useState<QuickMessage[]>([])
-  const [messagesPopoverOpen, setMessagesPopoverOpen] = React.useState(false)
   const { open: openCommandMenu } = useCommandMenu()
   const router = useRouter()
-  const { data: session } = useSession()
-  const { pusher } = usePusher()
   const { isOpen: isToolbarOpen, toggleToolbar } = useToolbar()
   const { toggleSidebar: toggleRightSidebar } = useRightSidebar()
-  const userId = session?.user?.id
+  const { mode } = useSidebarMode()
+  const isMessagesMode = mode === "messages"
+  const { viewMode, toggleViewMode, active } = useChat()
+  const { startCall, status: callStatus } = useCall()
 
-  // Audio refs for notification sound
-  const notificationSoundRef = React.useRef<HTMLAudioElement | null>(null)
-  const lastSoundTimeRef = React.useRef(0)
+  // Check if we can call the current conversation (only DMs, not channels)
+  const canCall = isMessagesMode && active.type === "dm" && active.id && callStatus === "idle"
 
-  // Preload notification sound on mount
-  React.useEffect(() => {
-    const audio = new Audio("/sounds/message.mp3")
-    audio.volume = 0.5
-    audio.preload = "auto"
-    audio.load()
-    notificationSoundRef.current = audio
-  }, [])
-
-
-  const playNotificationSound = React.useCallback((messageChannel: string, senderId: string) => {
-    if (!shouldPlaySound(messageChannel, senderId)) return
-
-    const now = Date.now()
-    if (now - lastSoundTimeRef.current < SOUND_THROTTLE_MS) return
-    lastSoundTimeRef.current = now
-
-    if (notificationSoundRef.current) {
-      const sound = notificationSoundRef.current.cloneNode() as HTMLAudioElement
-      sound.volume = 0.5
-      sound.play().catch(() => {})
+  const handleAudioCall = async () => {
+    if (!canCall || !active.id) return
+    try {
+      await startCall([active.id], "audio")
+    } catch (err) {
+      console.error("Failed to start audio call:", err)
     }
-  }, [])
+  }
 
-
-  React.useEffect(() => {
-    if (!session?.user?.id) return
-    getUnreadCount(session.user.id).then(setUnreadCount)
-    getTeamMessages(session.user.id).then((msgs) => {
-      setRecentMessages(
-        msgs.slice(-20).map((m) => ({
-          ...m,
-          createdAt: m.createdAt.toISOString(),
-          readAt: m.readAt?.toISOString() || null,
-        }))
-      )
-    })
-  }, [session?.user?.id])
-
-  React.useEffect(() => {
-    if (!pusher || !session?.user?.id) return
-
-    const channel = pusher.subscribe(`private-user-${session.user.id}`)
-    channel.bind("new-message", (data: QuickMessage) => {
-      // Always add to recent messages list
-      setRecentMessages((prev) => [data, ...prev].slice(0, 20))
-
-      // Only update count and play sound if not viewing that conversation
-      if (shouldPlaySound(data.channel, data.senderId || "")) {
-        setUnreadCount((c) => c + 1)
-        playNotificationSound(data.channel, data.senderId || "")
-      }
-    })
-
-    return () => {
-      channel.unbind_all()
-      pusher.unsubscribe(`private-user-${session.user.id}`)
+  const handleVideoCall = async () => {
+    if (!canCall || !active.id) return
+    try {
+      await startCall([active.id], "video")
+    } catch (err) {
+      console.error("Failed to start video call:", err)
     }
-  }, [pusher, session?.user?.id, playNotificationSound])
+  }
 
   return (
     <div className="flex items-center gap-2 px-4">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="size-8">
-            <HugeiconsIcon icon={Add01Icon} size={16} />
-            <span className="sr-only">Quick create</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Create New</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => router.push("/products?new=true")}>
-            Product
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => router.push("/orders?new=true")}>
-            Order
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => router.push("/customers?new=true")}>
-            Customer
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => router.push("/marketing?new=true")}>
-            Discount
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => router.push("/content?new=true")}>
-            Blog Post
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <Popover open={messagesPopoverOpen} onOpenChange={setMessagesPopoverOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="ghost" size="icon" className="relative size-8">
-            <HugeiconsIcon icon={Mail01Icon} size={16} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-primary text-[9px] font-medium text-primary-foreground">
-                {formatCount(unreadCount)}
-              </span>
-            )}
-            <span className="sr-only">Messages</span>
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="end" collisionPadding={16} className="w-[calc(100vw-2rem)] md:w-80 p-0">
-          <div className="flex items-center justify-between border-b px-4 py-3">
-            <h4 className="text-sm font-semibold">Messages</h4>
-            <Link
-              href="/notifications/messages"
-              className="text-xs text-primary hover:underline"
-              onClick={() => {
-                setMessagesPopoverOpen(false)
-                markAllRead()
-                setUnreadCount(0)
-                setRecentMessages((prev) =>
-                  prev.map((m) => ({ ...m, readAt: m.readAt || new Date().toISOString() }))
-                )
-              }}
-            >
-              View all
-            </Link>
-          </div>
-          {recentMessages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <p className="text-sm text-muted-foreground">No messages yet</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">
-                Team messages will appear here
-              </p>
-            </div>
-          ) : (
-            <div className="max-h-72 overflow-y-auto">
-              {recentMessages.map((msg) => {
-                const initials = msg.senderName
-                  .split(" ")
-                  .map((n) => n.charAt(0))
-                  .join("")
-                  .toUpperCase()
-                  .slice(0, 2)
-                return (
-                  <div
-                    key={msg.id}
-                    className={`flex gap-3 px-4 py-3 border-b last:border-0 cursor-pointer hover:bg-muted/50 transition-colors ${!msg.readAt ? "bg-primary/5" : ""}`}
-                    onClick={() => {
-                      // Close popover first
-                      setMessagesPopoverOpen(false)
+      {/* Quick create - hide in messages mode */}
+      {!isMessagesMode && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-8">
+              <HugeiconsIcon icon={Add01Icon} size={16} />
+              <span className="sr-only">Quick create</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Create New</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push("/products?new=true")}>
+              Product
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/orders?new=true")}>
+              Order
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/customers?new=true")}>
+              Customer
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/marketing?new=true")}>
+              Discount
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/content?new=true")}>
+              Blog Post
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
 
-                      // Dispatch custom event for highlighting (works even when already on page)
-                      window.dispatchEvent(new CustomEvent("highlight-message", {
-                        detail: { messageId: msg.id, channel: msg.channel }
-                      }))
+      {/* Messages Popover - hide in messages mode */}
+      {!isMessagesMode && <MessagesPopover />}
 
-                      // Navigate (will be instant if already on page)
-                      router.push(`/notifications/messages?highlight=${msg.id}&channel=${msg.channel}`)
+      {/* Video Call - only in messages mode */}
+      {isMessagesMode && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          onClick={handleVideoCall}
+          disabled={!canCall}
+          title={canCall ? `Video call ${active.label}` : "Select a DM to call"}
+        >
+          <HugeiconsIcon icon={Video01Icon} size={16} />
+          <span className="sr-only">Start video call</span>
+        </Button>
+      )}
 
-                      if (!msg.readAt) {
-                        markMessageRead(msg.id)
-                        setUnreadCount((c) => Math.max(0, c - 1))
-                        setRecentMessages((prev) =>
-                          prev.map((m) => m.id === msg.id ? { ...m, readAt: new Date().toISOString() } : m)
-                        )
-                      }
-                    }}
-                  >
-                    <Avatar className="h-7 w-7 shrink-0">
-                      {msg.senderImage && <AvatarImage src={msg.senderImage} alt={msg.senderName} />}
-                      <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-medium truncate">{msg.senderName}</span>
-                        <span className="text-[10px] text-muted-foreground shrink-0">{timeAgo(msg.createdAt)}</span>
-                        {!msg.readAt && <span className="size-1.5 rounded-full bg-primary shrink-0" />}
-                      </div>
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">{msg.body}</p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-          <div className="flex items-center justify-between border-t px-4 py-2">
-            {unreadCount > 0 ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-auto px-2 py-1 text-xs text-muted-foreground"
-                onClick={async () => {
-                  await markAllRead()
-                  setUnreadCount(0)
-                  setRecentMessages((prev) =>
-                    prev.map((m) => ({ ...m, readAt: m.readAt || new Date().toISOString() }))
-                  )
-                }}
-              >
-                Mark all read
-              </Button>
-            ) : (
-              <span />
-            )}
-            {recentMessages.length > 0 ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-auto px-2 py-1 text-xs text-muted-foreground"
-                onClick={() => {
-                  setRecentMessages([])
-                  setUnreadCount(0)
-                }}
-              >
-                Clear
-              </Button>
-            ) : (
-              <span />
-            )}
-          </div>
-        </PopoverContent>
-      </Popover>
-      <Button variant="ghost" size="icon" className="size-8" asChild>
-        <Link href="/calls">
-          <HugeiconsIcon icon={Call02Icon} size={16} />
-          <span className="sr-only">Calls</span>
-        </Link>
+      {/* Calls - in messages mode with DM, start audio call; otherwise go to calls page */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-8"
+        onClick={isMessagesMode && canCall ? handleAudioCall : () => router.push("/calls")}
+        disabled={isMessagesMode && !canCall && active.type === "dm"}
+        title={isMessagesMode && canCall ? `Call ${active.label}` : "Calls"}
+      >
+        <HugeiconsIcon icon={Call02Icon} size={16} />
+        <span className="sr-only">{isMessagesMode && canCall ? "Start audio call" : "Calls"}</span>
       </Button>
       <ActiveCallIndicator />
-      <NotificationBell onOpenSidebar={toggleRightSidebar} />
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="size-8">
-            <HugeiconsIcon icon={Store01Icon} size={16} />
-            <span className="sr-only">Store</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem asChild>
-            <a href="http://localhost:3000" target="_blank" rel="noopener noreferrer">
-              View Store
-            </a>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => setConfirmOpen(true)}
-            className={storeOnline ? "text-destructive focus:text-destructive" : ""}
-          >
-            {storeOnline ? "Turn Off (Maintenance)" : "Bring Back Online"}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+
+      {/* Notifications Bell - hide in messages mode */}
+      {!isMessagesMode && <NotificationBell onOpenSidebar={toggleRightSidebar} />}
+
+      {/* Store Menu - hide in messages mode */}
+      {!isMessagesMode && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-8">
+              <HugeiconsIcon icon={Store01Icon} size={16} />
+              <span className="sr-only">Store</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <a href="https://jetbeans.cafe" target="_blank" rel="noopener noreferrer">
+                View Store
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => setConfirmOpen(true)}
+              className={storeOnline ? "text-destructive focus:text-destructive" : ""}
+            >
+              {storeOnline ? "Turn Off (Maintenance)" : "Bring Back Online"}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -386,6 +193,8 @@ export function HeaderToolbar() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Tools Button */}
       <Button
         variant="ghost"
         size="icon"
@@ -393,9 +202,25 @@ export function HeaderToolbar() {
         onClick={toggleToolbar}
         title="Tools (Ctrl+\\ or Cmd+\\)"
       >
-        <HugeiconsIcon icon={Setting06Icon} size={16} />
+        <HugeiconsIcon icon={ComputerTerminal02Icon} size={16} />
         <span className="sr-only">Tools</span>
       </Button>
+
+      {/* Chat/Inbox Toggle - only in messages mode */}
+      {isMessagesMode && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className={`size-8 ${viewMode === "inbox" ? "text-primary" : ""}`}
+          onClick={toggleViewMode}
+          title={viewMode === "inbox" ? "Show Chat" : "Show Inbox"}
+        >
+          <HugeiconsIcon icon={viewMode === "inbox" ? GridIcon : InboxIcon} size={16} />
+          <span className="sr-only">{viewMode === "inbox" ? "Show Chat" : "Show Inbox"}</span>
+        </Button>
+      )}
+
+      {/* Search */}
       <button
         type="button"
         onClick={openCommandMenu}
@@ -407,6 +232,7 @@ export function HeaderToolbar() {
           <span className="text-xs">⌘</span>K
         </kbd>
       </button>
+
       <Separator orientation="vertical" className="data-[orientation=vertical]:h-4" />
       <ThemeToggle />
     </div>

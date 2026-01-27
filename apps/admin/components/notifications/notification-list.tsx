@@ -148,7 +148,7 @@ export function NotificationList({ selectedDate }: NotificationListProps) {
 					<div className="px-2 py-8 text-center">
 						<p className="text-xs text-sidebar-foreground/50">
 							{selectedDate
-								? `No notifications on ${selectedDate.toLocaleDateString()}`
+								? `No notifications on ${selectedDate.toLocaleDateString("en-US")}`
 								: "No notifications"}
 						</p>
 					</div>

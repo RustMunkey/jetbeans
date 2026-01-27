@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { Resend } from "resend"
 import { db } from "@jetbeans/db/client"
-import { inboxEmails } from "@jetbeans/db/schema"
+import { inboxEmails, users, notifications } from "@jetbeans/db/schema"
 import Pusher from "pusher"
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
@@ -51,6 +51,38 @@ export async function POST(request: Request) {
 				receivedAt: inserted.receivedAt?.toISOString() || new Date().toISOString(),
 				status: "unread",
 			})
+
+			// Create notifications for all admin users
+			try {
+				const adminUsers = await db.select({ id: users.id }).from(users)
+
+				for (const user of adminUsers) {
+					const [notification] = await db
+						.insert(notifications)
+						.values({
+							userId: user.id,
+							type: "inbox",
+							title: `New message from ${name}`,
+							body: subject,
+							link: "/notifications/messages",
+						})
+						.returning()
+
+					if (notification) {
+						await pusher.trigger(`private-user-${user.id}`, "notification", {
+							id: notification.id,
+							type: "inbox",
+							title: `New message from ${name}`,
+							body: subject,
+							link: "/notifications/messages",
+							createdAt: notification.createdAt.toISOString(),
+							readAt: null,
+						})
+					}
+				}
+			} catch (notifError) {
+				console.error("[Contact Form] Failed to create notifications:", notifError)
+			}
 		}
 
 		// If Resend not configured, just log and return success (for dev)

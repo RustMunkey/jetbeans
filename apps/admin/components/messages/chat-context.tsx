@@ -22,6 +22,8 @@ function saveChatState(conversation: Conversation) {
 	} catch {}
 }
 
+type ViewMode = "chat" | "inbox"
+
 type ChatContextType = {
 	active: Conversation
 	setActive: (c: Conversation) => void
@@ -34,6 +36,14 @@ type ChatContextType = {
 	hydrated: boolean
 	isInitialized: boolean
 	initialize: (data: { messages: TeamMessage[]; teamMembers: TeamMember[]; userId: string }) => void
+	viewMode: ViewMode
+	setViewMode: (mode: ViewMode) => void
+	toggleViewMode: () => void
+	// Mobile: whether showing the chat content or the sidebar/list
+	mobileShowChat: boolean
+	setMobileShowChat: (show: boolean) => void
+	openConversation: (c: Conversation) => void
+	backToList: () => void
 }
 
 const ChatContext = React.createContext<ChatContextType | null>(null)
@@ -45,6 +55,24 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 	const [active, setActiveState] = React.useState<Conversation>({ type: "channel", id: "general", label: "#general" })
 	const [hydrated, setHydrated] = React.useState(false)
 	const [isInitialized, setIsInitialized] = React.useState(false)
+	const [viewMode, setViewMode] = React.useState<ViewMode>("chat")
+	const [mobileShowChat, setMobileShowChat] = React.useState(false)
+
+	const toggleViewMode = React.useCallback(() => {
+		setViewMode((prev) => (prev === "chat" ? "inbox" : "chat"))
+	}, [])
+
+	// Mobile: open a conversation and switch to chat view
+	const openConversation = React.useCallback((c: Conversation) => {
+		setActiveState(c)
+		saveChatState(c)
+		setMobileShowChat(true)
+	}, [])
+
+	// Mobile: go back to the list view
+	const backToList = React.useCallback(() => {
+		setMobileShowChat(false)
+	}, [])
 
 	// Load saved chat state after hydration
 	React.useEffect(() => {
@@ -79,6 +107,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 				hydrated,
 				isInitialized,
 				initialize,
+				viewMode,
+				setViewMode,
+				toggleViewMode,
+				mobileShowChat,
+				setMobileShowChat,
+				openConversation,
+				backToList,
 			}}
 		>
 			{children}

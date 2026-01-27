@@ -67,13 +67,13 @@ export function BlogPostsTable({ posts, totalCount, currentPage, currentStatus }
 			key: "publishedAt",
 			header: "Published",
 			cell: (row) => row.publishedAt
-				? new Date(row.publishedAt).toLocaleDateString()
+				? new Date(row.publishedAt).toLocaleDateString("en-US")
 				: "—",
 		},
 		{
 			key: "createdAt",
 			header: "Created",
-			cell: (row) => new Date(row.createdAt).toLocaleDateString(),
+			cell: (row) => new Date(row.createdAt).toLocaleDateString("en-US"),
 		},
 	]
 

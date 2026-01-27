@@ -213,5 +213,5 @@ export function formatDraftTime(date: Date | string): string {
 	const days = Math.floor(hours / 24)
 	if (days < 7) return `${days}d ago`
 
-	return d.toLocaleDateString()
+	return d.toLocaleDateString("en-US")
 }

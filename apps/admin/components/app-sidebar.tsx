@@ -33,11 +33,14 @@ import {
 
 import Link from "next/link"
 import { NavMain } from "@/components/nav-main"
+import { NavRecent } from "@/components/nav-recent"
 import { NavUser } from "@/components/nav-user"
 import { useCommandMenu } from "@/components/command-menu"
 import { useSidebarStateProvider, SidebarStateContext } from "@/lib/use-sidebar-state"
 import { useSidebarMode } from "@/lib/sidebar-mode"
 import { ChatSidebar, useChat } from "@/components/messages"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { ServersSidebar } from "@/components/servers-sidebar"
 import {
   Sidebar,
   SidebarContent,
@@ -245,10 +248,13 @@ const data = {
       icon: Settings02Icon,
       items: [
         { title: "All Settings", url: "/settings" },
+        { title: "Account", url: "/settings/account" },
+        { title: "Notifications", url: "/settings/notifications" },
         { title: "Team & Permissions", url: "/settings/team" },
         { title: "Sessions", url: "/settings/sessions" },
         { title: "Payments", url: "/settings/payments" },
         { title: "Tax", url: "/settings/tax" },
+        { title: "Exports", url: "/settings/exports" },
         { title: "Integrations", url: "/settings/integrations" },
       ],
     },
@@ -274,26 +280,45 @@ type UserData = {
   role: string
 }
 
-function MessagesHeader({ exitMessagesMode }: { exitMessagesMode: () => void }) {
+function DigitalClock() {
+  const [time, setTime] = React.useState<Date | null>(null)
+
+  React.useEffect(() => {
+    // Set initial time on mount (client-side only)
+    setTime(new Date())
+
+    const interval = setInterval(() => {
+      setTime(new Date())
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  if (!time) {
+    // Return placeholder during SSR/hydration
+    return <span className="font-mono text-2xl font-medium tabular-nums">--:--</span>
+  }
+
+  const hours = time.getHours()
+  const minutes = time.getMinutes()
+  const ampm = hours >= 12 ? 'PM' : 'AM'
+  const displayHours = hours % 12 || 12
+
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <SidebarMenuButton size="lg" onClick={exitMessagesMode} className="cursor-pointer" tooltip="Back to Dashboard">
-          <div className="bg-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg overflow-hidden">
-            <img src="/logos/coffee-white.png" alt="JetBeans" className="size-5 dark:hidden" />
-            <img src="/logos/coffee.png" alt="JetBeans" className="size-5 hidden dark:block" />
-          </div>
-          <div className="grid flex-1 text-left leading-tight">
-            <span className="truncate font-medium text-sm">
-              Back
-            </span>
-            <span className="truncate font-sans text-xs text-muted-foreground">
-              Exit Messages
-            </span>
-          </div>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    </SidebarMenu>
+    <div className="flex items-baseline gap-1">
+      <span className="font-mono text-2xl font-medium tabular-nums">
+        {displayHours.toString().padStart(2, '0')}:{minutes.toString().padStart(2, '0')}
+      </span>
+      <span className="text-xs text-muted-foreground font-medium">{ampm}</span>
+    </div>
+  )
+}
+
+function MessagesHeader() {
+  return (
+    <div className="flex items-center justify-center py-2">
+      <DigitalClock />
+    </div>
   )
 }
 
@@ -364,6 +389,7 @@ function NormalSidebarContent({
 }) {
   return (
     <>
+      <NavRecent />
       <SidebarGroup className="group-data-[collapsible=icon]:hidden">
         <SidebarMenu>
           <SidebarMenuItem>
@@ -388,9 +414,14 @@ function NormalSidebarContent({
 export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sidebar> & { user: UserData }) {
   const { open: openCommandMenu } = useCommandMenu()
   const sidebarState = useSidebarStateProvider()
-  const { mode, exitMessagesMode } = useSidebarMode()
-  // Messages mode is sticky - stays active until explicitly exited via back button
+  const { mode } = useSidebarMode()
   const isMessagesMode = mode === "messages"
+  const isMobile = useIsMobile()
+
+  // On mobile: always collapsible (sheet behavior)
+  // On desktop in messages mode: fixed sidebar (no collapse)
+  // On desktop in normal mode: icon collapse
+  const collapsible = isMobile ? "icon" : (isMessagesMode ? "none" : "icon")
 
   // Filter out Integrations link for non-owners
   const navSystem = React.useMemo(() => {
@@ -406,29 +437,53 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
     })
   }, [user.role])
 
+  // On mobile in messages mode, we render the servers bar inside the sidebar
+  // so they slide out together as one unit
+  const showMobileServersBar = isMobile && isMessagesMode
+
   return (
     <SidebarStateContext.Provider value={sidebarState}>
-      <Sidebar variant="inset" collapsible="icon" {...props}>
-        <SidebarHeader>
-          {isMessagesMode ? (
-            <MessagesHeader exitMessagesMode={exitMessagesMode} />
-          ) : (
-            <NormalHeader openCommandMenu={openCommandMenu} />
-          )}
-        </SidebarHeader>
-        <SidebarContent
-          onScrollPosition={isMessagesMode ? undefined : sidebarState.setScrollPosition}
-          initialScrollTop={isMessagesMode ? 0 : sidebarState.scrollPosition}
-        >
-          {isMessagesMode ? (
-            <MessagesSidebarContent />
-          ) : (
-            <NormalSidebarContent navSystem={navSystem} sidebarState={sidebarState} />
-          )}
-        </SidebarContent>
-        <SidebarFooter>
-          <NavUser user={user} />
-        </SidebarFooter>
+      <Sidebar variant="inset" collapsible={collapsible} {...props}>
+        {/* Mobile messages mode: servers bar + chat sidebar side by side */}
+        {showMobileServersBar ? (
+          <div className="flex h-full">
+            <ServersSidebar />
+            <div className="flex flex-col flex-1 min-w-0">
+              <SidebarHeader>
+                <MessagesHeader />
+              </SidebarHeader>
+              <SidebarContent>
+                <MessagesSidebarContent />
+              </SidebarContent>
+              <SidebarFooter>
+                <NavUser user={user} />
+              </SidebarFooter>
+            </div>
+          </div>
+        ) : (
+          <>
+            <SidebarHeader>
+              {isMessagesMode ? (
+                <MessagesHeader />
+              ) : (
+                <NormalHeader openCommandMenu={openCommandMenu} />
+              )}
+            </SidebarHeader>
+            <SidebarContent
+              onScrollPosition={isMessagesMode ? undefined : sidebarState.setScrollPosition}
+              initialScrollTop={isMessagesMode ? 0 : sidebarState.scrollPosition}
+            >
+              {isMessagesMode ? (
+                <MessagesSidebarContent />
+              ) : (
+                <NormalSidebarContent navSystem={navSystem} sidebarState={sidebarState} />
+              )}
+            </SidebarContent>
+            <SidebarFooter>
+              <NavUser user={user} />
+            </SidebarFooter>
+          </>
+        )}
       </Sidebar>
     </SidebarStateContext.Provider>
   )

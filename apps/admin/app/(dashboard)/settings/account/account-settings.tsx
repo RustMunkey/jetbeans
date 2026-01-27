@@ -61,6 +61,7 @@ import {
 import { DraftsManagerDialog } from "@/components/drafts-manager"
 import { getAllDrafts, deleteDraft as deleteDraftFromStore, type Draft } from "@/lib/use-draft"
 import { KeyboardShortcutsSettings } from "@/components/keyboard-shortcuts-settings"
+import { ImageCropper } from "@/components/ui/image-cropper"
 
 function formatFileSize(bytes: number | null): string {
 	if (!bytes) return "Unknown"
@@ -289,7 +290,7 @@ function SortableTrackRow({
 					<span className="w-12 text-right">{formatDuration(track.duration)}</span>
 					<span className="w-16 text-right">{formatFileSize(track.fileSize)}</span>
 					<span className="w-20 text-right">
-						{new Date(track.createdAt).toLocaleDateString()}
+						{new Date(track.createdAt).toLocaleDateString("en-US")}
 					</span>
 				</div>
 			</div>
@@ -330,6 +331,8 @@ export function AccountSettings({ user }: { user: User }) {
 	const [mounted, setMounted] = useState(false)
 	const [accentTheme, setAccentTheme] = useState("coffee")
 	const fileInputRef = useRef<HTMLInputElement>(null)
+	const [cropperOpen, setCropperOpen] = useState(false)
+	const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null)
 
 	// Music library state
 	const [tracks, setTracks] = useState<UserAudioTrack[]>([])
@@ -518,11 +521,27 @@ export function AccountSettings({ user }: { user: User }) {
 		.toUpperCase()
 		.slice(0, 2)
 
-	async function handleUpload(file: File) {
+	function handleFileSelect(file: File) {
+		// Validate file type
+		if (!file.type.startsWith("image/")) {
+			toast.error("Please select an image file")
+			return
+		}
+
+		// Create a URL for the cropper
+		const reader = new FileReader()
+		reader.onload = () => {
+			setSelectedImageSrc(reader.result as string)
+			setCropperOpen(true)
+		}
+		reader.readAsDataURL(file)
+	}
+
+	async function handleCroppedImage(croppedBlob: Blob) {
 		setUploading(true)
 		try {
 			const formData = new FormData()
-			formData.append("file", file)
+			formData.append("file", croppedBlob, "avatar.jpg")
 			const res = await fetch("/api/upload", { method: "POST", body: formData })
 			if (!res.ok) throw new Error("Upload failed")
 			const { url } = await res.json()
@@ -532,6 +551,7 @@ export function AccountSettings({ user }: { user: User }) {
 			toast.error("Failed to upload photo")
 		} finally {
 			setUploading(false)
+			setSelectedImageSrc(null)
 		}
 	}
 
@@ -593,7 +613,9 @@ export function AccountSettings({ user }: { user: User }) {
 								className="hidden"
 								onChange={(e) => {
 									const file = e.target.files?.[0]
-									if (file) handleUpload(file)
+									if (file) handleFileSelect(file)
+									// Reset input so same file can be selected again
+									e.target.value = ""
 								}}
 							/>
 							<Button
@@ -932,6 +954,24 @@ export function AccountSettings({ user }: { user: User }) {
 					</form>
 				</DialogContent>
 			</Dialog>
+
+			{/* Avatar Image Cropper */}
+			{selectedImageSrc && (
+				<ImageCropper
+					open={cropperOpen}
+					onOpenChange={(open) => {
+						setCropperOpen(open)
+						if (!open) setSelectedImageSrc(null)
+					}}
+					imageSrc={selectedImageSrc}
+					onCropComplete={handleCroppedImage}
+					cropShape="round"
+					aspectRatio={1}
+					title="Crop Profile Photo"
+					description="Drag to reposition and use the slider to zoom. Your photo will be cropped to a circle."
+					recommendedSize="512x512"
+				/>
+			)}
 		</div>
 	)
 }

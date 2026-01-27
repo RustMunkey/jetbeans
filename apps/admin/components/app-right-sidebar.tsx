@@ -49,7 +49,7 @@ export function AppRightSidebar() {
               {filterDate && (
                 <div className="flex items-center justify-between px-1 pt-1 pb-0.5">
                   <span className="text-[10px] text-sidebar-foreground/50">
-                    Filtering: {filterDate.toLocaleDateString()}
+                    Filtering: {filterDate.toLocaleDateString("en-US")}
                   </span>
                   <Button
                     variant="ghost"

@@ -66,7 +66,7 @@ export function TemplatesTable({ templates: initial, totalCount, currentPage }: 
 		{
 			key: "updatedAt",
 			header: "Last Updated",
-			cell: (row) => new Date(row.updatedAt).toLocaleDateString(),
+			cell: (row) => new Date(row.updatedAt).toLocaleDateString("en-US"),
 		},
 	]
 

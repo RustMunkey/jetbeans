@@ -123,7 +123,7 @@ export function RecentOrdersLive({ initialOrders }: RecentOrdersLiveProps) {
               )}
             </p>
             <p className="text-xs text-muted-foreground">
-              {new Date(order.createdAt).toLocaleDateString()}
+              {new Date(order.createdAt).toLocaleDateString("en-US")}
             </p>
           </div>
           <div className="flex items-center gap-3">

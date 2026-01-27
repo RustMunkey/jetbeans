@@ -51,7 +51,7 @@ function useRightSidebar() {
 }
 
 function RightSidebarProvider({
-  defaultOpen = false,
+  defaultOpen = true,
   open: openProp,
   onOpenChange: setOpenProp,
   children,
