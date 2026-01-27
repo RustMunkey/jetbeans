@@ -6,6 +6,7 @@ import {
 	shipmentTracking,
 	shippingCarriers,
 	orders,
+	inboxEmails,
 } from "@jetbeans/db/schema"
 import { pusherServer } from "@/lib/pusher-server"
 import { parseShippingEmail, isShippingEmail } from "@/lib/tracking/parser"
@@ -67,6 +68,34 @@ export async function POST(request: Request) {
 	} catch {
 		return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
 	}
+
+	// Parse sender info for inbox
+	// Format: "Name <email@example.com>" or just "email@example.com"
+	let fromName = ""
+	let fromEmail = ""
+	if (payload.from) {
+		const match = payload.from.match(/^(?:"?([^"]*)"?\s)?<?([^>]+)>?$/)
+		if (match) {
+			fromName = match[1]?.trim() || ""
+			fromEmail = match[2]?.trim() || payload.from
+		} else {
+			fromEmail = payload.from
+		}
+	}
+	if (!fromName && fromEmail) {
+		fromName = fromEmail.split("@")[0] || "Unknown"
+	}
+
+	// Save ALL emails to inbox (for admin inbox view)
+	await db.insert(inboxEmails).values({
+		fromName: fromName || "Unknown",
+		fromEmail: fromEmail || "unknown@unknown.com",
+		subject: payload.subject || "(No Subject)",
+		body: payload.text || "",
+		bodyHtml: payload.html || null,
+		source: "email_forward",
+		sourceId: request.headers.get("x-resend-message-id") || null,
+	})
 
 	// Log the webhook event
 	const [event] = await db

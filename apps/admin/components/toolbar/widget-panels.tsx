@@ -15,6 +15,7 @@ import {
 import { motion, AnimatePresence, useDragControls } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { useToolbar, type ToolbarWidget } from "./toolbar-provider"
+import { useRightSidebar } from "@/components/ui/right-sidebar"
 import { useMusicPlayer } from "@/components/music-player"
 import { cn } from "@/lib/utils"
 
@@ -111,6 +112,7 @@ function WidgetPanel({
 }) {
 	const [isMinimized, setIsMinimized] = React.useState(false)
 	const dragControls = useDragControls()
+	const { open: rightSidebarOpen } = useRightSidebar()
 	const info = WIDGET_INFO[widget]
 
 	if (isMinimized) {
@@ -144,7 +146,10 @@ function WidgetPanel({
 			dragMomentum={false}
 			dragControls={dragControls}
 			dragListener={false}
-			className="fixed bottom-4 right-20 z-50 w-72 rounded-xl bg-background border shadow-xl overflow-hidden"
+			className={cn(
+				"fixed bottom-4 z-50 w-72 rounded-xl bg-background border shadow-xl overflow-hidden",
+				rightSidebarOpen ? "right-[21rem]" : "right-20"
+			)}
 		>
 			{/* Header - drag handle */}
 			<div

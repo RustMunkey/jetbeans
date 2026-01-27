@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { DataTable, type Column } from "@/components/data-table"
 import { Badge } from "@/components/ui/badge"
@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import { formatDate } from "@/lib/format"
 import { sendInboxReply, markInboxEmailRead } from "./actions"
+import { useLiveInbox } from "@/hooks/use-live-inbox"
 import type { InboxEmail, InboxEmailReply } from "./types"
 
 const statusStyles: Record<string, string> = {
@@ -131,6 +132,27 @@ export function InboxTab({
 	const [emails, setEmails] = useState(initialEmails)
 	const [selectedId, setSelectedId] = useState<string | null>(null)
 	const [statusFilter, setStatusFilter] = useState("all")
+
+	// Real-time inbox updates
+	const handleNewEmail = useCallback((email: {
+		id: string
+		fromName: string
+		fromEmail: string
+		subject: string
+		body: string
+		receivedAt: string
+		status: "unread" | "read" | "replied"
+	}) => {
+		setEmails((prev) => [{
+			...email,
+			replies: [],
+		}, ...prev])
+		toast.info(`New email from ${email.fromName}`, {
+			description: email.subject,
+		})
+	}, [])
+
+	useLiveInbox({ onNewEmail: handleNewEmail })
 
 	const selectedEmail = emails.find((e) => e.id === selectedId)
 

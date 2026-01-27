@@ -32,19 +32,19 @@ const WIDGETS: {
 ]
 
 export function ToolbarPanel() {
-	const { isOpen, activeWidget, setActiveWidget, openWidget } = useToolbar()
+	const { isOpen, activeWidget, openWidget } = useToolbar()
 
 	return (
 		<AnimatePresence>
 			{isOpen && (
 				<motion.div
-					initial={{ x: 80, opacity: 0 }}
-					animate={{ x: 0, opacity: 1 }}
-					exit={{ x: 80, opacity: 0 }}
+					initial={{ y: 80, opacity: 0 }}
+					animate={{ y: 0, opacity: 1 }}
+					exit={{ y: 80, opacity: 0 }}
 					transition={{ type: "spring", damping: 25, stiffness: 300 }}
-					className="fixed right-4 top-1/2 -translate-y-1/2 z-50"
+					className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50"
 				>
-					<div className="flex flex-col gap-1 p-2 bg-background/95 backdrop-blur-sm border rounded-2xl shadow-lg">
+					<div className="flex items-center gap-1 px-2 py-1.5 bg-background/95 backdrop-blur-sm border rounded-full shadow-lg">
 						{WIDGETS.map((widget) => (
 							<Tooltip key={widget.id} delayDuration={0}>
 								<TooltipTrigger asChild>
@@ -52,7 +52,7 @@ export function ToolbarPanel() {
 										variant="ghost"
 										size="icon"
 										className={cn(
-											"size-10 rounded-xl transition-colors",
+											"size-9 rounded-full transition-colors",
 											activeWidget === widget.id && "bg-primary text-primary-foreground hover:bg-primary/90"
 										)}
 										onClick={() => openWidget(widget.id)}
@@ -60,7 +60,7 @@ export function ToolbarPanel() {
 										<HugeiconsIcon icon={widget.icon} size={18} />
 									</Button>
 								</TooltipTrigger>
-								<TooltipContent side="left" sideOffset={8}>
+								<TooltipContent side="top" sideOffset={8}>
 									<p>{widget.label}</p>
 								</TooltipContent>
 							</Tooltip>

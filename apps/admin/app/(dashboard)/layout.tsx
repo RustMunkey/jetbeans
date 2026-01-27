@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/sidebar"
 import { RightSidebarProvider } from "@/components/ui/right-sidebar"
 import { AppRightSidebar } from "@/components/app-right-sidebar"
+import { NotificationProvider } from "@/components/notifications/notification-context"
 
 export default async function DashboardLayout({
   children,
@@ -75,6 +76,7 @@ export default async function DashboardLayout({
           <ToolbarProvider>
             <ChatProvider>
               <SidebarModeProvider>
+                <NotificationProvider userId={session.user.id}>
                 <SidebarProvider defaultOpen={sidebarOpen}>
                 <RightSidebarProvider defaultOpen={rightSidebarOpen}>
                   <CommandMenuWrapper />
@@ -105,18 +107,18 @@ export default async function DashboardLayout({
                       </BreadcrumbProvider>
                     </SidebarInset>
                     <AppRightSidebar />
+                    {/* Toolbar Panel - needs RightSidebarProvider */}
+                    <ToolbarPanel />
+                    <WidgetPanels />
                   </KeyboardShortcutsProvider>
                 </RightSidebarProvider>
               </SidebarProvider>
+              </NotificationProvider>
               </SidebarModeProvider>
             </ChatProvider>
 
             {/* Music Player - loads user tracks */}
             <MusicPlayerLoader />
-
-            {/* Toolbar Panel */}
-            <ToolbarPanel />
-            <WidgetPanels />
           </ToolbarProvider>
 
           {/* Call UI overlays */}

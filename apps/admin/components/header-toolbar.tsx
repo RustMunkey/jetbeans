@@ -47,7 +47,6 @@ import { ActiveCallIndicator } from "@/components/calls"
 import { useToolbar } from "@/components/toolbar"
 import { useRightSidebar } from "@/components/ui/right-sidebar"
 import { NotificationBell } from "@/components/notifications"
-import { OnlineUsers } from "@/components/presence"
 import Link from "next/link"
 
 type QuickMessage = {
@@ -348,7 +347,7 @@ export function HeaderToolbar() {
         </Link>
       </Button>
       <ActiveCallIndicator />
-      {userId && <NotificationBell userId={userId} onOpenSidebar={toggleRightSidebar} />}
+      <NotificationBell onOpenSidebar={toggleRightSidebar} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="size-8">
@@ -404,7 +403,6 @@ export function HeaderToolbar() {
         <HugeiconsIcon icon={Setting06Icon} size={16} />
         <span className="sr-only">Tools</span>
       </Button>
-      <OnlineUsers className="hidden md:flex" />
       <button
         type="button"
         onClick={openCommandMenu}

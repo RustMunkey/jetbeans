@@ -17,7 +17,7 @@ export const inboxEmails = pgTable("inbox_emails", {
 	// Status
 	status: text("status").notNull().default("unread"), // unread, read, replied, archived, spam
 	// Assignment
-	assignedTo: uuid("assigned_to").references(() => users.id),
+	assignedTo: text("assigned_to").references(() => users.id),
 	// Timestamps
 	receivedAt: timestamp("received_at").defaultNow().notNull(),
 	readAt: timestamp("read_at"),
@@ -31,7 +31,7 @@ export const inboxReplies = pgTable("inbox_replies", {
 		.notNull()
 		.references(() => inboxEmails.id, { onDelete: "cascade" }),
 	// Who sent the reply
-	senderId: uuid("sender_id")
+	senderId: text("sender_id")
 		.notNull()
 		.references(() => users.id),
 	senderName: text("sender_name").notNull(),

@@ -11,6 +11,7 @@ const SHARED_PRIVATE_CHANNELS = [
 	"private-products",
 	"private-customers",
 	"private-subscriptions",
+	"private-inbox",
 ]
 
 export async function POST(request: Request) {
