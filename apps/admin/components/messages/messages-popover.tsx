@@ -19,14 +19,14 @@ import { formatDistanceToNow } from "date-fns"
 
 interface RecentMessage {
 	id: string
-	content: string
+	content: string | null
 	createdAt: Date
 	sender: {
-		id: string
+		id: string | null
 		name: string
 		image: string | null
 	}
-	channel: string | null
+	channel: string
 }
 
 function formatCount(count: number): string {

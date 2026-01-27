@@ -61,7 +61,7 @@ export function HeaderToolbar() {
   const handleAudioCall = async () => {
     if (!canCall || !active.id) return
     try {
-      await startCall([active.id], "audio")
+      await startCall([active.id], "voice")
     } catch (err) {
       console.error("Failed to start audio call:", err)
     }
