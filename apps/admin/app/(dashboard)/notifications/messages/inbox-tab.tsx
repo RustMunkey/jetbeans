@@ -147,9 +147,6 @@ export function InboxTab({
 			...email,
 			replies: [],
 		}, ...prev])
-		toast.info(`New email from ${email.fromName}`, {
-			description: email.subject,
-		})
 	}, [])
 
 	useLiveInbox({ onNewEmail: handleNewEmail })

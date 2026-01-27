@@ -238,8 +238,6 @@ export async function getTestOrders() {
 			orderNumber: orders.orderNumber,
 			status: orders.status,
 			trackingNumber: orders.trackingNumber,
-			customerEmail: orders.customerEmail,
-			customerName: orders.customerName,
 		})
 		.from(orders)
 		.limit(10)

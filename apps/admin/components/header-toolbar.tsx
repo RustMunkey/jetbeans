@@ -42,7 +42,6 @@ import { useCommandMenu } from "@/components/command-menu"
 import { useSession } from "@/lib/auth-client"
 import { usePusher } from "@/components/pusher-provider"
 import { getUnreadCount, getTeamMessages, markAllRead, markMessageRead } from "@/app/(dashboard)/notifications/messages/actions"
-import { showMessageToast } from "@/components/message-toast"
 import { ActiveCallIndicator } from "@/components/calls"
 import { useToolbar } from "@/components/toolbar"
 import { useRightSidebar } from "@/components/ui/right-sidebar"
@@ -167,15 +166,9 @@ export function HeaderToolbar() {
       // Always add to recent messages list
       setRecentMessages((prev) => [data, ...prev].slice(0, 20))
 
-      // Only show notification if not viewing that conversation
+      // Only update count and play sound if not viewing that conversation
       if (shouldPlaySound(data.channel, data.senderId || "")) {
         setUnreadCount((c) => c + 1)
-        showMessageToast({
-          senderName: data.senderName,
-          body: data.body || "",
-          messageId: data.id,
-          channel: data.channel,
-        })
         playNotificationSound(data.channel, data.senderId || "")
       }
     })

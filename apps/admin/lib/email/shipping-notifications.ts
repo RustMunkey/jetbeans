@@ -23,9 +23,7 @@ async function getOrderWithCustomer(orderId: string) {
 		.select({
 			id: orders.id,
 			orderNumber: orders.orderNumber,
-			customerId: orders.customerId,
-			customerName: orders.customerName,
-			customerEmail: orders.customerEmail,
+			userId: orders.userId,
 		})
 		.from(orders)
 		.where(eq(orders.id, orderId))
@@ -33,19 +31,26 @@ async function getOrderWithCustomer(orderId: string) {
 
 	if (!order) return null
 
-	// If there's a customerId, get their email preferences (future: check notification preferences)
-	let customerEmail = order.customerEmail
-	if (order.customerId) {
+	// Get customer info from users table
+	let customerName = "Customer"
+	let customerEmail: string | null = null
+
+	if (order.userId) {
 		const [customer] = await db
-			.select({ email: users.email })
+			.select({ name: users.name, email: users.email })
 			.from(users)
-			.where(eq(users.id, order.customerId))
+			.where(eq(users.id, order.userId))
 			.limit(1)
-		if (customer) customerEmail = customer.email
+		if (customer) {
+			customerName = customer.name || "Customer"
+			customerEmail = customer.email
+		}
 	}
 
 	return {
-		...order,
+		id: order.id,
+		orderNumber: order.orderNumber,
+		customerName,
 		email: customerEmail,
 	}
 }
