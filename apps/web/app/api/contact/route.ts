@@ -2,8 +2,23 @@ import { NextResponse } from "next/server"
 import { Resend } from "resend"
 import { db } from "@jetbeans/db/client"
 import { inboxEmails } from "@jetbeans/db/schema"
+import Pusher from "pusher"
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
+
+const pusher =
+	process.env.PUSHER_APP_ID &&
+	process.env.PUSHER_KEY &&
+	process.env.PUSHER_SECRET &&
+	process.env.PUSHER_CLUSTER
+		? new Pusher({
+				appId: process.env.PUSHER_APP_ID,
+				key: process.env.PUSHER_KEY,
+				secret: process.env.PUSHER_SECRET,
+				cluster: process.env.PUSHER_CLUSTER,
+				useTLS: true,
+			})
+		: null
 
 export async function POST(request: Request) {
 	try {
@@ -14,13 +29,29 @@ export async function POST(request: Request) {
 		}
 
 		// Save to inbox database
-		await db.insert(inboxEmails).values({
-			fromName: name,
-			fromEmail: email,
-			subject: subject,
-			body: message,
-			source: "contact_form",
-		})
+		const [inserted] = await db
+			.insert(inboxEmails)
+			.values({
+				fromName: name,
+				fromEmail: email,
+				subject: subject,
+				body: message,
+				source: "contact_form",
+			})
+			.returning()
+
+		// Broadcast to admin inbox
+		if (pusher && inserted) {
+			await pusher.trigger("private-inbox", "email:new", {
+				id: inserted.id,
+				fromName: name,
+				fromEmail: email,
+				subject: subject,
+				body: message,
+				receivedAt: inserted.receivedAt?.toISOString() || new Date().toISOString(),
+				status: "unread",
+			})
+		}
 
 		// If Resend not configured, just log and return success (for dev)
 		if (!resend) {
@@ -29,20 +60,25 @@ export async function POST(request: Request) {
 		}
 
 		// Send confirmation to user
-		await resend.emails.send({
-			from: "JetBeans <noreply@jetbeans.cafe>",
-			to: [email],
-			subject: "We received your message",
-			text: `Hi ${name},\n\nThanks for reaching out! We've received your message and will get back to you soon.\n\nBest,\nThe JetBeans Team`,
-			html: `
-				<div style="font-family: sans-serif; max-width: 600px;">
-					<h2>Thanks for reaching out!</h2>
-					<p>Hi ${name},</p>
-					<p>We've received your message and will get back to you soon.</p>
-					<p>Best,<br/>The JetBeans Team</p>
-				</div>
-			`,
-		})
+		try {
+			await resend.emails.send({
+				from: "JetBeans <noreply@jetbeans.cafe>",
+				to: [email],
+				subject: "We received your message",
+				text: `Hi ${name},\n\nThanks for reaching out! We've received your message and will get back to you soon.\n\nBest,\nThe JetBeans Team`,
+				html: `
+					<div style="font-family: sans-serif; max-width: 600px;">
+						<h2>Thanks for reaching out!</h2>
+						<p>Hi ${name},</p>
+						<p>We've received your message and will get back to you soon.</p>
+						<p>Best,<br/>The JetBeans Team</p>
+					</div>
+				`,
+			})
+		} catch (emailError) {
+			// Don't fail the whole request if confirmation email fails
+			console.error("[Contact Form] Confirmation email failed:", emailError)
+		}
 
 		return NextResponse.json({ success: true })
 	} catch (error) {

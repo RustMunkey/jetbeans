@@ -447,6 +447,9 @@ importers:
       posthog-js:
         specifier: ^1.335.2
         version: 1.335.2
+      pusher:
+        specifier: ^5.2.0
+        version: 5.3.2
       pusher-js:
         specifier: ^8.4.0
         version: 8.4.0

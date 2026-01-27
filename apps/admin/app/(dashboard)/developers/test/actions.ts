@@ -169,7 +169,15 @@ export async function sendTestShippingEmail(status: "shipped" | "out_for_deliver
 			html: htmlTemplates[status],
 		})
 
-		console.log("[Test Shipping Email] Sent:", result)
+		console.log("[Test Shipping Email] Result:", JSON.stringify(result, null, 2))
+
+		// Resend returns { data: { id }, error: null } on success
+		// or { data: null, error: { ... } } on failure
+		if (result.error) {
+			console.error("[Test Shipping Email] Resend error:", result.error)
+			return { success: false, error: result.error.message || "Resend API error" }
+		}
+
 		return { success: true, email: dbUser.email, id: result.data?.id }
 	} catch (error: unknown) {
 		console.error("[Test Shipping Email] Failed:", error)
