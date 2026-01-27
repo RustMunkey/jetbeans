@@ -8,7 +8,8 @@ export function isLiveKitConfigured(): boolean {
 export async function createLiveKitToken(
 	roomName: string,
 	participantName: string,
-	participantIdentity: string
+	participantIdentity: string,
+	isInitiator = false
 ): Promise<string | null> {
 	if (!env.LIVEKIT_API_KEY || !env.LIVEKIT_API_SECRET) {
 		return null
@@ -23,6 +24,7 @@ export async function createLiveKitToken(
 	token.addGrant({
 		room: roomName,
 		roomJoin: true,
+		roomCreate: isInitiator, // Only initiator can create the room
 		canPublish: true,
 		canSubscribe: true,
 		canPublishData: true,

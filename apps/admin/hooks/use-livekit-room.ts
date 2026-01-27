@@ -159,7 +159,9 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 			newRoom.on(lk.RoomEvent.ActiveSpeakersChanged, handleActiveSpeakersChanged)
 
 			try {
+				console.log("[LiveKit] Connecting to room:", wsUrl)
 				await newRoom.connect(wsUrl!, token!)
+				console.log("[LiveKit] Connected successfully")
 				// Enable camera and mic based on intended state (user may have toggled before connect)
 				const local = newRoom.localParticipant
 				await local.setCameraEnabled(intendedVideoRef.current)
@@ -169,7 +171,9 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 				setLocalVideoEnabled(local.isCameraEnabled)
 				updateParticipants(newRoom)
 			} catch (err) {
-				console.error("Failed to connect to room:", err)
+				console.error("[LiveKit] Failed to connect to room:", err)
+				// Signal connection error
+				setConnectionState(-1)
 			}
 		}
 

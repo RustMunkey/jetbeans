@@ -185,7 +185,7 @@ function Sidebar({
 
   if (isMobile) {
     return (
-      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+      <Sheet open={openMobile} onOpenChange={setOpenMobile} modal={false} {...props}>
         <SheetContent
           data-sidebar="sidebar"
           data-slot="sidebar"
@@ -404,7 +404,7 @@ function SidebarContent({
       data-slot="sidebar-content"
       data-sidebar="content"
       className={cn(
-        "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto [-webkit-overflow-scrolling:touch] touch-pan-y overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto [-webkit-overflow-scrolling:touch] touch-pan-y overscroll-y-contain [transform:translateZ(0)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         className
       )}
       onScroll={handleScroll}

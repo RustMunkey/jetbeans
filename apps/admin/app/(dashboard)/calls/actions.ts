@@ -110,8 +110,8 @@ export async function initiateCall(data: {
 		}
 	}
 
-	// Generate token for initiator
-	const token = await createLiveKitToken(roomName, user.name || "User", user.id)
+	// Generate token for initiator (with roomCreate permission)
+	const token = await createLiveKitToken(roomName, user.name || "User", user.id, true)
 	if (!token) {
 		throw new Error("Failed to generate call token")
 	}

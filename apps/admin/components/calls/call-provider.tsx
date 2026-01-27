@@ -75,9 +75,9 @@ export function useCallOptional() {
 const RING_TIMEOUT = 30000 // 30 seconds
 
 // Ringtone for incoming calls
-const RINGTONE_PATH = "/sounds/LTJ Bukem - Untitled 1995.mp3"
-// Outgoing dial tone - same track works well for both
-const DIALTONE_PATH = "/sounds/LTJ Bukem - Untitled 1995.mp3"
+const RINGTONE_PATH = "/sounds/ringtone.mp3"
+// Outgoing dial tone
+const DIALTONE_PATH = "/sounds/ringtone.mp3"
 
 export function CallProvider({
 	userId,
@@ -135,13 +135,8 @@ export function CallProvider({
 		return () => clearInterval(interval)
 	}, [status])
 
-	// Update status based on connection state
-	useEffect(() => {
-		if (connectionState === ConnectionState.Connected && status === "connecting") {
-			setStatus("connected")
-			stopDialtone() // Stop dial tone when call connects
-		}
-	}, [connectionState, status])
+	// Update status based on connection state (moved after resetCallState definition)
+	// See useEffect below after resetCallState is defined
 
 	// Clear ring timeout on cleanup
 	useEffect(() => {
@@ -274,6 +269,19 @@ export function CallProvider({
 			setRingTimeout(null)
 		}
 	}, [disconnect, ringTimeout])
+
+	// Update status based on connection state
+	useEffect(() => {
+		if (connectionState === ConnectionState.Connected && status === "connecting") {
+			setStatus("connected")
+			stopDialtone() // Stop dial tone when call connects
+		}
+		// Handle connection failure
+		if (connectionState === -1 && (status === "connecting" || status === "ringing-outgoing")) {
+			console.error("[Call] LiveKit connection failed, resetting call state")
+			resetCallState()
+		}
+	}, [connectionState, status, resetCallState])
 
 	const startCall = useCallback(
 		async (participantIds: string[], type: CallType, chatChannel?: string) => {
