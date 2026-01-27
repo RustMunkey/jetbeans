@@ -10,6 +10,7 @@ import { pusherServer } from "@/lib/pusher-server"
 import { fireWebhooks } from "@/lib/webhooks/outgoing"
 import { registerTracking, isTracktryConfigured } from "@/lib/tracking/service"
 import { detectCarrier } from "@/lib/tracking/carrier-detector"
+import { sendShippingNotification } from "@/lib/email/shipping-notifications"
 
 async function requireAdmin() {
 	const session = await auth.api.getSession({ headers: await headers() })
@@ -249,6 +250,17 @@ export async function addTracking(id: string, trackingNumber: string, trackingUr
 		trackingUrl: order.trackingUrl,
 		carrier: detectedCarrier?.name,
 		updatedAt: order.updatedAt?.toISOString(),
+	})
+
+	// Send "shipped" notification to customer (non-blocking)
+	sendShippingNotification({
+		orderId: order.id,
+		trackingNumber,
+		trackingUrl: finalTrackingUrl || undefined,
+		carrierName: detectedCarrier?.name,
+		status: "shipped",
+	}).catch((err) => {
+		console.error("[Order] Failed to send shipped notification:", err)
 	})
 
 	return order

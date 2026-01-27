@@ -11,6 +11,7 @@ import {
 } from "@jetbeans/db/schema"
 import { pusherServer } from "@/lib/pusher-server"
 import { inngest } from "@/lib/inngest"
+import { sendShippingNotification, mapToNotificationStatus } from "@/lib/email/shipping-notifications"
 import crypto from "crypto"
 
 // Normalized tracking event
@@ -438,6 +439,10 @@ export async function POST(
 		.limit(1)
 
 	if (tracking) {
+		// Check if status changed (for notifications)
+		const previousStatus = tracking.status
+		const statusChanged = previousStatus !== normalized.status
+
 		// Update existing tracking
 		const currentHistory = (tracking.statusHistory as Array<{ status: string; timestamp: string; location?: string }>) || []
 		const newHistoryEntry = {
@@ -464,6 +469,45 @@ export async function POST(
 				.update(orders)
 				.set({ status: "delivered" })
 				.where(eq(orders.id, tracking.orderId))
+		}
+
+		// Send customer notification if status changed to a notifiable status
+		if (statusChanged) {
+			const notificationStatus = mapToNotificationStatus(normalized.status)
+			const previousNotificationStatus = mapToNotificationStatus(previousStatus || "")
+
+			// Only send if it's a new notification-worthy status we haven't notified about
+			if (notificationStatus && notificationStatus !== previousNotificationStatus) {
+				// Get carrier info for tracking URL
+				let trackingUrl: string | undefined
+				let carrierName: string | undefined
+
+				if (tracking.carrierId) {
+					const [carrier] = await db
+						.select({ name: shippingCarriers.name, trackingUrlTemplate: shippingCarriers.trackingUrlTemplate })
+						.from(shippingCarriers)
+						.where(eq(shippingCarriers.id, tracking.carrierId))
+						.limit(1)
+
+					if (carrier) {
+						carrierName = carrier.name
+						trackingUrl = carrier.trackingUrlTemplate?.replace("{tracking}", normalized.trackingNumber)
+					}
+				}
+
+				// Send notification (non-blocking)
+				sendShippingNotification({
+					orderId: tracking.orderId,
+					trackingNumber: normalized.trackingNumber,
+					trackingUrl,
+					carrierName,
+					status: notificationStatus,
+					estimatedDelivery: normalized.estimatedDelivery,
+					location: normalized.location,
+				}).catch((err) => {
+					console.error("[Shipping Webhook] Failed to send notification:", err)
+				})
+			}
 		}
 
 		// Broadcast via Pusher
@@ -514,5 +558,17 @@ export async function GET(
 		carrier: carrier,
 		message: "Webhook endpoint is active",
 		timestamp: new Date().toISOString(),
+	})
+}
+
+// OPTIONS handler for CORS preflight
+export async function OPTIONS() {
+	return new NextResponse(null, {
+		status: 200,
+		headers: {
+			"Access-Control-Allow-Origin": "*",
+			"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+			"Access-Control-Allow-Headers": "Content-Type, Authorization, 17token, X-Webhook-Signature",
+		},
 	})
 }
