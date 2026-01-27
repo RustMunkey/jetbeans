@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Printer01Icon } from "@hugeicons/core-free-icons"
+import { PrinterIcon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -77,7 +77,7 @@ export default function ExportsPage() {
 					onClick={() => window.print()}
 					className="print:hidden"
 				>
-					<HugeiconsIcon icon={Printer01Icon} size={16} className="mr-2" />
+					<HugeiconsIcon icon={PrinterIcon} size={16} className="mr-2" />
 					Print
 				</Button>
 			</div>
