@@ -1,4 +1,12 @@
-import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
+
+// User preferences type for cross-device sync
+export type UserPreferences = {
+	theme?: "light" | "dark" | "system" | "coffee";
+	sidebarOpen?: boolean;
+	soundEnabled?: boolean;
+	desktopNotifications?: boolean;
+};
 
 export const users = pgTable("users", {
 	id: text("id").primaryKey(),
@@ -6,10 +14,13 @@ export const users = pgTable("users", {
 	email: text("email").notNull().unique(),
 	emailVerified: boolean("email_verified").default(false),
 	image: text("image"),
+	bannerImage: text("banner_image"),
 	role: text("role").default("member"),
 	phone: text("phone"),
 	discountType: text("discount_type"),
 	walletAddress: text("wallet_address"),
+	preferences: jsonb("preferences").$type<UserPreferences>().default({}),
+	isBetaTester: boolean("is_beta_tester").default(false),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
