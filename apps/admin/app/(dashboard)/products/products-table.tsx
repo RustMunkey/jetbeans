@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { formatCurrency, formatDate } from "@/lib/format"
 import { useLiveProducts, type LiveProduct } from "@/hooks/use-live-products"
+import { useProductsParams } from "@/hooks/use-table-params"
 import { cn } from "@/lib/utils"
 import { bulkUpdateProducts } from "./actions"
 
@@ -23,20 +24,15 @@ interface ProductsTableProps {
 	products: LiveProduct[]
 	categories: Category[]
 	totalCount: number
-	currentPage: number
-	currentCategory?: string
-	currentStatus?: string
 }
 
 export function ProductsTable({
 	products: initialProducts,
 	categories,
 	totalCount,
-	currentPage,
-	currentCategory,
-	currentStatus,
 }: ProductsTableProps) {
 	const router = useRouter()
+	const [params, setParams] = useProductsParams()
 	const { products } = useLiveProducts({ initialProducts })
 	const [selectedIds, setSelectedIds] = useState<string[]>([])
 	const [loading, setLoading] = useState(false)
@@ -135,8 +131,9 @@ export function ProductsTable({
 			data={products}
 			searchPlaceholder="Search products..."
 			totalCount={totalCount}
-			currentPage={currentPage}
+			currentPage={params.page}
 			pageSize={30}
+			onPageChange={(page) => setParams({ page })}
 			selectable
 			selectedIds={selectedIds}
 			onSelectionChange={setSelectedIds}
@@ -148,16 +145,9 @@ export function ProductsTable({
 				<>
 					<div className="flex gap-2 w-full sm:w-auto">
 						<Select
-							value={currentCategory ?? "all"}
+							value={params.category}
 							onValueChange={(value) => {
-								const params = new URLSearchParams(window.location.search)
-								if (value && value !== "all") {
-									params.set("category", value)
-								} else {
-									params.delete("category")
-								}
-								params.delete("page")
-								router.push(`/products?${params.toString()}`)
+								setParams({ category: value, page: 1 })
 							}}
 						>
 							<SelectTrigger className="h-9 flex-1 sm:flex-initial sm:w-[140px]">
@@ -171,16 +161,9 @@ export function ProductsTable({
 							</SelectContent>
 						</Select>
 						<Select
-							value={currentStatus ?? "all"}
+							value={params.status}
 							onValueChange={(value) => {
-								const params = new URLSearchParams(window.location.search)
-								if (value && value !== "all") {
-									params.set("status", value)
-								} else {
-									params.delete("status")
-								}
-								params.delete("page")
-								router.push(`/products?${params.toString()}`)
+								setParams({ status: value as typeof params.status, page: 1 })
 							}}
 						>
 							<SelectTrigger className="h-9 flex-1 sm:flex-initial sm:w-[130px]">

@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/status-badge"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { formatCurrency, formatDate } from "@/lib/format"
 import { useLiveOrders, type LiveOrder } from "@/hooks/use-live-orders"
+import { useOrdersParams } from "@/hooks/use-table-params"
 import { cn } from "@/lib/utils"
 
 interface Order {
@@ -22,8 +23,6 @@ interface Order {
 interface OrdersTableProps {
 	orders: Order[]
 	totalCount: number
-	currentPage: number
-	currentStatus?: string
 }
 
 const statuses = [
@@ -32,8 +31,9 @@ const statuses = [
 	"partially_refunded", "returned",
 ]
 
-export function OrdersTable({ orders: initialOrders, totalCount, currentPage, currentStatus }: OrdersTableProps) {
+export function OrdersTable({ orders: initialOrders, totalCount }: OrdersTableProps) {
 	const router = useRouter()
+	const [params, setParams] = useOrdersParams()
 	const { orders } = useLiveOrders({ initialOrders: initialOrders as LiveOrder[] })
 
 	const columns: Column<Order>[] = [
@@ -86,24 +86,21 @@ export function OrdersTable({ orders: initialOrders, totalCount, currentPage, cu
 			data={orders}
 			searchPlaceholder="Search orders..."
 			totalCount={totalCount}
-			currentPage={currentPage}
+			currentPage={params.page}
 			pageSize={30}
+			onPageChange={(page) => setParams({ page })}
 			getId={(row) => row.id}
 			onRowClick={(row) => router.push(`/orders/${row.id}`)}
 			emptyMessage="No orders yet"
 			emptyDescription="Orders will appear here when customers make purchases."
 			filters={
 				<Select
-					value={currentStatus ?? "all"}
+					value={params.status}
 					onValueChange={(value) => {
-						const params = new URLSearchParams(window.location.search)
-						if (value && value !== "all") {
-							params.set("status", value)
-						} else {
-							params.delete("status")
-						}
-						params.delete("page")
-						router.push(`/orders?${params.toString()}`)
+						setParams({
+							status: value as typeof params.status,
+							page: 1, // Reset to first page on filter change
+						})
 					}}
 				>
 					<SelectTrigger className="h-9 w-full sm:w-[160px]">

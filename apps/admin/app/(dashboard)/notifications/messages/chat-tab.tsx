@@ -187,6 +187,8 @@ export function ChatTab({
 	const messagesEndRef = useRef<HTMLDivElement>(null)
 	const messagesContainerRef = useRef<HTMLDivElement>(null)
 	const fileInputRef = useRef<HTMLInputElement>(null)
+	const activeRef = useRef(active) // Ref for stable handler access
+	activeRef.current = active // Keep ref updated
 	const { pusher } = usePusher()
 	const searchParams = useSearchParams()
 
@@ -299,18 +301,56 @@ export function ChatTab({
 	useEffect(() => {
 		if (!pusher || !userId) return
 
-		const ch = pusher.subscribe(`private-user-${userId}`)
+		const channelName = `private-user-${userId}`
+		console.log(`[Chat] Subscribing to ${channelName}`)
+
+		const ch = pusher.subscribe(channelName)
+
+		// Handle subscription success
+		ch.bind("pusher:subscription_succeeded", () => {
+			console.log(`[Chat] Successfully subscribed to ${channelName}`)
+		})
+
+		// Handle subscription error
+		ch.bind("pusher:subscription_error", (error: { type: string; error: string; status: number }) => {
+			console.error(`[Chat] Subscription error for ${channelName}:`, error)
+		})
+
 		const handleNewMessage = (data: TeamMessage) => {
+			console.log("[Chat] Received new message:", data.id, "from:", data.senderId)
+
+			// Don't process our own messages (they're added optimistically)
+			if (data.senderId === userId) {
+				console.log("[Chat] Ignoring own message")
+				return
+			}
+
 			setMessages((prev) => {
 				// Avoid duplicates
-				if (prev.some((m) => m.id === data.id)) return prev
+				if (prev.some((m) => m.id === data.id)) {
+					console.log("[Chat] Duplicate message, skipping:", data.id)
+					return prev
+				}
 				return [...prev, data]
 			})
-			// Don't show toast here - HeaderToolbar handles global notifications
+
+			// Play notification sound if message is from different conversation
+			// Use ref to get current active without causing re-subscription
+			const currentActive = activeRef.current
+			const isFromCurrentConversation =
+				(currentActive.type === "channel" && data.channel === currentActive.id) ||
+				(currentActive.type === "dm" && data.channel === "dm" && data.senderId === currentActive.id)
+
+			if (!isFromCurrentConversation) {
+				const audio = new Audio("/sounds/message.mp3")
+				audio.volume = 0.5
+				audio.play().catch(() => {})
+			}
 		}
 
 		// Real-time read receipts
 		const handleMessageRead = (data: { messageId: string; readBy: string; readAt: string }) => {
+			console.log("[Chat] Message read event:", data.messageId)
 			setReadReceipts((prev) => {
 				const existing = prev[data.messageId]
 				if (!existing) {
@@ -337,11 +377,15 @@ export function ChatTab({
 		ch.bind("message-read", handleMessageRead)
 
 		return () => {
+			console.log(`[Chat] Unbinding handlers for ${channelName}`)
 			// Only unbind our specific handlers, don't unsubscribe the channel
 			// HeaderToolbar also uses this channel for notifications
 			ch.unbind("new-message", handleNewMessage)
 			ch.unbind("message-read", handleMessageRead)
+			ch.unbind("pusher:subscription_succeeded")
+			ch.unbind("pusher:subscription_error")
 		}
+		// Note: active is accessed via activeRef to avoid re-subscription on conversation switch
 	}, [pusher, userId])
 
 	// Auto-scroll to bottom only if user is already at bottom

@@ -6,11 +6,11 @@ import { StatusBadge } from "@/components/status-badge"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { formatCurrency, formatDate } from "@/lib/format"
 import { useLiveSubscriptions, type LiveSubscription } from "@/hooks/use-live-subscriptions"
+import { useSubscriptionsParams } from "@/hooks/use-table-params"
 
 interface SubscriptionsTableProps {
 	subscriptions: LiveSubscription[]
 	totalCount: number
-	currentPage: number
 	currentStatus?: string
 	basePath?: string
 	title?: string
@@ -22,13 +22,13 @@ const statuses = ["active", "paused", "cancelled", "dunning"]
 export function SubscriptionsTable({
 	subscriptions: initialSubscriptions,
 	totalCount,
-	currentPage,
 	currentStatus,
 	basePath = "/subscriptions",
 	title = "Subscriptions",
 	description = "Manage recurring delivery subscriptions.",
 }: SubscriptionsTableProps) {
 	const router = useRouter()
+	const [params, setParams] = useSubscriptionsParams()
 	const { subscriptions } = useLiveSubscriptions({ initialSubscriptions })
 
 	const columns: Column<LiveSubscription>[] = [
@@ -108,8 +108,9 @@ export function SubscriptionsTable({
 			data={subscriptions}
 			searchPlaceholder="Search subscriptions..."
 			totalCount={totalCount}
-			currentPage={currentPage}
+			currentPage={params.page}
 			pageSize={30}
+			onPageChange={(page) => setParams({ page })}
 			getId={(row) => row.id}
 			onRowClick={(row) => router.push(`/subscriptions/${row.id}`)}
 			emptyMessage="No subscriptions"

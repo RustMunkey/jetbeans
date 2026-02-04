@@ -7,18 +7,27 @@ import {
 	boolean,
 	timestamp,
 	jsonb,
+	index,
 } from "drizzle-orm/pg-core";
 import { orders } from "./orders";
+import { workspaces } from "./workspaces";
 
-export const shippingCarriers = pgTable("shipping_carriers", {
-	id: uuid("id").primaryKey().defaultRandom(),
-	name: text("name").notNull(),
-	code: text("code").notNull().unique(),
+export const shippingCarriers = pgTable(
+	"shipping_carriers",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workspaceId: uuid("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		code: text("code").notNull(), // Unique per workspace, not globally
 	trackingUrlTemplate: text("tracking_url_template"),
-	isActive: boolean("is_active").default(true).notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+		isActive: boolean("is_active").default(true).notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("shipping_carriers_workspace_idx").on(table.workspaceId),
+	]
+);
 
 export const shippingRates = pgTable("shipping_rates", {
 	id: uuid("id").primaryKey().defaultRandom(),
@@ -35,15 +44,22 @@ export const shippingRates = pgTable("shipping_rates", {
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const shippingZones = pgTable("shipping_zones", {
-	id: uuid("id").primaryKey().defaultRandom(),
-	name: text("name").notNull(),
-	countries: jsonb("countries").$type<string[]>().default([]),
-	regions: jsonb("regions").$type<string[]>().default([]),
-	isActive: boolean("is_active").default(true).notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const shippingZones = pgTable(
+	"shipping_zones",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workspaceId: uuid("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		countries: jsonb("countries").$type<string[]>().default([]),
+		regions: jsonb("regions").$type<string[]>().default([]),
+		isActive: boolean("is_active").default(true).notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("shipping_zones_workspace_idx").on(table.workspaceId),
+	]
+);
 
 export const shippingZoneRates = pgTable("shipping_zone_rates", {
 	id: uuid("id").primaryKey().defaultRandom(),
@@ -98,10 +114,17 @@ export const shipmentTracking = pgTable("shipment_tracking", {
 });
 
 // Trusted senders for auto-approval
-export const trustedSenders = pgTable("trusted_senders", {
-	id: uuid("id").primaryKey().defaultRandom(),
-	email: text("email").notNull().unique(),
-	name: text("name"),
-	autoApprove: boolean("auto_approve").default(true).notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const trustedSenders = pgTable(
+	"trusted_senders",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workspaceId: uuid("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
+		email: text("email").notNull(), // Unique per workspace
+		name: text("name"),
+		autoApprove: boolean("auto_approve").default(true).notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("trusted_senders_workspace_idx").on(table.workspaceId),
+	]
+);

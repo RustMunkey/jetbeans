@@ -1,6 +1,5 @@
 "use server"
 
-import { headers } from "next/headers"
 import { eq, and, desc, count, sql } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import {
@@ -13,16 +12,16 @@ import {
 	trustedSenders,
 	orders,
 } from "@jetbeans/db/schema"
-import { auth } from "@/lib/auth"
 import { logAudit } from "@/lib/audit"
+import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 
-async function requireAdmin() {
-	const session = await auth.api.getSession({ headers: await headers() })
-	if (!session) throw new Error("Not authenticated")
-	if (session.user.role !== "owner" && session.user.role !== "admin") {
-		throw new Error("Insufficient permissions")
+async function requireShippingPermission() {
+	const workspace = await requireWorkspace()
+	const canManage = await checkWorkspacePermission("canManageOrders")
+	if (!canManage) {
+		throw new Error("You don't have permission to manage shipping")
 	}
-	return session.user
+	return workspace
 }
 
 // --- CARRIERS ---
@@ -33,27 +32,33 @@ interface GetCarriersParams {
 }
 
 export async function getCarriers(params: GetCarriersParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30 } = params
 	const offset = (page - 1) * pageSize
+
+	const where = eq(shippingCarriers.workspaceId, workspace.id)
 
 	const [items, [total]] = await Promise.all([
 		db
 			.select()
 			.from(shippingCarriers)
+			.where(where)
 			.orderBy(desc(shippingCarriers.createdAt))
 			.limit(pageSize)
 			.offset(offset),
-		db.select({ count: count() }).from(shippingCarriers),
+		db.select({ count: count() }).from(shippingCarriers).where(where),
 	])
 
 	return { items, totalCount: total.count }
 }
 
 export async function getCarrier(id: string) {
+	const workspace = await requireWorkspace()
+
 	const [carrier] = await db
 		.select()
 		.from(shippingCarriers)
-		.where(eq(shippingCarriers.id, id))
+		.where(and(eq(shippingCarriers.id, id), eq(shippingCarriers.workspaceId, workspace.id)))
 		.limit(1)
 
 	if (!carrier) return null
@@ -68,11 +73,11 @@ export async function getCarrier(id: string) {
 }
 
 export async function createCarrier(data: { name: string; code: string; trackingUrlTemplate?: string }) {
-	await requireAdmin()
+	const workspace = await requireShippingPermission()
 
 	const [carrier] = await db
 		.insert(shippingCarriers)
-		.values(data)
+		.values({ ...data, workspaceId: workspace.id })
 		.returning()
 
 	await logAudit({
@@ -86,12 +91,12 @@ export async function createCarrier(data: { name: string; code: string; tracking
 }
 
 export async function updateCarrier(id: string, data: { name?: string; code?: string; trackingUrlTemplate?: string; isActive?: boolean }) {
-	await requireAdmin()
+	const workspace = await requireShippingPermission()
 
 	await db
 		.update(shippingCarriers)
 		.set({ ...data, updatedAt: new Date() })
-		.where(eq(shippingCarriers.id, id))
+		.where(and(eq(shippingCarriers.id, id), eq(shippingCarriers.workspaceId, workspace.id)))
 
 	await logAudit({
 		action: "carrier.updated",
@@ -101,9 +106,9 @@ export async function updateCarrier(id: string, data: { name?: string; code?: st
 }
 
 export async function deleteCarrier(id: string) {
-	await requireAdmin()
+	const workspace = await requireShippingPermission()
 
-	await db.delete(shippingCarriers).where(eq(shippingCarriers.id, id))
+	await db.delete(shippingCarriers).where(and(eq(shippingCarriers.id, id), eq(shippingCarriers.workspaceId, workspace.id)))
 
 	await logAudit({
 		action: "carrier.deleted",
@@ -123,7 +128,16 @@ export async function createRate(data: {
 	perKgRate?: string
 	estimatedDays?: string
 }) {
-	await requireAdmin()
+	const workspace = await requireShippingPermission()
+
+	// Verify carrier belongs to this workspace
+	const [carrier] = await db
+		.select({ id: shippingCarriers.id })
+		.from(shippingCarriers)
+		.where(and(eq(shippingCarriers.id, data.carrierId), eq(shippingCarriers.workspaceId, workspace.id)))
+		.limit(1)
+
+	if (!carrier) throw new Error("Carrier not found")
 
 	const [rate] = await db.insert(shippingRates).values(data).returning()
 
@@ -146,7 +160,17 @@ export async function updateRate(id: string, data: {
 	estimatedDays?: string
 	isActive?: boolean
 }) {
-	await requireAdmin()
+	const workspace = await requireShippingPermission()
+
+	// Verify rate's carrier belongs to this workspace
+	const [rate] = await db
+		.select({ id: shippingRates.id })
+		.from(shippingRates)
+		.innerJoin(shippingCarriers, eq(shippingRates.carrierId, shippingCarriers.id))
+		.where(and(eq(shippingRates.id, id), eq(shippingCarriers.workspaceId, workspace.id)))
+		.limit(1)
+
+	if (!rate) throw new Error("Rate not found")
 
 	await db.update(shippingRates).set(data).where(eq(shippingRates.id, id))
 
@@ -158,7 +182,17 @@ export async function updateRate(id: string, data: {
 }
 
 export async function deleteRate(id: string) {
-	await requireAdmin()
+	const workspace = await requireShippingPermission()
+
+	// Verify rate's carrier belongs to this workspace
+	const [rate] = await db
+		.select({ id: shippingRates.id })
+		.from(shippingRates)
+		.innerJoin(shippingCarriers, eq(shippingRates.carrierId, shippingCarriers.id))
+		.where(and(eq(shippingRates.id, id), eq(shippingCarriers.workspaceId, workspace.id)))
+		.limit(1)
+
+	if (!rate) throw new Error("Rate not found")
 
 	await db.delete(shippingRates).where(eq(shippingRates.id, id))
 
@@ -177,27 +211,33 @@ interface GetZonesParams {
 }
 
 export async function getZones(params: GetZonesParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30 } = params
 	const offset = (page - 1) * pageSize
+
+	const where = eq(shippingZones.workspaceId, workspace.id)
 
 	const [items, [total]] = await Promise.all([
 		db
 			.select()
 			.from(shippingZones)
+			.where(where)
 			.orderBy(shippingZones.name)
 			.limit(pageSize)
 			.offset(offset),
-		db.select({ count: count() }).from(shippingZones),
+		db.select({ count: count() }).from(shippingZones).where(where),
 	])
 
 	return { items, totalCount: total.count }
 }
 
 export async function getZone(id: string) {
+	const workspace = await requireWorkspace()
+
 	const [zone] = await db
 		.select()
 		.from(shippingZones)
-		.where(eq(shippingZones.id, id))
+		.where(and(eq(shippingZones.id, id), eq(shippingZones.workspaceId, workspace.id)))
 		.limit(1)
 
 	if (!zone) return null
@@ -224,9 +264,9 @@ export async function getZone(id: string) {
 }
 
 export async function createZone(data: { name: string; countries?: string[]; regions?: string[] }) {
-	await requireAdmin()
+	const workspace = await requireShippingPermission()
 
-	const [zone] = await db.insert(shippingZones).values(data).returning()
+	const [zone] = await db.insert(shippingZones).values({ ...data, workspaceId: workspace.id }).returning()
 
 	await logAudit({
 		action: "zone.created",
@@ -239,12 +279,12 @@ export async function createZone(data: { name: string; countries?: string[]; reg
 }
 
 export async function updateZone(id: string, data: { name?: string; countries?: string[]; regions?: string[]; isActive?: boolean }) {
-	await requireAdmin()
+	const workspace = await requireShippingPermission()
 
 	await db
 		.update(shippingZones)
 		.set({ ...data, updatedAt: new Date() })
-		.where(eq(shippingZones.id, id))
+		.where(and(eq(shippingZones.id, id), eq(shippingZones.workspaceId, workspace.id)))
 
 	await logAudit({
 		action: "zone.updated",
@@ -254,9 +294,9 @@ export async function updateZone(id: string, data: { name?: string; countries?: 
 }
 
 export async function deleteZone(id: string) {
-	await requireAdmin()
+	const workspace = await requireShippingPermission()
 
-	await db.delete(shippingZones).where(eq(shippingZones.id, id))
+	await db.delete(shippingZones).where(and(eq(shippingZones.id, id), eq(shippingZones.workspaceId, workspace.id)))
 
 	await logAudit({
 		action: "zone.deleted",
@@ -266,7 +306,22 @@ export async function deleteZone(id: string) {
 }
 
 export async function addZoneRate(data: { zoneId: string; carrierId: string; rateId: string; priceOverride?: string }) {
-	await requireAdmin()
+	const workspace = await requireShippingPermission()
+
+	// Verify zone and carrier belong to this workspace
+	const [zone] = await db
+		.select({ id: shippingZones.id })
+		.from(shippingZones)
+		.where(and(eq(shippingZones.id, data.zoneId), eq(shippingZones.workspaceId, workspace.id)))
+		.limit(1)
+
+	const [carrier] = await db
+		.select({ id: shippingCarriers.id })
+		.from(shippingCarriers)
+		.where(and(eq(shippingCarriers.id, data.carrierId), eq(shippingCarriers.workspaceId, workspace.id)))
+		.limit(1)
+
+	if (!zone || !carrier) throw new Error("Zone or carrier not found")
 
 	const [zr] = await db.insert(shippingZoneRates).values(data).returning()
 
@@ -280,7 +335,17 @@ export async function addZoneRate(data: { zoneId: string; carrierId: string; rat
 }
 
 export async function removeZoneRate(id: string) {
-	await requireAdmin()
+	const workspace = await requireShippingPermission()
+
+	// Verify zone rate's zone belongs to this workspace
+	const [zr] = await db
+		.select({ id: shippingZoneRates.id })
+		.from(shippingZoneRates)
+		.innerJoin(shippingZones, eq(shippingZoneRates.zoneId, shippingZones.id))
+		.where(and(eq(shippingZoneRates.id, id), eq(shippingZones.workspaceId, workspace.id)))
+		.limit(1)
+
+	if (!zr) throw new Error("Zone rate not found")
 
 	await db.delete(shippingZoneRates).where(eq(shippingZoneRates.id, id))
 
@@ -300,15 +365,17 @@ interface GetLabelsParams {
 }
 
 export async function getLabels(params: GetLabelsParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30, status } = params
 	const offset = (page - 1) * pageSize
 
-	const conditions = []
+	// Filter by workspace through orders
+	const conditions = [eq(orders.workspaceId, workspace.id)]
 	if (status) {
 		conditions.push(eq(shippingLabels.status, status))
 	}
 
-	const where = conditions.length > 0 ? and(...conditions) : undefined
+	const where = and(...conditions)
 
 	const [items, [total]] = await Promise.all([
 		db
@@ -332,13 +399,19 @@ export async function getLabels(params: GetLabelsParams = {}) {
 			.orderBy(desc(shippingLabels.createdAt))
 			.limit(pageSize)
 			.offset(offset),
-		db.select({ count: count() }).from(shippingLabels).where(where),
+		db
+			.select({ count: count() })
+			.from(shippingLabels)
+			.innerJoin(orders, eq(shippingLabels.orderId, orders.id))
+			.where(where),
 	])
 
 	return { items, totalCount: total.count }
 }
 
 export async function getLabel(id: string) {
+	const workspace = await requireWorkspace()
+
 	const [label] = await db
 		.select({
 			id: shippingLabels.id,
@@ -357,14 +430,24 @@ export async function getLabel(id: string) {
 		.from(shippingLabels)
 		.innerJoin(shippingCarriers, eq(shippingLabels.carrierId, shippingCarriers.id))
 		.innerJoin(orders, eq(shippingLabels.orderId, orders.id))
-		.where(eq(shippingLabels.id, id))
+		.where(and(eq(shippingLabels.id, id), eq(orders.workspaceId, workspace.id)))
 		.limit(1)
 
 	return label ?? null
 }
 
 export async function updateLabelStatus(id: string, status: string) {
-	await requireAdmin()
+	const workspace = await requireShippingPermission()
+
+	// Verify label's order belongs to this workspace
+	const [label] = await db
+		.select({ id: shippingLabels.id })
+		.from(shippingLabels)
+		.innerJoin(orders, eq(shippingLabels.orderId, orders.id))
+		.where(and(eq(shippingLabels.id, id), eq(orders.workspaceId, workspace.id)))
+		.limit(1)
+
+	if (!label) throw new Error("Label not found")
 
 	await db
 		.update(shippingLabels)
@@ -387,15 +470,17 @@ interface GetTrackingParams {
 }
 
 export async function getTracking(params: GetTrackingParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30, status } = params
 	const offset = (page - 1) * pageSize
 
-	const conditions = []
+	// Filter by workspace through orders
+	const conditions = [eq(orders.workspaceId, workspace.id)]
 	if (status) {
 		conditions.push(eq(shipmentTracking.status, status))
 	}
 
-	const where = conditions.length > 0 ? and(...conditions) : undefined
+	const where = and(...conditions)
 
 	const [items, [total]] = await Promise.all([
 		db
@@ -418,13 +503,19 @@ export async function getTracking(params: GetTrackingParams = {}) {
 			.orderBy(desc(shipmentTracking.lastUpdatedAt))
 			.limit(pageSize)
 			.offset(offset),
-		db.select({ count: count() }).from(shipmentTracking).where(where),
+		db
+			.select({ count: count() })
+			.from(shipmentTracking)
+			.innerJoin(orders, eq(shipmentTracking.orderId, orders.id))
+			.where(where),
 	])
 
 	return { items, totalCount: total.count }
 }
 
 export async function getTrackingDetail(id: string) {
+	const workspace = await requireWorkspace()
+
 	const [item] = await db
 		.select({
 			id: shipmentTracking.id,
@@ -442,13 +533,24 @@ export async function getTrackingDetail(id: string) {
 		.from(shipmentTracking)
 		.innerJoin(shippingCarriers, eq(shipmentTracking.carrierId, shippingCarriers.id))
 		.innerJoin(orders, eq(shipmentTracking.orderId, orders.id))
-		.where(eq(shipmentTracking.id, id))
+		.where(and(eq(shipmentTracking.id, id), eq(orders.workspaceId, workspace.id)))
 		.limit(1)
 
 	return item ?? null
 }
 
 export async function getTrackingByOrderId(orderId: string) {
+	const workspace = await requireWorkspace()
+
+	// Verify order belongs to this workspace
+	const [order] = await db
+		.select({ id: orders.id })
+		.from(orders)
+		.where(and(eq(orders.id, orderId), eq(orders.workspaceId, workspace.id)))
+		.limit(1)
+
+	if (!order) return null
+
 	const [item] = await db
 		.select({
 			id: shipmentTracking.id,
@@ -479,8 +581,15 @@ interface GetPendingTrackingParams {
 }
 
 export async function getPendingTracking(params: GetPendingTrackingParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30 } = params
 	const offset = (page - 1) * pageSize
+
+	// Filter by workspace - tracking with orders in this workspace OR tracking without orders but with carriers in this workspace
+	const whereCondition = and(
+		eq(shipmentTracking.reviewStatus, "pending_review"),
+		eq(orders.workspaceId, workspace.id)
+	)
 
 	const [rawItems, [total]] = await Promise.all([
 		db
@@ -499,12 +608,16 @@ export async function getPendingTracking(params: GetPendingTrackingParams = {}) 
 			})
 			.from(shipmentTracking)
 			.leftJoin(shippingCarriers, eq(shipmentTracking.carrierId, shippingCarriers.id))
-			.leftJoin(orders, eq(shipmentTracking.orderId, orders.id))
-			.where(eq(shipmentTracking.reviewStatus, "pending_review"))
+			.innerJoin(orders, eq(shipmentTracking.orderId, orders.id))
+			.where(whereCondition)
 			.orderBy(desc(shipmentTracking.createdAt))
 			.limit(pageSize)
 			.offset(offset),
-		db.select({ count: count() }).from(shipmentTracking).where(eq(shipmentTracking.reviewStatus, "pending_review")),
+		db
+			.select({ count: count() })
+			.from(shipmentTracking)
+			.innerJoin(orders, eq(shipmentTracking.orderId, orders.id))
+			.where(whereCondition),
 	])
 
 	// Transform to expected shape
@@ -536,13 +649,19 @@ export async function getPendingTracking(params: GetPendingTrackingParams = {}) 
 
 export async function approveTracking(id: string) {
 	try {
-		await requireAdmin()
+		const workspace = await requireShippingPermission()
 
-		// Get tracking details
+		// Get tracking details with workspace verification
 		const [tracking] = await db
-			.select()
+			.select({
+				id: shipmentTracking.id,
+				orderId: shipmentTracking.orderId,
+				carrierId: shipmentTracking.carrierId,
+				trackingNumber: shipmentTracking.trackingNumber,
+			})
 			.from(shipmentTracking)
-			.where(eq(shipmentTracking.id, id))
+			.innerJoin(orders, eq(shipmentTracking.orderId, orders.id))
+			.where(and(eq(shipmentTracking.id, id), eq(orders.workspaceId, workspace.id)))
 			.limit(1)
 
 		if (!tracking) {
@@ -594,7 +713,19 @@ export async function approveTracking(id: string) {
 
 export async function rejectTracking(id: string) {
 	try {
-		await requireAdmin()
+		const workspace = await requireShippingPermission()
+
+		// Verify tracking belongs to an order in this workspace
+		const [tracking] = await db
+			.select({ id: shipmentTracking.id })
+			.from(shipmentTracking)
+			.innerJoin(orders, eq(shipmentTracking.orderId, orders.id))
+			.where(and(eq(shipmentTracking.id, id), eq(orders.workspaceId, workspace.id)))
+			.limit(1)
+
+		if (!tracking) {
+			return { success: false, error: "Tracking not found" }
+		}
 
 		// Delete the tracking record instead of just marking rejected
 		await db.delete(shipmentTracking).where(eq(shipmentTracking.id, id))
@@ -613,13 +744,13 @@ export async function rejectTracking(id: string) {
 
 export async function updateTrackingOrder(id: string, orderId: string) {
 	try {
-		await requireAdmin()
+		const workspace = await requireShippingPermission()
 
-		// Verify order exists
+		// Verify order exists and belongs to this workspace
 		const [order] = await db
 			.select({ id: orders.id })
 			.from(orders)
-			.where(eq(orders.id, orderId))
+			.where(and(eq(orders.id, orderId), eq(orders.workspaceId, workspace.id)))
 			.limit(1)
 
 		if (!order) {
@@ -678,20 +809,22 @@ export async function updateTrackingOrder(id: string, orderId: string) {
 // --- TRUSTED SENDERS ---
 
 export async function getTrustedSenders() {
+	const workspace = await requireWorkspace()
 	return db
 		.select()
 		.from(trustedSenders)
+		.where(eq(trustedSenders.workspaceId, workspace.id))
 		.orderBy(trustedSenders.email)
 }
 
 export async function addTrustedSender(email: string, name?: string) {
-	await requireAdmin()
+	const workspace = await requireShippingPermission()
 
 	const [sender] = await db
 		.insert(trustedSenders)
-		.values({ email: email.toLowerCase(), name })
+		.values({ email: email.toLowerCase(), name, workspaceId: workspace.id })
 		.onConflictDoUpdate({
-			target: trustedSenders.email,
+			target: [trustedSenders.email, trustedSenders.workspaceId],
 			set: { name, autoApprove: true },
 		})
 		.returning()
@@ -707,9 +840,9 @@ export async function addTrustedSender(email: string, name?: string) {
 }
 
 export async function removeTrustedSender(id: string) {
-	await requireAdmin()
+	const workspace = await requireShippingPermission()
 
-	await db.delete(trustedSenders).where(eq(trustedSenders.id, id))
+	await db.delete(trustedSenders).where(and(eq(trustedSenders.id, id), eq(trustedSenders.workspaceId, workspace.id)))
 
 	await logAudit({
 		action: "trusted_sender.deleted",
@@ -718,11 +851,15 @@ export async function removeTrustedSender(id: string) {
 	})
 }
 
-export async function isTrustedSender(email: string): Promise<boolean> {
+export async function isTrustedSender(email: string, workspaceId: string): Promise<boolean> {
 	const [sender] = await db
 		.select()
 		.from(trustedSenders)
-		.where(and(eq(trustedSenders.email, email.toLowerCase()), eq(trustedSenders.autoApprove, true)))
+		.where(and(
+			eq(trustedSenders.email, email.toLowerCase()),
+			eq(trustedSenders.workspaceId, workspaceId),
+			eq(trustedSenders.autoApprove, true)
+		))
 		.limit(1)
 
 	return !!sender

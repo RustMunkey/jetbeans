@@ -29,7 +29,7 @@ import {
 const RIGHT_SIDEBAR_COOKIE_NAME = "right_sidebar_state"
 const RIGHT_SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const RIGHT_SIDEBAR_WIDTH = "16rem"
-const RIGHT_SIDEBAR_WIDTH_MOBILE = "18rem"
+const RIGHT_SIDEBAR_WIDTH_MOBILE = "min(85vw, 16rem)"
 
 type RightSidebarContextProps = {
   open: boolean

@@ -22,6 +22,13 @@ export async function updateProfile(data: {
 	name?: string
 	phone?: string
 	image?: string
+	bannerImage?: string
+	username?: string
+	bio?: string
+	location?: string
+	website?: string
+	occupation?: string
+	birthdate?: string
 }) {
 	const session = await auth.api.getSession({ headers: await headers() })
 	if (!session) throw new Error("Not authenticated")

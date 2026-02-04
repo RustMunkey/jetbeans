@@ -1,13 +1,14 @@
+import { Suspense } from "react"
 import { getReviews } from "../actions"
 import { ReviewsTable } from "../reviews-table"
+import { reviewsParamsCache } from "@/lib/search-params"
 
 interface PageProps {
-	searchParams: Promise<{ page?: string }>
+	searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 export default async function ReportedReviewsPage({ searchParams }: PageProps) {
-	const params = await searchParams
-	const page = Number(params.page) || 1
+	const { page } = await reviewsParamsCache.parse(searchParams)
 	const { items, totalCount } = await getReviews({
 		page,
 		pageSize: 30,
@@ -23,12 +24,12 @@ export default async function ReportedReviewsPage({ searchParams }: PageProps) {
 				</p>
 			</div>
 
-			<ReviewsTable
-				reviews={items}
-				totalCount={totalCount}
-				currentPage={page}
-				currentStatus="reported"
-			/>
+			<Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded-lg" />}>
+				<ReviewsTable
+					reviews={items}
+					totalCount={totalCount}
+				/>
+			</Suspense>
 		</div>
 	)
 }

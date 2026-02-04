@@ -8,7 +8,7 @@ export default async function AccountPage() {
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-			<AccountSettings key={`${user.name}-${user.image}-${user.phone}`} user={user} />
+			<AccountSettings key={`${user.name}-${user.image}-${user.bannerImage}-${user.phone}`} user={user} />
 		</div>
 	)
 }

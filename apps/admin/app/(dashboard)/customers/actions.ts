@@ -1,8 +1,18 @@
 "use server"
 
-import { eq, desc, sql, ne, count, and, inArray } from "@jetbeans/db/drizzle"
+import { eq, desc, sql, count, and, inArray } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { users, orders, customerSegments, customerSegmentMembers, loyaltyPoints } from "@jetbeans/db/schema"
+import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
+
+async function requireCustomersPermission() {
+	const workspace = await requireWorkspace()
+	const canManage = await checkWorkspacePermission("canManageCustomers")
+	if (!canManage) {
+		throw new Error("You don't have permission to manage customers")
+	}
+	return workspace
+}
 
 interface GetCustomersParams {
 	page?: number
@@ -12,24 +22,34 @@ interface GetCustomersParams {
 }
 
 export async function getCustomers(params: GetCustomersParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30, search, segment } = params
 	const offset = (page - 1) * pageSize
 
-	// Customers are users who are NOT admin/owner role (or have placed orders)
-	// For now, exclude admin-panel users by role
-	const baseConditions = [ne(users.role, "owner"), ne(users.role, "admin")]
+	// Get customers who have placed orders in this workspace
+	// Subquery to find users who have orders in this workspace
+	const workspaceCustomersSubquery = db
+		.selectDistinct({ userId: orders.userId })
+		.from(orders)
+		.where(eq(orders.workspaceId, workspace.id))
+
+	const baseConditions = [inArray(users.id, workspaceCustomersSubquery)]
 	if (search) {
 		baseConditions.push(
 			sql`(${users.name} ILIKE ${`%${search}%`} OR ${users.email} ILIKE ${`%${search}%`})`
 		)
 	}
 
-	// If filtering by segment, add the segment condition to the query
+	// If filtering by segment, add the segment condition (segments are workspace-scoped)
 	if (segment) {
 		const segmentSubquery = db
 			.select({ userId: customerSegmentMembers.userId })
 			.from(customerSegmentMembers)
-			.where(eq(customerSegmentMembers.segmentId, segment))
+			.innerJoin(customerSegments, eq(customerSegments.id, customerSegmentMembers.segmentId))
+			.where(and(
+				eq(customerSegmentMembers.segmentId, segment),
+				eq(customerSegments.workspaceId, workspace.id)
+			))
 		baseConditions.push(inArray(users.id, segmentSubquery))
 	}
 
@@ -56,7 +76,7 @@ export async function getCustomers(params: GetCustomersParams = {}) {
 	// Use customerRows directly (segment filtering now happens in SQL)
 	const filteredRows = customerRows
 
-	// Get order stats for these users
+	// Get order stats for these users (only for orders in this workspace)
 	const customerIds = filteredRows.map((c) => c.id)
 	let orderStats: Record<string, { orderCount: number; totalSpent: string; lastOrderAt: Date | null }> = {}
 
@@ -69,7 +89,10 @@ export async function getCustomers(params: GetCustomersParams = {}) {
 				lastOrderAt: sql<Date | null>`MAX(${orders.createdAt})`.as("last_order_at"),
 			})
 			.from(orders)
-			.where(inArray(orders.userId, customerIds))
+			.where(and(
+				inArray(orders.userId, customerIds),
+				eq(orders.workspaceId, workspace.id)
+			))
 			.groupBy(orders.userId)
 
 		orderStats = Object.fromEntries(
@@ -88,6 +111,18 @@ export async function getCustomers(params: GetCustomersParams = {}) {
 }
 
 export async function getCustomer(id: string) {
+	const workspace = await requireWorkspace()
+
+	// Verify customer has orders in this workspace
+	const [hasOrders] = await db
+		.select({ count: count() })
+		.from(orders)
+		.where(and(eq(orders.userId, id), eq(orders.workspaceId, workspace.id)))
+
+	if (Number(hasOrders.count) === 0) {
+		throw new Error("Customer not found")
+	}
+
 	const [customer] = await db
 		.select()
 		.from(users)
@@ -96,7 +131,7 @@ export async function getCustomer(id: string) {
 
 	if (!customer) throw new Error("Customer not found")
 
-	// Get order history
+	// Get order history (only for this workspace)
 	const customerOrders = await db
 		.select({
 			id: orders.id,
@@ -106,11 +141,11 @@ export async function getCustomer(id: string) {
 			createdAt: orders.createdAt,
 		})
 		.from(orders)
-		.where(eq(orders.userId, id))
+		.where(and(eq(orders.userId, id), eq(orders.workspaceId, workspace.id)))
 		.orderBy(desc(orders.createdAt))
 		.limit(20)
 
-	// Get segments
+	// Get segments (only workspace-scoped segments)
 	const segments = await db
 		.select({
 			id: customerSegments.id,
@@ -119,13 +154,16 @@ export async function getCustomer(id: string) {
 		})
 		.from(customerSegmentMembers)
 		.innerJoin(customerSegments, eq(customerSegments.id, customerSegmentMembers.segmentId))
-		.where(eq(customerSegmentMembers.userId, id))
+		.where(and(
+			eq(customerSegmentMembers.userId, id),
+			eq(customerSegments.workspaceId, workspace.id)
+		))
 
-	// Get loyalty
+	// Get loyalty (workspace-scoped)
 	const [loyalty] = await db
 		.select()
 		.from(loyaltyPoints)
-		.where(eq(loyaltyPoints.userId, id))
+		.where(and(eq(loyaltyPoints.userId, id), eq(loyaltyPoints.workspaceId, workspace.id)))
 		.limit(1)
 
 	// Aggregates

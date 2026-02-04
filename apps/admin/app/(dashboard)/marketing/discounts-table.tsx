@@ -23,6 +23,8 @@ import {
 	SelectItem,
 } from "@/components/ui/select"
 import { formatCurrency, formatDate } from "@/lib/format"
+import { usePaginationParams } from "@/hooks/use-table-params"
+import { useQueryState, parseAsStringLiteral } from "nuqs"
 import { createDiscount, toggleDiscount } from "./actions"
 
 interface Discount {
@@ -45,12 +47,15 @@ interface Discount {
 interface DiscountsTableProps {
 	discounts: Discount[]
 	totalCount: number
-	currentPage: number
 }
 
-export function DiscountsTable({ discounts, totalCount, currentPage }: DiscountsTableProps) {
+export function DiscountsTable({ discounts, totalCount }: DiscountsTableProps) {
 	const router = useRouter()
-	const [statusFilter, setStatusFilter] = useState("all")
+	const [params, setParams] = usePaginationParams()
+	const [statusFilter, setStatusFilter] = useQueryState(
+		"status",
+		parseAsStringLiteral(["all", "active", "inactive", "expired"] as const).withDefault("all")
+	)
 	const [createOpen, setCreateOpen] = useState(false)
 	const [name, setName] = useState("")
 	const [code, setCode] = useState("")
@@ -215,9 +220,10 @@ export function DiscountsTable({ discounts, totalCount, currentPage }: Discounts
 				emptyMessage="No discounts"
 				emptyDescription="Create a discount code to offer promotions."
 				totalCount={totalCount}
-				currentPage={currentPage}
+				currentPage={params.page}
+				onPageChange={(page) => setParams({ page })}
 				filters={
-					<Select value={statusFilter} onValueChange={setStatusFilter}>
+					<Select value={statusFilter ?? "all"} onValueChange={(v) => setStatusFilter(v as "all" | "active" | "inactive" | "expired")}>
 						<SelectTrigger className="h-9 w-full sm:w-[160px]">
 							<SelectValue placeholder="All Statuses" />
 						</SelectTrigger>

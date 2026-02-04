@@ -69,14 +69,29 @@ export function MessagesPopover() {
 	React.useEffect(() => {
 		if (!pusher || !session?.user?.id) return
 
-		const channel = pusher.subscribe(`private-user-${session.user.id}`)
-		channel.bind("new-message", () => {
+		const channelName = `private-user-${session.user.id}`
+		const channel = pusher.subscribe(channelName)
+
+		const handleNewMessage = (data: { senderId: string }) => {
+			// Don't count/notify for own messages
+			if (data.senderId === session.user.id) return
+
 			setUnreadCount((c) => c + 1)
-		})
+
+			// Play notification sound
+			const audio = new Audio("/sounds/message.mp3")
+			audio.volume = 0.5
+			audio.play().catch(() => {
+				// Ignore autoplay errors (browser policy)
+			})
+		}
+
+		channel.bind("new-message", handleNewMessage)
 
 		return () => {
-			channel.unbind_all()
-			pusher.unsubscribe(`private-user-${session.user.id}`)
+			// Only unbind our handler, don't unsubscribe the channel
+			// Other components (chat-tab) also use this channel
+			channel.unbind("new-message", handleNewMessage)
 		}
 	}, [pusher, session?.user?.id])
 

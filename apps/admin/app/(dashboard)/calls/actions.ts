@@ -210,8 +210,8 @@ export async function acceptCall(callId: string): Promise<{ token: string; wsUrl
 		}
 	}
 
-	// Generate token
-	const token = await createLiveKitToken(call.roomName, user.name || "User", user.id)
+	// Generate token - allow roomCreate in case initiator hasn't connected yet (race condition fix)
+	const token = await createLiveKitToken(call.roomName, user.name || "User", user.id, true)
 	if (!token) {
 		throw new Error("Failed to generate call token")
 	}

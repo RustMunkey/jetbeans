@@ -3,6 +3,16 @@
 import { db } from "@jetbeans/db/client"
 import * as schema from "@jetbeans/db/schema"
 import { eq, desc, sql, ilike, and, or, isNull, isNotNull, count } from "@jetbeans/db/drizzle"
+import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
+
+async function requireMarketingPermission() {
+	const workspace = await requireWorkspace()
+	const canManage = await checkWorkspacePermission("canManageProducts")
+	if (!canManage) {
+		throw new Error("You don't have permission to manage marketing")
+	}
+	return workspace
+}
 
 // --- DISCOUNTS ---
 interface GetDiscountsParams {
@@ -12,10 +22,12 @@ interface GetDiscountsParams {
 }
 
 export async function getDiscounts(params: GetDiscountsParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30, status } = params
 	const offset = (page - 1) * pageSize
 
-	const conditions = []
+	// Always filter by workspace
+	const conditions = [eq(schema.discounts.workspaceId, workspace.id)]
 	if (status === "active") {
 		conditions.push(eq(schema.discounts.isActive, true))
 	} else if (status === "inactive") {
@@ -24,7 +36,7 @@ export async function getDiscounts(params: GetDiscountsParams = {}) {
 		conditions.push(sql`${schema.discounts.expiresAt} < NOW()`)
 	}
 
-	const where = conditions.length > 0 ? and(...conditions) : undefined
+	const where = and(...conditions)
 
 	const [items, [total]] = await Promise.all([
 		db
@@ -41,10 +53,11 @@ export async function getDiscounts(params: GetDiscountsParams = {}) {
 }
 
 export async function getDiscount(id: string) {
+	const workspace = await requireWorkspace()
 	const [discount] = await db
 		.select()
 		.from(schema.discounts)
-		.where(eq(schema.discounts.id, id))
+		.where(and(eq(schema.discounts.id, id), eq(schema.discounts.workspaceId, workspace.id)))
 	return discount ?? null
 }
 
@@ -62,9 +75,11 @@ export async function createDiscount(data: {
 	startsAt?: string
 	expiresAt?: string
 }) {
+	const workspace = await requireMarketingPermission()
 	const [discount] = await db
 		.insert(schema.discounts)
 		.values({
+			workspaceId: workspace.id,
 			name: data.name,
 			code: data.code || undefined,
 			discountType: data.discountType || "code",
@@ -94,6 +109,7 @@ export async function updateDiscount(id: string, data: Partial<{
 	startsAt: string | null
 	expiresAt: string | null
 }>) {
+	const workspace = await requireMarketingPermission()
 	const updates: Record<string, unknown> = {}
 	if (data.name !== undefined) updates.name = data.name
 	if (data.code !== undefined) updates.code = data.code
@@ -106,15 +122,17 @@ export async function updateDiscount(id: string, data: Partial<{
 	if (data.startsAt !== undefined) updates.startsAt = data.startsAt ? new Date(data.startsAt) : null
 	if (data.expiresAt !== undefined) updates.expiresAt = data.expiresAt ? new Date(data.expiresAt) : null
 
-	await db.update(schema.discounts).set(updates).where(eq(schema.discounts.id, id))
+	await db.update(schema.discounts).set(updates).where(and(eq(schema.discounts.id, id), eq(schema.discounts.workspaceId, workspace.id)))
 }
 
 export async function deleteDiscount(id: string) {
-	await db.delete(schema.discounts).where(eq(schema.discounts.id, id))
+	const workspace = await requireMarketingPermission()
+	await db.delete(schema.discounts).where(and(eq(schema.discounts.id, id), eq(schema.discounts.workspaceId, workspace.id)))
 }
 
 export async function toggleDiscount(id: string, isActive: boolean) {
-	await db.update(schema.discounts).set({ isActive }).where(eq(schema.discounts.id, id))
+	const workspace = await requireMarketingPermission()
+	await db.update(schema.discounts).set({ isActive }).where(and(eq(schema.discounts.id, id), eq(schema.discounts.workspaceId, workspace.id)))
 }
 
 // --- CAMPAIGNS ---
@@ -125,15 +143,17 @@ interface GetCampaignsParams {
 }
 
 export async function getCampaigns(params: GetCampaignsParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30, status } = params
 	const offset = (page - 1) * pageSize
 
-	const conditions = []
+	// Always filter by workspace
+	const conditions = [eq(schema.campaigns.workspaceId, workspace.id)]
 	if (status && status !== "all") {
 		conditions.push(eq(schema.campaigns.status, status))
 	}
 
-	const where = conditions.length > 0 ? and(...conditions) : undefined
+	const where = and(...conditions)
 
 	const [items, [total]] = await Promise.all([
 		db
@@ -150,10 +170,11 @@ export async function getCampaigns(params: GetCampaignsParams = {}) {
 }
 
 export async function getCampaign(id: string) {
+	const workspace = await requireWorkspace()
 	const [campaign] = await db
 		.select()
 		.from(schema.campaigns)
-		.where(eq(schema.campaigns.id, id))
+		.where(and(eq(schema.campaigns.id, id), eq(schema.campaigns.workspaceId, workspace.id)))
 	return campaign ?? null
 }
 
@@ -167,9 +188,11 @@ export async function createCampaign(data: {
 	discountCode?: string
 	scheduledAt?: string
 }) {
+	const workspace = await requireMarketingPermission()
 	const [campaign] = await db
 		.insert(schema.campaigns)
 		.values({
+			workspaceId: workspace.id,
 			name: data.name,
 			description: data.description || undefined,
 			type: data.type,
@@ -185,15 +208,17 @@ export async function createCampaign(data: {
 }
 
 export async function updateCampaignStatus(id: string, status: string) {
+	const workspace = await requireMarketingPermission()
 	const updates: Record<string, unknown> = { status }
 	if (status === "active") updates.startedAt = new Date()
 	if (status === "ended" || status === "cancelled") updates.endedAt = new Date()
 
-	await db.update(schema.campaigns).set(updates).where(eq(schema.campaigns.id, id))
+	await db.update(schema.campaigns).set(updates).where(and(eq(schema.campaigns.id, id), eq(schema.campaigns.workspaceId, workspace.id)))
 }
 
 export async function deleteCampaign(id: string) {
-	await db.delete(schema.campaigns).where(eq(schema.campaigns.id, id))
+	const workspace = await requireMarketingPermission()
+	await db.delete(schema.campaigns).where(and(eq(schema.campaigns.id, id), eq(schema.campaigns.workspaceId, workspace.id)))
 }
 
 // --- REFERRALS ---
@@ -203,8 +228,11 @@ interface GetReferralsParams {
 }
 
 export async function getReferrals(params: GetReferralsParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30 } = params
 	const offset = (page - 1) * pageSize
+
+	const where = eq(schema.referrals.workspaceId, workspace.id)
 
 	const [items, [total]] = await Promise.all([
 		db
@@ -224,10 +252,11 @@ export async function getReferrals(params: GetReferralsParams = {}) {
 				referredEmail: sql<string | null>`(SELECT email FROM users WHERE id = ${schema.referrals.referredId})`,
 			})
 			.from(schema.referrals)
+			.where(where)
 			.orderBy(desc(schema.referrals.createdAt))
 			.limit(pageSize)
 			.offset(offset),
-		db.select({ count: count() }).from(schema.referrals),
+		db.select({ count: count() }).from(schema.referrals).where(where),
 	])
 
 	return { items, totalCount: total.count }
@@ -239,8 +268,11 @@ interface GetReferralCodesParams {
 }
 
 export async function getReferralCodes(params: GetReferralCodesParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30 } = params
 	const offset = (page - 1) * pageSize
+
+	const where = eq(schema.referralCodes.workspaceId, workspace.id)
 
 	const [items, [total]] = await Promise.all([
 		db
@@ -255,10 +287,11 @@ export async function getReferralCodes(params: GetReferralCodesParams = {}) {
 				userEmail: sql<string | null>`(SELECT email FROM users WHERE id = ${schema.referralCodes.userId})`,
 			})
 			.from(schema.referralCodes)
+			.where(where)
 			.orderBy(desc(schema.referralCodes.totalReferrals))
 			.limit(pageSize)
 			.offset(offset),
-		db.select({ count: count() }).from(schema.referralCodes),
+		db.select({ count: count() }).from(schema.referralCodes).where(where),
 	])
 
 	return { items, totalCount: total.count }
@@ -266,6 +299,7 @@ export async function getReferralCodes(params: GetReferralCodesParams = {}) {
 
 // --- SEO ---
 export async function getProductsSeo() {
+	const workspace = await requireWorkspace()
 	return db
 		.select({
 			id: schema.products.id,
@@ -276,12 +310,14 @@ export async function getProductsSeo() {
 			isActive: schema.products.isActive,
 		})
 		.from(schema.products)
+		.where(eq(schema.products.workspaceId, workspace.id))
 		.orderBy(schema.products.name)
 }
 
 export async function updateProductSeo(id: string, data: { metaTitle: string | null; metaDescription: string | null }) {
+	const workspace = await requireMarketingPermission()
 	await db
 		.update(schema.products)
 		.set({ metaTitle: data.metaTitle, metaDescription: data.metaDescription })
-		.where(eq(schema.products.id, id))
+		.where(and(eq(schema.products.id, id), eq(schema.products.workspaceId, workspace.id)))
 }

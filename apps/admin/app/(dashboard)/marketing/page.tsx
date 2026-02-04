@@ -1,20 +1,21 @@
+import { Suspense } from "react"
 import { getDiscounts } from "./actions"
 import { DiscountsTable } from "./discounts-table"
+import { discountsParamsCache } from "@/lib/search-params"
 
 interface PageProps {
-	searchParams: Promise<{
-		page?: string
-	}>
+	searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 export default async function MarketingPage({ searchParams }: PageProps) {
-	const params = await searchParams
-	const page = Number(params.page) || 1
+	const { page } = await discountsParamsCache.parse(searchParams)
 	const { items, totalCount } = await getDiscounts({ page, pageSize: 30 })
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-			<DiscountsTable discounts={items} totalCount={totalCount} currentPage={page} />
+			<Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded-lg" />}>
+				<DiscountsTable discounts={items} totalCount={totalCount} />
+			</Suspense>
 		</div>
 	)
 }

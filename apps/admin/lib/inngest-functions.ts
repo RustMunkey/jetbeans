@@ -3,6 +3,9 @@ import { polarHandlers } from "./inngest/polar-handlers"
 import { resendHandlers } from "./inngest/resend-handlers"
 import { presenceHandlers } from "./inngest/presence-handlers"
 import { webhookDeliver, webhookDeliveryCleanup } from "./inngest/outgoing-webhooks"
+import { auctionHandlers } from "./inngest/auction-handlers"
+import { workflowHandlers } from "./inngest/workflow-handlers"
+import { emailHandlers } from "./inngest/email-handlers"
 
 // Order confirmation email
 export const sendOrderConfirmation = inngest.createFunction(
@@ -208,4 +211,10 @@ export const inngestFunctions = [
 	webhookDeliveryCleanup,
 	// Presence
 	...presenceHandlers,
+	// Auctions
+	...auctionHandlers,
+	// Workflow execution engine
+	...workflowHandlers,
+	// Email queue
+	...emailHandlers,
 ]

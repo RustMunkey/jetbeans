@@ -2,14 +2,16 @@
 
 import { headers } from "next/headers"
 import { db } from "@jetbeans/db/client"
-import { teamMessages, teamMessageRecipients, users } from "@jetbeans/db/schema"
+import { teamMessages, teamMessageRecipients, users, workspaceMembers } from "@jetbeans/db/schema"
 import { eq, desc, asc, and, isNull, ne } from "@jetbeans/db/drizzle"
 import { auth } from "@/lib/auth"
 import { pusherServer } from "@/lib/pusher-server"
 import { put } from "@vercel/blob"
 import type { MessageAttachment } from "./types"
+import { requireWorkspace } from "@/lib/workspace"
 
 export async function getTeamMessages(userId: string) {
+	const workspace = await requireWorkspace()
 	return db
 		.select({
 			id: teamMessages.id,
@@ -25,18 +27,21 @@ export async function getTeamMessages(userId: string) {
 		.from(teamMessageRecipients)
 		.innerJoin(teamMessages, eq(teamMessageRecipients.messageId, teamMessages.id))
 		.innerJoin(users, eq(teamMessages.senderId, users.id))
-		.where(eq(teamMessageRecipients.recipientId, userId))
+		.where(and(eq(teamMessageRecipients.recipientId, userId), eq(teamMessages.workspaceId, workspace.id)))
 		.orderBy(asc(teamMessages.createdAt))
 		.limit(100)
 }
 
 export async function getUnreadCount(userId: string) {
+	const workspace = await requireWorkspace()
 	const unread = await db
 		.select({ id: teamMessageRecipients.id })
 		.from(teamMessageRecipients)
+		.innerJoin(teamMessages, eq(teamMessageRecipients.messageId, teamMessages.id))
 		.where(
 			and(
 				eq(teamMessageRecipients.recipientId, userId),
+				eq(teamMessages.workspaceId, workspace.id),
 				isNull(teamMessageRecipients.readAt)
 			)
 		)
@@ -44,6 +49,7 @@ export async function getUnreadCount(userId: string) {
 }
 
 export async function getRecentMessages(userId: string, limit = 5) {
+	const workspace = await requireWorkspace()
 	const messages = await db
 		.select({
 			id: teamMessages.id,
@@ -60,6 +66,7 @@ export async function getRecentMessages(userId: string, limit = 5) {
 		.where(
 			and(
 				eq(teamMessageRecipients.recipientId, userId),
+				eq(teamMessages.workspaceId, workspace.id),
 				ne(teamMessages.senderId, userId) // Don't show own messages
 			)
 		)
@@ -85,6 +92,7 @@ export async function sendTeamMessage(data: {
 	recipientIds?: string[]
 	attachments?: MessageAttachment[]
 }) {
+	const workspace = await requireWorkspace()
 	const session = await auth.api.getSession({ headers: await headers() })
 	if (!session) throw new Error("Unauthorized")
 
@@ -100,16 +108,17 @@ export async function sendTeamMessage(data: {
 
 	let recipientIds = data.recipientIds
 	if (!recipientIds || recipientIds.length === 0) {
-		const allUsers = await db
-			.select({ id: users.id })
-			.from(users)
-			.where(ne(users.id, senderId))
-		recipientIds = allUsers.map((u) => u.id)
+		// Get all workspace members except the sender
+		const workspaceUsers = await db
+			.select({ userId: workspaceMembers.userId })
+			.from(workspaceMembers)
+			.where(and(eq(workspaceMembers.workspaceId, workspace.id), ne(workspaceMembers.userId, senderId)))
+		recipientIds = workspaceUsers.map((u) => u.userId)
 	}
 
 	const [message] = await db
 		.insert(teamMessages)
-		.values({ senderId, channel, body: data.body, attachments: data.attachments || [] })
+		.values({ workspaceId: workspace.id, senderId, channel, body: data.body, attachments: data.attachments || [] })
 		.returning()
 
 	// Insert recipient records for all recipients
@@ -138,6 +147,7 @@ export async function sendTeamMessage(data: {
 			senderImage: senderData?.image || null,
 			channel,
 			body: data.body,
+			attachments: data.attachments || [], // Required for instant message display
 			createdAt: message.createdAt.toISOString(),
 			readAt: null,
 		}
@@ -190,9 +200,12 @@ export async function markMessageRead(messageId: string) {
 }
 
 export async function getTeamMembers() {
+	const workspace = await requireWorkspace()
 	return db
 		.select({ id: users.id, name: users.name, email: users.email, image: users.image })
 		.from(users)
+		.innerJoin(workspaceMembers, eq(users.id, workspaceMembers.userId))
+		.where(eq(workspaceMembers.workspaceId, workspace.id))
 		.orderBy(users.name)
 }
 
@@ -212,14 +225,15 @@ export async function markAllRead() {
 }
 
 export async function clearConversationMessages(channel: string) {
+	const workspace = await requireWorkspace()
 	const session = await auth.api.getSession({ headers: await headers() })
 	if (!session) throw new Error("Unauthorized")
 
-	// Get message IDs for this channel
+	// Get message IDs for this channel in this workspace
 	const channelMessages = await db
 		.select({ id: teamMessages.id })
 		.from(teamMessages)
-		.where(eq(teamMessages.channel, channel))
+		.where(and(eq(teamMessages.channel, channel), eq(teamMessages.workspaceId, workspace.id)))
 
 	if (channelMessages.length === 0) return
 
@@ -391,10 +405,12 @@ import type { InboxEmail } from "./types"
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
 export async function getInboxEmails(): Promise<InboxEmail[]> {
-	// Get all emails with their replies
+	const workspace = await requireWorkspace()
+	// Get all emails with their replies for this workspace
 	const emails = await db
 		.select()
 		.from(inboxEmails)
+		.where(eq(inboxEmails.workspaceId, workspace.id))
 		.orderBy(desc(inboxEmails.receivedAt))
 		.limit(100)
 
@@ -438,6 +454,7 @@ export async function getInboxEmails(): Promise<InboxEmail[]> {
 }
 
 export async function markInboxEmailRead(emailId: string) {
+	const workspace = await requireWorkspace()
 	const session = await auth.api.getSession({ headers: await headers() })
 	if (!session) throw new Error("Unauthorized")
 
@@ -450,12 +467,14 @@ export async function markInboxEmailRead(emailId: string) {
 		.where(
 			and(
 				eq(inboxEmails.id, emailId),
+				eq(inboxEmails.workspaceId, workspace.id),
 				eq(inboxEmails.status, "unread")
 			)
 		)
 }
 
 export async function sendInboxReply(data: { emailId: string; body: string }) {
+	const workspace = await requireWorkspace()
 	const session = await auth.api.getSession({ headers: await headers() })
 	if (!session) throw new Error("Unauthorized")
 
@@ -463,7 +482,7 @@ export async function sendInboxReply(data: { emailId: string; body: string }) {
 	const [email] = await db
 		.select()
 		.from(inboxEmails)
-		.where(eq(inboxEmails.id, data.emailId))
+		.where(and(eq(inboxEmails.id, data.emailId), eq(inboxEmails.workspaceId, workspace.id)))
 		.limit(1)
 
 	if (!email) throw new Error("Email not found")
@@ -539,10 +558,19 @@ export async function createInboxEmail(data: {
 	bodyHtml?: string
 	source?: string
 	sourceId?: string
+	workspaceId?: string
 }) {
+	// workspaceId can be passed directly for webhooks, otherwise use current workspace
+	let workspaceId = data.workspaceId
+	if (!workspaceId) {
+		const workspace = await requireWorkspace()
+		workspaceId = workspace.id
+	}
+
 	const [email] = await db
 		.insert(inboxEmails)
 		.values({
+			workspaceId,
 			fromName: data.fromName,
 			fromEmail: data.fromEmail,
 			subject: data.subject,
@@ -557,6 +585,7 @@ export async function createInboxEmail(data: {
 }
 
 export async function archiveInboxEmail(emailId: string) {
+	const workspace = await requireWorkspace()
 	const session = await auth.api.getSession({ headers: await headers() })
 	if (!session) throw new Error("Unauthorized")
 
@@ -566,13 +595,14 @@ export async function archiveInboxEmail(emailId: string) {
 			status: "archived" as any,
 			archivedAt: new Date(),
 		})
-		.where(eq(inboxEmails.id, emailId))
+		.where(and(eq(inboxEmails.id, emailId), eq(inboxEmails.workspaceId, workspace.id)))
 }
 
 export async function getInboxUnreadCount() {
+	const workspace = await requireWorkspace()
 	const result = await db
 		.select({ id: inboxEmails.id })
 		.from(inboxEmails)
-		.where(eq(inboxEmails.status, "unread"))
+		.where(and(eq(inboxEmails.workspaceId, workspace.id), eq(inboxEmails.status, "unread")))
 	return result.length
 }

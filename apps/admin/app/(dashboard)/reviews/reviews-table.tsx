@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { formatDate } from "@/lib/format"
+import { useReviewsParams } from "@/hooks/use-table-params"
 import { bulkModerate } from "./actions"
 
 interface Review {
@@ -29,8 +30,6 @@ interface Review {
 interface ReviewsTableProps {
 	reviews: Review[]
 	totalCount: number
-	currentPage: number
-	currentStatus?: string
 }
 
 function Stars({ rating }: { rating: number }) {
@@ -41,8 +40,9 @@ function Stars({ rating }: { rating: number }) {
 	)
 }
 
-export function ReviewsTable({ reviews, totalCount, currentPage, currentStatus }: ReviewsTableProps) {
+export function ReviewsTable({ reviews, totalCount }: ReviewsTableProps) {
 	const router = useRouter()
+	const [params, setParams] = useReviewsParams()
 	const [selectedIds, setSelectedIds] = useState<string[]>([])
 	const [loading, setLoading] = useState(false)
 
@@ -115,8 +115,9 @@ export function ReviewsTable({ reviews, totalCount, currentPage, currentStatus }
 			columns={columns}
 			data={reviews}
 			totalCount={totalCount}
-			currentPage={currentPage}
+			currentPage={params.page}
 			pageSize={30}
+			onPageChange={(page) => setParams({ page })}
 			selectable
 			selectedIds={selectedIds}
 			onSelectionChange={setSelectedIds}
@@ -126,16 +127,9 @@ export function ReviewsTable({ reviews, totalCount, currentPage, currentStatus }
 			emptyDescription="Customer reviews will appear here for moderation."
 			filters={
 				<Select
-					value={currentStatus ?? "all"}
+					value={params.status}
 					onValueChange={(value) => {
-						const params = new URLSearchParams(window.location.search)
-						if (value && value !== "all") {
-							params.set("status", value)
-						} else {
-							params.delete("status")
-						}
-						params.delete("page")
-						router.push(`/reviews?${params.toString()}`)
+						setParams({ status: value as typeof params.status, page: 1 })
 					}}
 				>
 					<SelectTrigger className="h-9 w-full sm:w-[140px]">
@@ -146,7 +140,6 @@ export function ReviewsTable({ reviews, totalCount, currentPage, currentStatus }
 						<SelectItem value="pending">Pending</SelectItem>
 						<SelectItem value="approved">Approved</SelectItem>
 						<SelectItem value="rejected">Rejected</SelectItem>
-						<SelectItem value="reported">Reported</SelectItem>
 					</SelectContent>
 				</Select>
 			}

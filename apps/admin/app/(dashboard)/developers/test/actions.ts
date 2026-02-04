@@ -6,11 +6,15 @@ import { createNotification } from "@/app/(dashboard)/settings/notifications/act
 import { db } from "@jetbeans/db/client"
 import { orders, users } from "@jetbeans/db/schema"
 import { eq } from "@jetbeans/db/drizzle"
+import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 
-async function requireAdmin() {
-	const session = await auth.api.getSession({ headers: await headers() })
-	if (!session) throw new Error("Not authenticated")
-	return session.user
+async function requireTestPermission() {
+	const workspace = await requireWorkspace()
+	const canManage = await checkWorkspacePermission("canManageSettings")
+	if (!canManage) {
+		throw new Error("You don't have permission to run tests")
+	}
+	return workspace
 }
 
 // Test notification types
@@ -43,11 +47,11 @@ const NOTIFICATION_TEMPLATES = {
 }
 
 export async function createTestNotification(type: keyof typeof NOTIFICATION_TEMPLATES) {
-	const user = await requireAdmin()
+	const workspace = await requireTestPermission()
 	const template = NOTIFICATION_TEMPLATES[type]
 
 	const notification = await createNotification({
-		userId: user.id,
+		userId: workspace.userId,
 		type,
 		title: template.title,
 		body: template.body,
@@ -58,12 +62,12 @@ export async function createTestNotification(type: keyof typeof NOTIFICATION_TEM
 }
 
 export async function createAllTestNotifications() {
-	const user = await requireAdmin()
+	const workspace = await requireTestPermission()
 	const results = []
 
 	for (const [type, template] of Object.entries(NOTIFICATION_TEMPLATES)) {
 		const notification = await createNotification({
-			userId: user.id,
+			userId: workspace.userId,
 			type,
 			title: template.title,
 			body: template.body,
@@ -77,13 +81,13 @@ export async function createAllTestNotifications() {
 
 // Test shipping email - sends directly to current user without needing a real order
 export async function sendTestShippingEmail(status: "shipped" | "out_for_delivery" | "delivered") {
-	const user = await requireAdmin()
+	const workspace = await requireTestPermission()
 
 	// Get user's email for testing
 	const [dbUser] = await db
 		.select({ email: users.email, name: users.name })
 		.from(users)
-		.where(eq(users.id, user.id))
+		.where(eq(users.id, workspace.userId))
 		.limit(1)
 
 	if (!dbUser?.email) {
@@ -188,7 +192,7 @@ export async function sendTestShippingEmail(status: "shipped" | "out_for_deliver
 
 // Test inbox/contact form email
 export async function createTestInboxEmail() {
-	await requireAdmin()
+	await requireTestPermission()
 
 	const testEmails = [
 		{
@@ -238,7 +242,7 @@ export async function createTestInboxEmail() {
 
 // Get test order for email testing
 export async function getTestOrders() {
-	await requireAdmin()
+	const workspace = await requireTestPermission()
 
 	const testOrders = await db
 		.select({
@@ -248,6 +252,7 @@ export async function getTestOrders() {
 			trackingNumber: orders.trackingNumber,
 		})
 		.from(orders)
+		.where(eq(orders.workspaceId, workspace.id))
 		.limit(10)
 
 	return testOrders

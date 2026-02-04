@@ -1,21 +1,20 @@
 "use server"
 
-import { headers } from "next/headers"
 import { eq, and, desc, count } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { subscriptions, subscriptionItems, users, productVariants, products } from "@jetbeans/db/schema"
-import { auth } from "@/lib/auth"
 import { logAudit } from "@/lib/audit"
 import { pusherServer } from "@/lib/pusher-server"
 import { fireWebhooks } from "@/lib/webhooks/outgoing"
+import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 
-async function requireAdmin() {
-	const session = await auth.api.getSession({ headers: await headers() })
-	if (!session) throw new Error("Not authenticated")
-	if (session.user.role !== "owner" && session.user.role !== "admin") {
-		throw new Error("Insufficient permissions")
+async function requireSubscriptionsPermission() {
+	const workspace = await requireWorkspace()
+	const canManage = await checkWorkspacePermission("canManageOrders")
+	if (!canManage) {
+		throw new Error("You don't have permission to manage subscriptions")
 	}
-	return session.user
+	return workspace
 }
 
 interface GetSubscriptionsParams {
@@ -25,10 +24,12 @@ interface GetSubscriptionsParams {
 }
 
 export async function getSubscriptions(params: GetSubscriptionsParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30, status } = params
 	const offset = (page - 1) * pageSize
 
-	const conditions = []
+	// Always filter by workspace
+	const conditions = [eq(subscriptions.workspaceId, workspace.id)]
 	if (status) {
 		if (status === "cancelled") {
 			conditions.push(eq(subscriptions.status, "cancelled"))
@@ -37,7 +38,7 @@ export async function getSubscriptions(params: GetSubscriptionsParams = {}) {
 		}
 	}
 
-	const where = conditions.length > 0 ? and(...conditions) : undefined
+	const where = and(...conditions)
 
 	const [items, [total]] = await Promise.all([
 		db
@@ -69,6 +70,8 @@ export async function getSubscriptions(params: GetSubscriptionsParams = {}) {
 }
 
 export async function getSubscription(id: string) {
+	const workspace = await requireWorkspace()
+
 	const [sub] = await db
 		.select({
 			id: subscriptions.id,
@@ -88,7 +91,7 @@ export async function getSubscription(id: string) {
 		})
 		.from(subscriptions)
 		.leftJoin(users, eq(subscriptions.userId, users.id))
-		.where(eq(subscriptions.id, id))
+		.where(and(eq(subscriptions.id, id), eq(subscriptions.workspaceId, workspace.id)))
 		.limit(1)
 
 	if (!sub) return null
@@ -113,7 +116,7 @@ export async function getSubscription(id: string) {
 }
 
 export async function updateSubscriptionStatus(id: string, status: string) {
-	await requireAdmin()
+	const workspace = await requireSubscriptionsPermission()
 
 	const updates: Record<string, unknown> = {
 		status,
@@ -130,7 +133,7 @@ export async function updateSubscriptionStatus(id: string, status: string) {
 		updates.nextDeliveryAt = null
 	}
 
-	await db.update(subscriptions).set(updates).where(eq(subscriptions.id, id))
+	await db.update(subscriptions).set(updates).where(and(eq(subscriptions.id, id), eq(subscriptions.workspaceId, workspace.id)))
 
 	await logAudit({
 		action: `subscription.${status}`,
@@ -168,7 +171,7 @@ export async function updateSubscriptionStatus(id: string, status: string) {
 }
 
 export async function cancelSubscription(id: string, reason: string) {
-	await requireAdmin()
+	const workspace = await requireSubscriptionsPermission()
 
 	const cancelledAt = new Date()
 
@@ -181,7 +184,7 @@ export async function cancelSubscription(id: string, reason: string) {
 			nextDeliveryAt: null,
 			updatedAt: new Date(),
 		})
-		.where(eq(subscriptions.id, id))
+		.where(and(eq(subscriptions.id, id), eq(subscriptions.workspaceId, workspace.id)))
 
 	await logAudit({
 		action: "subscription.cancelled",
@@ -209,7 +212,7 @@ export async function cancelSubscription(id: string, reason: string) {
 }
 
 export async function resumeSubscription(id: string) {
-	await requireAdmin()
+	const workspace = await requireSubscriptionsPermission()
 
 	const nextDelivery = new Date()
 	nextDelivery.setDate(nextDelivery.getDate() + 7)
@@ -223,7 +226,7 @@ export async function resumeSubscription(id: string) {
 			nextDeliveryAt: nextDelivery,
 			updatedAt: new Date(),
 		})
-		.where(eq(subscriptions.id, id))
+		.where(and(eq(subscriptions.id, id), eq(subscriptions.workspaceId, workspace.id)))
 
 	await logAudit({
 		action: "subscription.resumed",
@@ -251,12 +254,12 @@ export async function resumeSubscription(id: string) {
 }
 
 export async function updateFrequency(id: string, frequency: string) {
-	await requireAdmin()
+	const workspace = await requireSubscriptionsPermission()
 
 	await db
 		.update(subscriptions)
 		.set({ frequency, updatedAt: new Date() })
-		.where(eq(subscriptions.id, id))
+		.where(and(eq(subscriptions.id, id), eq(subscriptions.workspaceId, workspace.id)))
 
 	await logAudit({
 		action: "subscription.frequency_updated",

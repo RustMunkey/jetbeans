@@ -24,12 +24,15 @@ interface ImageCropperProps {
 	title?: string
 	description?: string
 	recommendedSize?: string
+	outputWidth?: number
+	outputHeight?: number
 }
 
 async function getCroppedImg(
 	imageSrc: string,
 	pixelCrop: Area,
-	outputSize: number = 512
+	outputWidth: number = 512,
+	outputHeight: number = 512
 ): Promise<Blob> {
 	const image = await createImage(imageSrc)
 	const canvas = document.createElement("canvas")
@@ -40,8 +43,8 @@ async function getCroppedImg(
 	}
 
 	// Set canvas size to desired output
-	canvas.width = outputSize
-	canvas.height = outputSize
+	canvas.width = outputWidth
+	canvas.height = outputHeight
 
 	// Draw the cropped image scaled to output size
 	ctx.drawImage(
@@ -52,8 +55,8 @@ async function getCroppedImg(
 		pixelCrop.height,
 		0,
 		0,
-		outputSize,
-		outputSize
+		outputWidth,
+		outputHeight
 	)
 
 	return new Promise((resolve, reject) => {
@@ -91,6 +94,8 @@ export function ImageCropper({
 	title = "Crop Image",
 	description = "Adjust the crop area to select the portion of the image you want to use.",
 	recommendedSize = "512x512",
+	outputWidth = 512,
+	outputHeight = 512,
 }: ImageCropperProps) {
 	const [crop, setCrop] = useState<Point>({ x: 0, y: 0 })
 	const [zoom, setZoom] = useState(1)
@@ -114,7 +119,7 @@ export function ImageCropper({
 
 		setIsSaving(true)
 		try {
-			const croppedImage = await getCroppedImg(imageSrc, croppedAreaPixels)
+			const croppedImage = await getCroppedImg(imageSrc, croppedAreaPixels, outputWidth, outputHeight)
 			onCropComplete(croppedImage)
 			onOpenChange(false)
 			// Reset state

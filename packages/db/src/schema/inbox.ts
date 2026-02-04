@@ -1,11 +1,15 @@
-import { pgTable, text, uuid, timestamp, jsonb } from "drizzle-orm/pg-core"
+import { pgTable, text, uuid, timestamp, jsonb, index } from "drizzle-orm/pg-core"
 import { users } from "./users"
+import { workspaces } from "./workspaces"
 
 // Inbound emails from customers (contact form, replies, etc.)
-export const inboxEmails = pgTable("inbox_emails", {
-	id: uuid("id").primaryKey().defaultRandom(),
-	// Sender info
-	fromName: text("from_name").notNull(),
+export const inboxEmails = pgTable(
+	"inbox_emails",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workspaceId: uuid("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
+		// Sender info
+		fromName: text("from_name").notNull(),
 	fromEmail: text("from_email").notNull(),
 	// Email content
 	subject: text("subject").notNull(),
@@ -18,11 +22,15 @@ export const inboxEmails = pgTable("inbox_emails", {
 	status: text("status").notNull().default("unread"), // unread, read, replied, archived, spam
 	// Assignment
 	assignedTo: text("assigned_to").references(() => users.id),
-	// Timestamps
-	receivedAt: timestamp("received_at").defaultNow().notNull(),
-	readAt: timestamp("read_at"),
-	archivedAt: timestamp("archived_at"),
-})
+		// Timestamps
+		receivedAt: timestamp("received_at").defaultNow().notNull(),
+		readAt: timestamp("read_at"),
+		archivedAt: timestamp("archived_at"),
+	},
+	(table) => [
+		index("inbox_emails_workspace_idx").on(table.workspaceId),
+	]
+)
 
 // Replies sent from admin to customers
 export const inboxReplies = pgTable("inbox_replies", {

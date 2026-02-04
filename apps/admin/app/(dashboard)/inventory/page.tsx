@@ -1,22 +1,21 @@
+import { Suspense } from "react"
 import { getInventory } from "./actions"
 import { InventoryTable } from "./inventory-table"
+import { inventoryParamsCache } from "@/lib/search-params"
 
 interface PageProps {
-	searchParams: Promise<{
-		page?: string
-		search?: string
-		filter?: string
-	}>
+	searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 export default async function InventoryPage({ searchParams }: PageProps) {
-	const params = await searchParams
-	const page = Number(params.page) || 1
+	const { page, search, stock } = await inventoryParamsCache.parse(searchParams)
+	// Map nuqs stock filter values to the getInventory filter param
+	const filter = stock === "all" ? undefined : stock === "low_stock" ? "low" : stock === "out_of_stock" ? "out" : undefined
 	const { items, totalCount } = await getInventory({
 		page,
 		pageSize: 30,
-		search: params.search,
-		filter: params.filter,
+		search: search || undefined,
+		filter,
 	})
 
 	return (
@@ -28,12 +27,12 @@ export default async function InventoryPage({ searchParams }: PageProps) {
 				</p>
 			</div>
 
-			<InventoryTable
-				items={items}
-				totalCount={totalCount}
-				currentPage={page}
-				currentFilter={params.filter}
-			/>
+			<Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded-lg" />}>
+				<InventoryTable
+					items={items}
+					totalCount={totalCount}
+				/>
+			</Suspense>
 		</div>
 	)
 }

@@ -40,9 +40,9 @@ export function LoginForm({
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <div className="flex flex-col items-center gap-2 text-center">
-        <h1 className="text-2xl font-bold">Welcome back</h1>
+        <h1 className="text-2xl font-bold">Welcome to JetBeans</h1>
         <p className="text-muted-foreground text-sm text-balance">
-          Sign in to continue to the admin panel
+          Sign in or create an account to continue
         </p>
       </div>
       <div className="flex flex-col gap-4">

@@ -31,6 +31,7 @@ interface DataTableProps<T> {
 	totalCount?: number
 	pageSize?: number
 	currentPage?: number
+	onPageChange?: (page: number) => void
 	onRowClick?: (row: T) => void
 	selectable?: boolean
 	selectedIds?: string[]
@@ -50,6 +51,7 @@ export function DataTable<T>({
 	totalCount,
 	pageSize = 30,
 	currentPage = 1,
+	onPageChange,
 	onRowClick,
 	selectable = false,
 	selectedIds = [],
@@ -80,19 +82,18 @@ export function DataTable<T>({
 	const total = totalCount ?? data.length
 	const totalPages = Math.ceil(total / pageSize)
 
-	const updateParams = React.useCallback(
-		(updates: Record<string, string | null>, scrollToTop = false) => {
-			const params = new URLSearchParams(searchParams.toString())
-			for (const [key, value] of Object.entries(updates)) {
-				if (value === null || value === "") {
-					params.delete(key)
-				} else {
-					params.set(key, value)
-				}
+	const handlePageChange = React.useCallback(
+		(page: number) => {
+			if (onPageChange) {
+				onPageChange(page)
+			} else {
+				// Fallback to router for backward compatibility
+				const params = new URLSearchParams(searchParams.toString())
+				params.set("page", String(page))
+				router.push(`${pathname}?${params.toString()}`, { scroll: true })
 			}
-			router.push(`${pathname}?${params.toString()}`, { scroll: scrollToTop })
 		},
-		[router, pathname, searchParams]
+		[onPageChange, router, pathname, searchParams]
 	)
 
 	const allSelected = filteredData.length > 0 && getId && selectedIds.length === filteredData.length
@@ -236,7 +237,7 @@ export function DataTable<T>({
 							variant="outline"
 							size="sm"
 							disabled={currentPage <= 1}
-							onClick={() => updateParams({ page: String(currentPage - 1) }, true)}
+							onClick={() => handlePageChange(currentPage - 1)}
 						>
 							Previous
 						</Button>
@@ -247,7 +248,7 @@ export function DataTable<T>({
 							variant="outline"
 							size="sm"
 							disabled={currentPage >= totalPages}
-							onClick={() => updateParams({ page: String(currentPage + 1) }, true)}
+							onClick={() => handlePageChange(currentPage + 1)}
 						>
 							Next
 						</Button>

@@ -1,19 +1,18 @@
 "use server"
 
-import { headers } from "next/headers"
-import { eq, desc, count } from "@jetbeans/db/drizzle"
+import { eq, desc, count, and } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { giftCards, giftCardTransactions, users } from "@jetbeans/db/schema"
-import { auth } from "@/lib/auth"
 import { logAudit } from "@/lib/audit"
+import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 
-async function requireAdmin() {
-	const session = await auth.api.getSession({ headers: await headers() })
-	if (!session) throw new Error("Not authenticated")
-	if (session.user.role !== "owner" && session.user.role !== "admin") {
-		throw new Error("Insufficient permissions")
+async function requireGiftCardsPermission() {
+	const workspace = await requireWorkspace()
+	const canManage = await checkWorkspacePermission("canManageCustomers")
+	if (!canManage) {
+		throw new Error("You don't have permission to manage gift cards")
 	}
-	return session.user
+	return workspace
 }
 
 function generateCode(): string {
@@ -32,8 +31,11 @@ interface GetGiftCardsParams {
 }
 
 export async function getGiftCards(params: GetGiftCardsParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30 } = params
 	const offset = (page - 1) * pageSize
+
+	const where = eq(giftCards.workspaceId, workspace.id)
 
 	const [items, [total]] = await Promise.all([
 		db
@@ -49,20 +51,22 @@ export async function getGiftCards(params: GetGiftCardsParams = {}) {
 				createdAt: giftCards.createdAt,
 			})
 			.from(giftCards)
+			.where(where)
 			.orderBy(desc(giftCards.createdAt))
 			.limit(pageSize)
 			.offset(offset),
-		db.select({ count: count() }).from(giftCards),
+		db.select({ count: count() }).from(giftCards).where(where),
 	])
 
 	return { items, totalCount: total.count }
 }
 
 export async function getGiftCard(id: string) {
+	const workspace = await requireWorkspace()
 	const [card] = await db
 		.select()
 		.from(giftCards)
-		.where(eq(giftCards.id, id))
+		.where(and(eq(giftCards.id, id), eq(giftCards.workspaceId, workspace.id)))
 		.limit(1)
 
 	if (!card) throw new Error("Gift card not found")
@@ -106,7 +110,7 @@ interface CreateGiftCardData {
 }
 
 export async function createGiftCard(data: CreateGiftCardData) {
-	const admin = await requireAdmin()
+	const workspace = await requireGiftCardsPermission()
 
 	const code = generateCode()
 	const balance = parseFloat(data.initialBalance)
@@ -117,11 +121,12 @@ export async function createGiftCard(data: CreateGiftCardData) {
 	const [card] = await db
 		.insert(giftCards)
 		.values({
+			workspaceId: workspace.id,
 			code,
 			initialBalance: data.initialBalance,
 			currentBalance: data.initialBalance,
 			issuedTo: data.issuedTo || null,
-			issuedBy: admin.id,
+			issuedBy: workspace.userId,
 			expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
 		})
 		.returning()
@@ -144,13 +149,15 @@ export async function createGiftCard(data: CreateGiftCardData) {
 }
 
 export async function deactivateGiftCard(id: string) {
-	const admin = await requireAdmin()
+	const workspace = await requireGiftCardsPermission()
 
 	const [card] = await db
 		.update(giftCards)
 		.set({ status: "deactivated" })
-		.where(eq(giftCards.id, id))
+		.where(and(eq(giftCards.id, id), eq(giftCards.workspaceId, workspace.id)))
 		.returning()
+
+	if (!card) throw new Error("Gift card not found")
 
 	await db.insert(giftCardTransactions).values({
 		giftCardId: id,

@@ -1,16 +1,18 @@
 "use server"
 
-import { headers } from "next/headers"
 import { db } from "@jetbeans/db/client"
 import { desc, eq, sql, gte, lte, and } from "@jetbeans/db/drizzle"
 import { orders, products, subscriptions, crmContacts, users, categories } from "@jetbeans/db/schema"
-import { auth } from "@/lib/auth"
 import * as XLSX from "xlsx"
+import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 
-async function requireAdmin() {
-	const session = await auth.api.getSession({ headers: await headers() })
-	if (!session) throw new Error("Unauthorized")
-	return session.user
+async function requireExportPermission() {
+	const workspace = await requireWorkspace()
+	const canManage = await checkWorkspacePermission("canManageSettings")
+	if (!canManage) {
+		throw new Error("You don't have permission to export data")
+	}
+	return workspace
 }
 
 type ExportFormat = "csv" | "xlsx"
@@ -58,11 +60,13 @@ export async function exportOrders(
 	format: ExportFormat,
 	dateRange?: DateRange
 ): Promise<{ data: string; filename: string; mimeType: string }> {
-	await requireAdmin()
+	const workspace = await requireExportPermission()
 
-	const whereConditions = dateRange
-		? and(gte(orders.createdAt, dateRange.from), lte(orders.createdAt, dateRange.to))
-		: undefined
+	const conditions = [eq(orders.workspaceId, workspace.id)]
+	if (dateRange) {
+		conditions.push(gte(orders.createdAt, dateRange.from))
+		conditions.push(lte(orders.createdAt, dateRange.to))
+	}
 
 	const data = await db
 		.select({
@@ -82,7 +86,7 @@ export async function exportOrders(
 		})
 		.from(orders)
 		.leftJoin(users, eq(orders.userId, users.id))
-		.where(whereConditions)
+		.where(and(...conditions))
 		.orderBy(desc(orders.createdAt))
 
 	// Format dates and numbers for export
@@ -142,7 +146,7 @@ export async function exportOrders(
 export async function exportCustomers(
 	format: ExportFormat
 ): Promise<{ data: string; filename: string; mimeType: string }> {
-	await requireAdmin()
+	const workspace = await requireExportPermission()
 
 	const data = await db
 		.select({
@@ -161,6 +165,7 @@ export async function exportCustomers(
 			createdAt: crmContacts.createdAt,
 		})
 		.from(crmContacts)
+		.where(eq(crmContacts.workspaceId, workspace.id))
 		.orderBy(desc(crmContacts.createdAt))
 
 	const formatted = data.map((row) => ({
@@ -198,7 +203,7 @@ export async function exportCustomers(
 export async function exportProducts(
 	format: ExportFormat
 ): Promise<{ data: string; filename: string; mimeType: string }> {
-	await requireAdmin()
+	const workspace = await requireExportPermission()
 
 	const data = await db
 		.select({
@@ -215,6 +220,7 @@ export async function exportProducts(
 		})
 		.from(products)
 		.leftJoin(categories, eq(products.categoryId, categories.id))
+		.where(eq(products.workspaceId, workspace.id))
 		.orderBy(products.name)
 
 	const formatted = data.map((row) => ({
@@ -264,7 +270,7 @@ export async function exportProducts(
 export async function exportSubscriptions(
 	format: ExportFormat
 ): Promise<{ data: string; filename: string; mimeType: string }> {
-	await requireAdmin()
+	const workspace = await requireExportPermission()
 
 	const data = await db
 		.select({
@@ -282,6 +288,7 @@ export async function exportSubscriptions(
 		})
 		.from(subscriptions)
 		.leftJoin(users, eq(subscriptions.userId, users.id))
+		.where(eq(subscriptions.workspaceId, workspace.id))
 		.orderBy(desc(subscriptions.createdAt))
 
 	const formatted = data.map((row) => ({
@@ -334,7 +341,7 @@ export async function exportFinancialSummary(
 	format: ExportFormat,
 	year: number
 ): Promise<{ data: string; filename: string; mimeType: string }> {
-	await requireAdmin()
+	const workspace = await requireExportPermission()
 
 	const startDate = new Date(year, 0, 1)
 	const endDate = new Date(year, 11, 31, 23, 59, 59)
@@ -352,7 +359,11 @@ export async function exportFinancialSummary(
 		})
 		.from(orders)
 		.where(
-			and(gte(orders.createdAt, startDate), lte(orders.createdAt, endDate))
+			and(
+				eq(orders.workspaceId, workspace.id),
+				gte(orders.createdAt, startDate),
+				lte(orders.createdAt, endDate)
+			)
 		)
 		.groupBy(sql`EXTRACT(MONTH FROM ${orders.createdAt})`)
 		.orderBy(sql`EXTRACT(MONTH FROM ${orders.createdAt})`)
@@ -417,13 +428,14 @@ export async function exportFinancialSummary(
 
 // Get available years for financial reports
 export async function getAvailableYears(): Promise<number[]> {
-	await requireAdmin()
+	const workspace = await requireExportPermission()
 
 	const result = await db
 		.select({
 			year: sql<number>`DISTINCT EXTRACT(YEAR FROM ${orders.createdAt})`,
 		})
 		.from(orders)
+		.where(eq(orders.workspaceId, workspace.id))
 		.orderBy(sql`EXTRACT(YEAR FROM ${orders.createdAt}) DESC`)
 
 	const years = result.map((r) => Number(r.year)).filter((y) => !isNaN(y))

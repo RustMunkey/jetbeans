@@ -194,11 +194,11 @@ export function HeaderToolbar() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Tools Button */}
+      {/* Tools Button - hidden on mobile (widgets don't work well on mobile) */}
       <Button
         variant="ghost"
         size="icon"
-        className={`size-8 ${isToolbarOpen ? "text-primary" : ""}`}
+        className={`size-8 hidden md:flex ${isToolbarOpen ? "text-primary" : ""}`}
         onClick={toggleToolbar}
         title="Tools (Ctrl+\\ or Cmd+\\)"
       >

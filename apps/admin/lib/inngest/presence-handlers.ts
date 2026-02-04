@@ -3,10 +3,12 @@ import { db } from "@jetbeans/db"
 import { userPresence, pageViewers } from "@jetbeans/db/schema"
 import { lt } from "@jetbeans/db/drizzle"
 
-// Clean up stale presence records every 5 minutes
+// Clean up stale presence records every 15 minutes
+// Note: Primary presence tracking now uses Redis with auto-expiring keys
+// This cron is for DB fallback cleanup only
 export const cleanupStalePresence = inngest.createFunction(
 	{ id: "cleanup-stale-presence" },
-	{ cron: "*/5 * * * *" }, // Every 5 minutes
+	{ cron: "*/15 * * * *" }, // Every 15 minutes (reduced from 5)
 	async ({ step }) => {
 		const staleThreshold = 5 * 60 * 1000 // 5 minutes in ms
 		const cutoff = new Date(Date.now() - staleThreshold)

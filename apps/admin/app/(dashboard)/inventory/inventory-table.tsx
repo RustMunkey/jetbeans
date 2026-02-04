@@ -18,6 +18,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { adjustStock, updateThreshold } from "./actions"
 import { useLiveInventory, type LiveInventoryItem } from "@/hooks/use-live-inventory"
+import { useInventoryParams } from "@/hooks/use-table-params"
 import { cn } from "@/lib/utils"
 
 interface InventoryItem {
@@ -37,8 +38,6 @@ interface InventoryItem {
 interface InventoryTableProps {
 	items: InventoryItem[]
 	totalCount: number
-	currentPage: number
-	currentFilter?: string
 }
 
 function getStockStatus(item: InventoryItem): string {
@@ -48,8 +47,9 @@ function getStockStatus(item: InventoryItem): string {
 	return "in_stock"
 }
 
-export function InventoryTable({ items: initialItems, totalCount, currentPage, currentFilter }: InventoryTableProps) {
+export function InventoryTable({ items: initialItems, totalCount }: InventoryTableProps) {
 	const router = useRouter()
+	const [params, setParams] = useInventoryParams()
 	const { items } = useLiveInventory({
 		initialItems: initialItems as LiveInventoryItem[],
 		onLowStock: (data) => toast.warning(`Low stock: ${data.productName}`),
@@ -197,8 +197,9 @@ export function InventoryTable({ items: initialItems, totalCount, currentPage, c
 				data={items}
 				searchPlaceholder="Search products, SKUs..."
 				totalCount={totalCount}
-				currentPage={currentPage}
+				currentPage={params.page}
 				pageSize={30}
+				onPageChange={(page) => setParams({ page })}
 				getId={(row) => row.id}
 				onRowClick={(row) => {
 					setSelectedItem(row)
@@ -210,16 +211,9 @@ export function InventoryTable({ items: initialItems, totalCount, currentPage, c
 				emptyDescription="Inventory is tracked when products have variants."
 				filters={
 					<Select
-						value={currentFilter ?? "all"}
+						value={params.stock}
 						onValueChange={(value) => {
-							const params = new URLSearchParams(window.location.search)
-							if (value && value !== "all") {
-								params.set("filter", value)
-							} else {
-								params.delete("filter")
-							}
-							params.delete("page")
-							router.push(`/inventory?${params.toString()}`)
+							setParams({ stock: value as typeof params.stock, page: 1 })
 						}}
 					>
 						<SelectTrigger className="h-9 w-full sm:w-[150px]">
@@ -227,8 +221,8 @@ export function InventoryTable({ items: initialItems, totalCount, currentPage, c
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value="all">All Stock</SelectItem>
-							<SelectItem value="low">Low Stock</SelectItem>
-							<SelectItem value="out">Out of Stock</SelectItem>
+							<SelectItem value="low_stock">Low Stock</SelectItem>
+							<SelectItem value="out_of_stock">Out of Stock</SelectItem>
 						</SelectContent>
 					</Select>
 				}

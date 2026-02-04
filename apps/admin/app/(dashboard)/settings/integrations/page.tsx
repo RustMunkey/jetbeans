@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth"
 import { db } from "@jetbeans/db/client"
 import { eq } from "@jetbeans/db/drizzle"
 import { users } from "@jetbeans/db/schema"
-import { getSettings } from "../actions"
+import { getSettings, getWorkspaceEmailConfig, getWorkspaceStripeConfig, getWorkspacePayPalConfig, getWorkspacePolarConfig, getWorkspaceReownConfig } from "../actions"
 import { IntegrationsClient } from "./integrations-client"
 
 export default async function IntegrationsPage() {
@@ -25,11 +25,18 @@ export default async function IntegrationsPage() {
 		redirect("/settings")
 	}
 
-	const settings = await getSettings()
+	const [settings, workspaceEmail, workspaceStripe, workspacePayPal, workspacePolar, workspaceReown] = await Promise.all([
+		getSettings(),
+		getWorkspaceEmailConfig(),
+		getWorkspaceStripeConfig(),
+		getWorkspacePayPalConfig(),
+		getWorkspacePolarConfig(),
+		getWorkspaceReownConfig(),
+	])
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-			<IntegrationsClient settings={settings} />
+			<IntegrationsClient settings={settings} workspaceEmail={workspaceEmail} workspaceStripe={workspaceStripe} workspacePayPal={workspacePayPal} workspacePolar={workspacePolar} workspaceReown={workspaceReown} />
 		</div>
 	)
 }

@@ -13,7 +13,11 @@ import {
 	PauseIcon,
 	Edit02Icon,
 	DragDropHorizontalIcon,
+	Cancel01Icon,
+	CameraAdd01Icon,
+	PinIcon,
 } from "@hugeicons/core-free-icons"
+import { ImagePlus } from "lucide-react"
 import {
 	DndContext,
 	closestCenter,
@@ -111,6 +115,13 @@ type User = {
 	image: string | null
 	role: string | null
 	phone: string | null
+	username: string | null
+	bio: string | null
+	bannerImage: string | null
+	location: string | null
+	website: string | null
+	occupation: string | null
+	birthdate: string | null
 	createdAt: Date
 }
 
@@ -326,13 +337,24 @@ export function AccountSettings({ user }: { user: User }) {
 	const [name, setName] = useState(user.name)
 	const [phone, setPhone] = useState(user.phone || "")
 	const [image, setImage] = useState(user.image || "")
+	const [bannerImage, setBannerImage] = useState(user.bannerImage || "")
+	const [username, setUsername] = useState(user.username || "")
+	const [bio, setBio] = useState(user.bio || "")
+	const [location, setLocation] = useState(user.location || "")
+	const [website, setWebsite] = useState(user.website || "")
+	const [occupation, setOccupation] = useState(user.occupation || "")
+	const [birthdate, setBirthdate] = useState(user.birthdate || "")
 	const [saving, setSaving] = useState(false)
 	const [uploading, setUploading] = useState(false)
+	const [uploadingBanner, setUploadingBanner] = useState(false)
 	const [mounted, setMounted] = useState(false)
-	const [accentTheme, setAccentTheme] = useState("coffee")
+	const [accentTheme, setAccentTheme] = useState("neutral")
 	const fileInputRef = useRef<HTMLInputElement>(null)
+	const bannerInputRef = useRef<HTMLInputElement>(null)
 	const [cropperOpen, setCropperOpen] = useState(false)
 	const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null)
+	const [bannerCropperOpen, setBannerCropperOpen] = useState(false)
+	const [selectedBannerSrc, setSelectedBannerSrc] = useState<string | null>(null)
 
 	// Music library state
 	const [tracks, setTracks] = useState<UserAudioTrack[]>([])
@@ -555,6 +577,37 @@ export function AccountSettings({ user }: { user: User }) {
 		}
 	}
 
+	function handleBannerSelect(file: File) {
+		if (!file.type.startsWith("image/")) {
+			toast.error("Please select an image file")
+			return
+		}
+		const reader = new FileReader()
+		reader.onload = () => {
+			setSelectedBannerSrc(reader.result as string)
+			setBannerCropperOpen(true)
+		}
+		reader.readAsDataURL(file)
+	}
+
+	async function handleCroppedBanner(croppedBlob: Blob) {
+		setUploadingBanner(true)
+		try {
+			const formData = new FormData()
+			formData.append("file", croppedBlob, "banner.jpg")
+			const res = await fetch("/api/upload", { method: "POST", body: formData })
+			if (!res.ok) throw new Error("Upload failed")
+			const { url } = await res.json()
+			setBannerImage(url)
+			toast.success("Banner uploaded")
+		} catch {
+			toast.error("Failed to upload banner")
+		} finally {
+			setUploadingBanner(false)
+			setSelectedBannerSrc(null)
+		}
+	}
+
 	async function handleSave() {
 		if (!name.trim()) {
 			toast.error("Name is required")
@@ -566,6 +619,13 @@ export function AccountSettings({ user }: { user: User }) {
 				name: name.trim(),
 				phone: phone.trim() || undefined,
 				image: image || undefined,
+				bannerImage: bannerImage || undefined,
+				username: username.trim() || undefined,
+				bio: bio.trim() || undefined,
+				location: location.trim() || undefined,
+				website: website.trim() || undefined,
+				occupation: occupation.trim() || undefined,
+				birthdate: birthdate || undefined,
 			})
 			toast.success("Profile updated")
 			// Refresh server components to update sidebar, header, etc.
@@ -579,122 +639,213 @@ export function AccountSettings({ user }: { user: User }) {
 
 	return (
 		<div className="space-y-6">
-			<div>
-				<h2 className="text-lg font-semibold">Account</h2>
-				<p className="text-muted-foreground text-sm">Manage your profile and account settings.</p>
+			<div className="flex items-start justify-between">
+				<div>
+					<h2 className="text-lg font-semibold">Account</h2>
+					<p className="text-muted-foreground text-sm">Manage your profile and account settings.</p>
+				</div>
+				<Button onClick={handleSave} disabled={saving}>
+					{saving ? "Saving..." : "Save Changes"}
+				</Button>
 			</div>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Profile Photo</CardTitle>
-					<CardDescription>Click the avatar or upload a new photo.</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<div className="flex items-center gap-4">
+			{/* Profile Header with Banner */}
+			<Card className="overflow-hidden p-0 py-0 gap-0">
+				{/* Banner */}
+				<div className="relative group">
+					<div className="h-32 sm:h-48 bg-muted">
+							{bannerImage ? (
+								<img src={bannerImage} alt="Banner" className="w-full h-full object-cover" />
+							) : (
+								<div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5" />
+							)}
+							<div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 flex items-center justify-center gap-4 transition-all">
+								{uploadingBanner ? (
+									<div className="size-10 rounded-full bg-white/20 flex items-center justify-center">
+										<div className="size-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+									</div>
+								) : (
+									<>
+										<button
+											type="button"
+											onClick={() => bannerInputRef.current?.click()}
+											className="opacity-0 group-hover:opacity-100 transition-opacity p-3 rounded-full bg-white/20 hover:bg-white/30"
+										>
+											<ImagePlus className="size-6 text-white" />
+										</button>
+										{bannerImage && (
+											<button
+												type="button"
+												onClick={() => setBannerImage("")}
+												className="opacity-0 group-hover:opacity-100 transition-opacity p-3 rounded-full bg-white/20 hover:bg-white/30"
+											>
+												<HugeiconsIcon icon={Cancel01Icon} className="size-6 text-white" />
+											</button>
+										)}
+									</>
+								)}
+							</div>
+						</div>
+						<input
+							ref={bannerInputRef}
+							type="file"
+							accept="image/*"
+							className="hidden"
+							onChange={(e) => {
+								const file = e.target.files?.[0]
+								if (file) handleBannerSelect(file)
+								e.target.value = ""
+							}}
+						/>
+				</div>
+				<CardContent className="pb-6">
+					{/* Avatar overlapping banner */}
+					<div className="relative -mt-12 sm:-mt-16 mb-4">
 						<div
-							className="relative cursor-pointer group"
+							className="relative cursor-pointer group w-fit"
 							onClick={() => fileInputRef.current?.click()}
 						>
-							<Avatar className="h-20 w-20">
+							<Avatar className="size-24 sm:size-32 border-4 border-card">
 								{image && <AvatarImage src={image} alt={name} />}
-								<AvatarFallback className="text-lg">{initials}</AvatarFallback>
+								<AvatarFallback className="text-2xl sm:text-3xl bg-muted">
+									{initials || "?"}
+								</AvatarFallback>
 							</Avatar>
-							<div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-								<span className="text-white text-xs font-medium">
-									{uploading ? "..." : "Edit"}
-								</span>
+							<div className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/40 flex items-center justify-center transition-all">
+								{uploading ? (
+									<div className="size-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+								) : (
+									<HugeiconsIcon
+										icon={CameraAdd01Icon}
+										className="size-6 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+									/>
+								)}
 							</div>
 						</div>
-						<div className="space-y-2">
-							<input
-								ref={fileInputRef}
-								type="file"
-								accept="image/*"
-								className="hidden"
-								onChange={(e) => {
-									const file = e.target.files?.[0]
-									if (file) handleFileSelect(file)
-									// Reset input so same file can be selected again
-									e.target.value = ""
-								}}
-							/>
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => fileInputRef.current?.click()}
-								disabled={uploading}
-							>
-								{uploading ? "Uploading..." : "Upload Photo"}
-							</Button>
-							{image && (
-								<Button
-									variant="ghost"
-									size="sm"
-									className="text-destructive"
-									onClick={() => setImage("")}
-								>
-									Remove
-								</Button>
+						<input
+							ref={fileInputRef}
+							type="file"
+							accept="image/*"
+							className="hidden"
+							onChange={(e) => {
+								const file = e.target.files?.[0]
+								if (file) handleFileSelect(file)
+								e.target.value = ""
+							}}
+						/>
+					</div>
+
+					{/* Profile display */}
+					<div className="space-y-4">
+						<div>
+							<h3 className="text-xl font-bold">{name || "Your Name"}</h3>
+							{username && <p className="text-muted-foreground">@{username}</p>}
+						</div>
+
+						{bio && <p className="text-sm">{bio}</p>}
+
+						<div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+							{occupation && <span>{occupation}</span>}
+							{location && <span className="flex items-center gap-1"><HugeiconsIcon icon={PinIcon} size={14} />{location}</span>}
+							{website && (
+								<a href={website.startsWith("http") ? website : `https://${website}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+									{website.replace(/^https?:\/\//, "")}
+								</a>
 							)}
+							<span>Joined {new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span>
 						</div>
 					</div>
-				</CardContent>
-			</Card>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Personal Info</CardTitle>
-					<CardDescription>Update your name and contact details.</CardDescription>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-						<div className="space-y-2">
-							<Label htmlFor="name">Name</Label>
-							<Input
-								id="name"
-								value={name}
-								onChange={(e) => setName(e.target.value)}
-								placeholder="Your name"
-							/>
-						</div>
-						<div className="space-y-2">
-							<Label htmlFor="email">Email</Label>
-							<Input
-								id="email"
-								value={user.email}
-								readOnly
-								className="text-muted-foreground"
-							/>
-							<p className="text-xs text-muted-foreground">Email cannot be changed here.</p>
-						</div>
-						<div className="space-y-2">
-							<Label htmlFor="phone">Phone</Label>
-							<Input
-								id="phone"
-								value={phone}
-								onChange={(e) => setPhone(e.target.value)}
-								placeholder="+1 555-0000"
-							/>
-						</div>
-						<div className="space-y-2">
-							<Label>Role</Label>
-							<div className="pt-2">
-								<Badge variant="secondary" className="capitalize">
-									{user.role || "member"}
-								</Badge>
+					<Separator className="my-6" />
+
+					{/* Personal Info Form */}
+					<div className="space-y-6">
+						<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+							<div className="space-y-2">
+								<Label htmlFor="name">Name</Label>
+								<Input
+									id="name"
+									value={name}
+									onChange={(e) => setName(e.target.value)}
+									placeholder="Your name"
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="username">Username</Label>
+								<Input
+									id="username"
+									value={username}
+									onChange={(e) => setUsername(e.target.value)}
+									placeholder="username"
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="email">Email</Label>
+								<Input
+									id="email"
+									value={user.email}
+									readOnly
+									className="text-muted-foreground"
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="phone">Phone</Label>
+								<Input
+									id="phone"
+									value={phone}
+									onChange={(e) => setPhone(e.target.value)}
+									placeholder="+1 555-0000"
+								/>
 							</div>
 						</div>
-					</div>
 
-					<Separator />
+						<div className="space-y-2">
+							<Label htmlFor="bio">Bio</Label>
+							<Input
+								id="bio"
+								value={bio}
+								onChange={(e) => setBio(e.target.value)}
+								placeholder="Tell us about yourself"
+							/>
+						</div>
 
-					<div className="flex items-center justify-between">
-						<p className="text-sm text-muted-foreground">
-							Member since {new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-						</p>
-						<Button onClick={handleSave} disabled={saving}>
-							{saving ? "Saving..." : "Save Changes"}
-						</Button>
+						<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+							<div className="space-y-2">
+								<Label htmlFor="occupation">Occupation</Label>
+								<Input
+									id="occupation"
+									value={occupation}
+									onChange={(e) => setOccupation(e.target.value)}
+									placeholder="What do you do?"
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="location">Location</Label>
+								<Input
+									id="location"
+									value={location}
+									onChange={(e) => setLocation(e.target.value)}
+									placeholder="Where are you based?"
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="website">Website</Label>
+								<Input
+									id="website"
+									value={website}
+									onChange={(e) => setWebsite(e.target.value)}
+									placeholder="yoursite.com"
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label>Role</Label>
+								<div className="pt-2">
+									<Badge variant="secondary" className="capitalize">
+										{user.role || "member"}
+									</Badge>
+								</div>
+							</div>
+						</div>
 					</div>
 				</CardContent>
 			</Card>
@@ -970,6 +1121,26 @@ export function AccountSettings({ user }: { user: User }) {
 					title="Crop Profile Photo"
 					description="Drag to reposition and use the slider to zoom. Your photo will be cropped to a circle."
 					recommendedSize="512x512"
+				/>
+			)}
+
+			{/* Banner Image Cropper */}
+			{selectedBannerSrc && (
+				<ImageCropper
+					open={bannerCropperOpen}
+					onOpenChange={(open) => {
+						setBannerCropperOpen(open)
+						if (!open) setSelectedBannerSrc(null)
+					}}
+					imageSrc={selectedBannerSrc}
+					onCropComplete={handleCroppedBanner}
+					cropShape="rect"
+					aspectRatio={3}
+					title="Crop Banner Image"
+					description="Drag to reposition and use the slider to zoom."
+					recommendedSize="1200x400"
+					outputWidth={1200}
+					outputHeight={400}
 				/>
 			)}
 		</div>

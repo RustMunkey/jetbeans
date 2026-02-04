@@ -21,18 +21,17 @@ import { createInvite, revokeInvite, removeMember, updateMemberRole } from "./ac
 
 type Member = {
   id: string
-  name: string
+  name: string | null
   email: string
-  role: string | null
+  role: "owner" | "admin" | "member" | "viewer"
   image: string | null
-  createdAt: Date
+  joinedAt: Date
 }
 
 type Invite = {
   id: string
   email: string
-  role: string
-  status: string
+  role: "owner" | "admin" | "member" | "viewer"
   expiresAt: Date
   createdAt: Date
 }
@@ -94,13 +93,13 @@ export function TeamClient({
       cell: (row) => (
         <div className="flex items-center gap-3">
           {row.image ? (
-            <img src={row.image} alt={row.name} className="size-8 rounded-full" />
+            <img src={row.image} alt={row.name ?? ""} className="size-8 rounded-full" />
           ) : (
             <div className="flex size-8 items-center justify-center rounded-full bg-muted text-xs font-medium">
-              {row.name.charAt(0).toUpperCase()}
+              {(row.name ?? row.email).charAt(0).toUpperCase()}
             </div>
           )}
-          <span className="text-sm font-medium">{row.name}</span>
+          <span className="text-sm font-medium">{row.name ?? row.email}</span>
         </div>
       ),
     },
@@ -137,10 +136,10 @@ export function TeamClient({
       ),
     },
     {
-      key: "createdAt",
+      key: "joinedAt",
       header: "Joined",
       cell: (row) => (
-        <span className="text-xs text-muted-foreground">{formatDate(row.createdAt)}</span>
+        <span className="text-xs text-muted-foreground">{formatDate(row.joinedAt)}</span>
       ),
     },
     ...(isOwner ? [{

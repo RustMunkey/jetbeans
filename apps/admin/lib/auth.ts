@@ -39,6 +39,21 @@ export const auth = betterAuth({
 				defaultValue: "member",
 				input: false,
 			},
+			username: {
+				type: "string",
+				required: false,
+				input: false,
+			},
+			bannerImage: {
+				type: "string",
+				required: false,
+				input: false,
+			},
+			onboardingCompletedAt: {
+				type: "date",
+				required: false,
+				input: false,
+			},
 		},
 	},
 	databaseHooks: {
@@ -72,7 +87,7 @@ export const auth = betterAuth({
 				before: async (user) => {
 					const email = user.email;
 
-					// Check if this is an initial admin bootstrap
+					// Check if this is an initial admin bootstrap (platform owners)
 					const initialEmails = process.env.INITIAL_ADMIN_EMAILS
 						?.split(",")
 						.map((e) => e.trim().toLowerCase());
@@ -91,29 +106,14 @@ export const auth = betterAuth({
 						}
 					}
 
-					// Check for a pending invite
-					const [invite] = await db
-						.select()
-						.from(invites)
-						.where(eq(invites.email, email))
-						.limit(1);
-
-					if (invite && invite.status === "pending") {
-						await db
-							.update(invites)
-							.set({ status: "accepted" })
-							.where(eq(invites.id, invite.id));
-
-						return {
-							data: {
-								...user,
-								role: invite.role,
-							},
-						};
-					}
-
-					// No invite found — deny access
-					return false;
+					// Anyone can sign up - they'll go through onboarding
+					// Workspace invites are handled separately after onboarding
+					return {
+						data: {
+							...user,
+							role: "member",
+						},
+					};
 				},
 			},
 		},

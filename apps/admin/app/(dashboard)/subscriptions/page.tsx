@@ -1,25 +1,31 @@
+import { Suspense } from "react"
 import { getSubscriptions } from "./actions"
 import { SubscriptionsTable } from "./subscriptions-table"
+import { subscriptionsParamsCache } from "@/lib/search-params"
 
 interface PageProps {
-	searchParams: Promise<{ page?: string; status?: string }>
+	searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 export default async function SubscriptionsPage({ searchParams }: PageProps) {
-	const params = await searchParams
-	const page = Number(params.page) || 1
+	const { page, status } = await subscriptionsParamsCache.parse(searchParams)
 
-	const { items, totalCount } = await getSubscriptions({ page, pageSize: 30, status: params.status })
+	const { items, totalCount } = await getSubscriptions({
+		page,
+		pageSize: 30,
+		status: status === "all" ? undefined : status,
+	})
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-			<SubscriptionsTable
-				subscriptions={items}
-				totalCount={totalCount}
-				currentPage={page}
-				title="Subscriptions"
-				description="Manage recurring delivery subscriptions."
-			/>
+			<Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded-lg" />}>
+				<SubscriptionsTable
+					subscriptions={items}
+					totalCount={totalCount}
+					title="Subscriptions"
+					description="Manage recurring delivery subscriptions."
+				/>
+			</Suspense>
 		</div>
 	)
 }

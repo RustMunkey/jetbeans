@@ -1,31 +1,36 @@
 "use server"
 
-import { headers } from "next/headers"
-import { eq } from "@jetbeans/db/drizzle"
+import { eq, and } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { categories } from "@jetbeans/db/schema"
-import { auth } from "@/lib/auth"
 import { logAudit } from "@/lib/audit"
 import { slugify } from "@/lib/format"
+import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 
-async function requireAdmin() {
-	const session = await auth.api.getSession({ headers: await headers() })
-	if (!session) throw new Error("Not authenticated")
-	if (session.user.role !== "owner" && session.user.role !== "admin") {
-		throw new Error("Insufficient permissions")
+async function requireCategoriesPermission() {
+	const workspace = await requireWorkspace()
+	const canManage = await checkWorkspacePermission("canManageProducts")
+	if (!canManage) {
+		throw new Error("You don't have permission to manage categories")
 	}
-	return session.user
+	return workspace
 }
 
 export async function getAllCategories() {
-	return db.select().from(categories).orderBy(categories.sortOrder)
+	const workspace = await requireWorkspace()
+	return db
+		.select()
+		.from(categories)
+		.where(eq(categories.workspaceId, workspace.id))
+		.orderBy(categories.sortOrder)
 }
 
 export async function getCategory(id: string) {
+	const workspace = await requireWorkspace()
 	const [category] = await db
 		.select()
 		.from(categories)
-		.where(eq(categories.id, id))
+		.where(and(eq(categories.id, id), eq(categories.workspaceId, workspace.id)))
 		.limit(1)
 	if (!category) throw new Error("Category not found")
 	return category
@@ -41,13 +46,14 @@ interface CategoryData {
 }
 
 export async function createCategory(data: CategoryData) {
-	await requireAdmin()
+	const workspace = await requireCategoriesPermission()
 
 	const slug = data.slug || slugify(data.name)
 
 	const [category] = await db
 		.insert(categories)
 		.values({
+			workspaceId: workspace.id,
 			name: data.name,
 			slug,
 			description: data.description || null,
@@ -58,18 +64,17 @@ export async function createCategory(data: CategoryData) {
 		.returning()
 
 	await logAudit({
-		action: "product.updated",
+		action: "category.created",
 		targetType: "category",
 		targetId: category.id,
 		targetLabel: category.name,
-		metadata: { action: "category_created" },
 	})
 
 	return category
 }
 
 export async function updateCategory(id: string, data: Partial<CategoryData>) {
-	await requireAdmin()
+	const workspace = await requireCategoriesPermission()
 
 	const updates: Record<string, unknown> = {}
 	if (data.name !== undefined) updates.name = data.name
@@ -82,36 +87,36 @@ export async function updateCategory(id: string, data: Partial<CategoryData>) {
 	const [category] = await db
 		.update(categories)
 		.set(updates)
-		.where(eq(categories.id, id))
+		.where(and(eq(categories.id, id), eq(categories.workspaceId, workspace.id)))
 		.returning()
 
 	await logAudit({
-		action: "product.updated",
+		action: "category.updated",
 		targetType: "category",
 		targetId: id,
-		targetLabel: category.name,
-		metadata: { action: "category_updated" },
+		targetLabel: category?.name,
 	})
 
 	return category
 }
 
 export async function deleteCategory(id: string) {
-	await requireAdmin()
+	const workspace = await requireCategoriesPermission()
 
 	const [category] = await db
 		.select({ name: categories.name })
 		.from(categories)
-		.where(eq(categories.id, id))
+		.where(and(eq(categories.id, id), eq(categories.workspaceId, workspace.id)))
 		.limit(1)
 
-	await db.delete(categories).where(eq(categories.id, id))
+	if (!category) throw new Error("Category not found")
+
+	await db.delete(categories).where(and(eq(categories.id, id), eq(categories.workspaceId, workspace.id)))
 
 	await logAudit({
-		action: "product.updated",
+		action: "category.deleted",
 		targetType: "category",
 		targetId: id,
 		targetLabel: category?.name,
-		metadata: { action: "category_deleted" },
 	})
 }

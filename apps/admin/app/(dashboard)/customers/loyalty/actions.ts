@@ -1,23 +1,27 @@
 "use server"
 
-import { headers } from "next/headers"
-import { eq, desc, sql } from "@jetbeans/db/drizzle"
+import { eq, desc, sql, and } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { loyaltyProgram, loyaltyPoints, loyaltyTransactions, users } from "@jetbeans/db/schema"
-import { auth } from "@/lib/auth"
 import { logAudit } from "@/lib/audit"
+import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 
-async function requireAdmin() {
-	const session = await auth.api.getSession({ headers: await headers() })
-	if (!session) throw new Error("Not authenticated")
-	if (session.user.role !== "owner" && session.user.role !== "admin") {
-		throw new Error("Insufficient permissions")
+async function requireLoyaltyPermission() {
+	const workspace = await requireWorkspace()
+	const canManage = await checkWorkspacePermission("canManageCustomers")
+	if (!canManage) {
+		throw new Error("You don't have permission to manage loyalty")
 	}
-	return session.user
+	return workspace
 }
 
 export async function getLoyaltyConfig() {
-	const [config] = await db.select().from(loyaltyProgram).limit(1)
+	const workspace = await requireWorkspace()
+	const [config] = await db
+		.select()
+		.from(loyaltyProgram)
+		.where(eq(loyaltyProgram.workspaceId, workspace.id))
+		.limit(1)
 	return config ?? null
 }
 
@@ -27,9 +31,13 @@ export async function updateLoyaltyConfig(data: {
 	tiers: Array<{ name: string; minPoints: number; perks: string[] }>
 	isActive: boolean
 }) {
-	await requireAdmin()
+	const workspace = await requireLoyaltyPermission()
 
-	const [existing] = await db.select().from(loyaltyProgram).limit(1)
+	const [existing] = await db
+		.select()
+		.from(loyaltyProgram)
+		.where(eq(loyaltyProgram.workspaceId, workspace.id))
+		.limit(1)
 
 	if (existing) {
 		const [updated] = await db
@@ -41,13 +49,14 @@ export async function updateLoyaltyConfig(data: {
 				isActive: data.isActive,
 				updatedAt: new Date(),
 			})
-			.where(eq(loyaltyProgram.id, existing.id))
+			.where(and(eq(loyaltyProgram.id, existing.id), eq(loyaltyProgram.workspaceId, workspace.id)))
 			.returning()
 		return updated
 	} else {
 		const [created] = await db
 			.insert(loyaltyProgram)
 			.values({
+				workspaceId: workspace.id,
 				pointsPerDollar: data.pointsPerDollar,
 				pointsRedemptionRate: data.pointsRedemptionRate,
 				tiers: data.tiers,
@@ -59,6 +68,7 @@ export async function updateLoyaltyConfig(data: {
 }
 
 export async function getTopPointHolders(limit = 20) {
+	const workspace = await requireWorkspace()
 	const holders = await db
 		.select({
 			userId: loyaltyPoints.userId,
@@ -70,6 +80,7 @@ export async function getTopPointHolders(limit = 20) {
 		})
 		.from(loyaltyPoints)
 		.innerJoin(users, eq(users.id, loyaltyPoints.userId))
+		.where(eq(loyaltyPoints.workspaceId, workspace.id))
 		.orderBy(desc(loyaltyPoints.points))
 		.limit(limit)
 
@@ -77,6 +88,7 @@ export async function getTopPointHolders(limit = 20) {
 }
 
 export async function getRecentTransactions(limit = 50) {
+	const workspace = await requireWorkspace()
 	const transactions = await db
 		.select({
 			id: loyaltyTransactions.id,
@@ -90,6 +102,7 @@ export async function getRecentTransactions(limit = 50) {
 		})
 		.from(loyaltyTransactions)
 		.innerJoin(users, eq(users.id, loyaltyTransactions.userId))
+		.where(eq(loyaltyTransactions.workspaceId, workspace.id))
 		.orderBy(desc(loyaltyTransactions.createdAt))
 		.limit(limit)
 
@@ -97,7 +110,7 @@ export async function getRecentTransactions(limit = 50) {
 }
 
 export async function adjustPoints(userId: string, points: number, reason: string) {
-	await requireAdmin()
+	const workspace = await requireLoyaltyPermission()
 
 	const type = points > 0 ? "earned" : "adjusted"
 
@@ -105,7 +118,7 @@ export async function adjustPoints(userId: string, points: number, reason: strin
 	const [existing] = await db
 		.select()
 		.from(loyaltyPoints)
-		.where(eq(loyaltyPoints.userId, userId))
+		.where(and(eq(loyaltyPoints.userId, userId), eq(loyaltyPoints.workspaceId, workspace.id)))
 		.limit(1)
 
 	if (existing) {
@@ -118,9 +131,10 @@ export async function adjustPoints(userId: string, points: number, reason: strin
 					: loyaltyPoints.lifetimePoints,
 				updatedAt: new Date(),
 			})
-			.where(eq(loyaltyPoints.userId, userId))
+			.where(and(eq(loyaltyPoints.userId, userId), eq(loyaltyPoints.workspaceId, workspace.id)))
 	} else {
 		await db.insert(loyaltyPoints).values({
+			workspaceId: workspace.id,
 			userId,
 			points: Math.max(0, points),
 			lifetimePoints: Math.max(0, points),
@@ -129,6 +143,7 @@ export async function adjustPoints(userId: string, points: number, reason: strin
 
 	// Record transaction
 	await db.insert(loyaltyTransactions).values({
+		workspaceId: workspace.id,
 		userId,
 		type,
 		points,

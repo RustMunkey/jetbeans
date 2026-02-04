@@ -16,14 +16,14 @@ import { ToolbarProvider, ToolbarPanel, WidgetPanels } from "@/components/toolba
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts"
 import { SidebarModeProvider } from "@/lib/sidebar-mode"
 import { ChatProvider } from "@/components/messages"
-import { ServersSidebarWrapper, ServersBarLayout } from "@/components/servers-sidebar-wrapper"
+import { WorkspaceSidebarWrapper, SidebarOffsetLayout } from "@/components/workspace-sidebar-wrapper"
+import { getUserWorkspaces, getActiveWorkspace } from "@/lib/workspace"
 import { SidebarSwipe } from "@/components/sidebar-swipe"
-import { Separator } from "@/components/ui/separator"
 import {
   SidebarInset,
   SidebarProvider,
+  SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { ConditionalSidebarTrigger } from "@/components/conditional-sidebar-trigger"
 import { RightSidebarProvider } from "@/components/ui/right-sidebar"
 import { AppRightSidebar } from "@/components/app-right-sidebar"
 import { NotificationProvider } from "@/components/notifications/notification-context"
@@ -43,13 +43,14 @@ export default async function DashboardLayout({
   }
 
   // Get fresh user data from database (not session cache)
-  let user: { role: string | null; name: string | null; image: string | null } | undefined
+  let user: { role: string | null; name: string | null; image: string | null; onboardingCompletedAt: Date | null } | undefined
   try {
     const [dbUser] = await db
       .select({
         role: users.role,
         name: users.name,
         image: users.image,
+        onboardingCompletedAt: users.onboardingCompletedAt,
       })
       .from(users)
       .where(eq(users.id, session.user.id))
@@ -59,6 +60,17 @@ export default async function DashboardLayout({
     // Database query failed - fall back to session data
     user = undefined
   }
+
+  // Redirect to onboarding if not completed
+  if (!user?.onboardingCompletedAt) {
+    redirect("/onboarding")
+  }
+
+  // Fetch workspace data for the sidebar
+  const [workspaces, activeWorkspace] = await Promise.all([
+    getUserWorkspaces(),
+    getActiveWorkspace(),
+  ])
 
   const cookieStore = await cookies()
   const sidebarOpen = cookieStore.get("sidebar_state")?.value !== "false"
@@ -79,30 +91,40 @@ export default async function DashboardLayout({
           <ToolbarProvider>
             <ChatProvider>
               <SidebarModeProvider>
-                <ServersSidebarWrapper />
-                <ServersBarLayout>
+                <WorkspaceSidebarWrapper
+                  workspaces={workspaces}
+                  activeWorkspaceId={activeWorkspace?.id ?? null}
+                />
+                <SidebarOffsetLayout>
                 <NotificationProvider userId={session.user.id}>
                 <SidebarProvider defaultOpen={sidebarOpen}>
                 <RightSidebarProvider defaultOpen={rightSidebarOpen}>
                   <CommandMenuWrapper />
                   <KeyboardShortcutsProvider>
-                    <AppSidebar user={{
-                      name: user?.name || session.user.name,
-                      email: session.user.email,
-                      avatar: user?.image || "",
-                      role: user?.role || "member",
-                    }} />
+                    <AppSidebar
+                      user={{
+                        name: user?.name || session.user.name,
+                        email: session.user.email,
+                        avatar: user?.image || "",
+                        role: user?.role || "member",
+                      }}
+                      workspace={activeWorkspace ? {
+                        name: activeWorkspace.name,
+                        logo: workspaces.find(w => w.id === activeWorkspace.id)?.logo ?? null,
+                        role: activeWorkspace.role,
+                      } : null}
+                      workspaces={workspaces}
+                      activeWorkspaceId={activeWorkspace?.id ?? null}
+                    />
                     <SidebarSwipe />
                     <SidebarInset className="md:flex md:flex-col">
                       <BreadcrumbProvider>
                         <header className="flex h-16 shrink-0 items-center justify-between gap-2">
                           <div className="flex items-center gap-2 px-4 min-w-0">
-                            <ConditionalSidebarTrigger className="-ml-1 shrink-0" />
-                            <Separator
-                              orientation="vertical"
-                              className="mr-2 shrink-0 data-[orientation=vertical]:h-4"
-                            />
-                            <div className="min-w-0 overflow-x-auto sm:overflow-hidden [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
+                            {/* Mobile sidebar trigger */}
+                            <SidebarTrigger className="md:hidden" />
+                            {/* Breadcrumb - hidden on mobile */}
+                            <div className="hidden md:block min-w-0 overflow-x-auto sm:overflow-hidden [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
                               <BreadcrumbNav />
                             </div>
                           </div>
@@ -119,7 +141,7 @@ export default async function DashboardLayout({
                 </RightSidebarProvider>
               </SidebarProvider>
               </NotificationProvider>
-              </ServersBarLayout>
+              </SidebarOffsetLayout>
               </SidebarModeProvider>
             </ChatProvider>
 

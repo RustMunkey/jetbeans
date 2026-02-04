@@ -8,7 +8,7 @@ import { PanelLeftIcon } from "@hugeicons/core-free-icons"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
-import { useServersBarOffset } from "@/components/servers-sidebar-wrapper"
+import { useSidebarOffset } from "@/components/workspace-sidebar-wrapper"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -166,7 +166,7 @@ function Sidebar({
   collapsible?: "offcanvas" | "icon" | "none"
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
-  const serversBarOffset = useServersBarOffset()
+  const sidebarOffset = useSidebarOffset()
 
   if (collapsible === "none") {
     return (
@@ -240,7 +240,7 @@ function Sidebar({
             : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
           className
         )}
-        style={side === "left" ? { left: serversBarOffset, transition: "left 200ms ease-linear" } : undefined}
+        style={side === "left" ? { left: sidebarOffset, transition: "left 200ms ease-linear" } : undefined}
         {...props}
       >
         <div

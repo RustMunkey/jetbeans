@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
-import { writeFile, mkdir } from "fs/promises"
-import path from "path"
 
 export async function POST(req: NextRequest) {
 	const session = await auth.api.getSession({ headers: await headers() })
@@ -27,26 +25,18 @@ export async function POST(req: NextRequest) {
 	}
 
 	try {
-		if (process.env.BLOB_READ_WRITE_TOKEN) {
-			const { put } = await import("@vercel/blob")
-			const blob = await put(`products/${Date.now()}-${file.name}`, file, {
-				access: "public",
-			})
-			return NextResponse.json({ url: blob.url, type: file.type })
+		if (!process.env.BLOB_READ_WRITE_TOKEN) {
+			return NextResponse.json(
+				{ error: "File uploads require BLOB_READ_WRITE_TOKEN to be configured" },
+				{ status: 503 }
+			)
 		}
 
-		// Local development fallback: save to public/uploads/
-		const uploadsDir = path.join(process.cwd(), "public", "uploads")
-		await mkdir(uploadsDir, { recursive: true })
-
-		const ext = file.name.split(".").pop() || "bin"
-		const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-		const filepath = path.join(uploadsDir, filename)
-
-		const buffer = Buffer.from(await file.arrayBuffer())
-		await writeFile(filepath, buffer)
-
-		return NextResponse.json({ url: `/uploads/${filename}`, type: file.type })
+		const { put } = await import("@vercel/blob")
+		const blob = await put(`products/${Date.now()}-${file.name}`, file, {
+			access: "public",
+		})
+		return NextResponse.json({ url: blob.url, type: file.type })
 	} catch (error: any) {
 		return NextResponse.json({ error: error.message || "Upload failed" }, { status: 500 })
 	}

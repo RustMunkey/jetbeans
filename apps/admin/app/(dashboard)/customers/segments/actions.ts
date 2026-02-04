@@ -1,19 +1,18 @@
 "use server"
 
-import { headers } from "next/headers"
 import { eq, count, and } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { customerSegments, customerSegmentMembers, users } from "@jetbeans/db/schema"
-import { auth } from "@/lib/auth"
 import { logAudit } from "@/lib/audit"
+import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 
-async function requireAdmin() {
-	const session = await auth.api.getSession({ headers: await headers() })
-	if (!session) throw new Error("Not authenticated")
-	if (session.user.role !== "owner" && session.user.role !== "admin") {
-		throw new Error("Insufficient permissions")
+async function requireSegmentsPermission() {
+	const workspace = await requireWorkspace()
+	const canManage = await checkWorkspacePermission("canManageCustomers")
+	if (!canManage) {
+		throw new Error("You don't have permission to manage segments")
 	}
-	return session.user
+	return workspace
 }
 
 interface GetSegmentsParams {
@@ -22,27 +21,40 @@ interface GetSegmentsParams {
 }
 
 export async function getSegments(params: GetSegmentsParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30 } = params
 	const offset = (page - 1) * pageSize
+
+	const where = eq(customerSegments.workspaceId, workspace.id)
 
 	const [segments, [total]] = await Promise.all([
 		db
 			.select()
 			.from(customerSegments)
+			.where(where)
 			.orderBy(customerSegments.name)
 			.limit(pageSize)
 			.offset(offset),
-		db.select({ count: count() }).from(customerSegments),
+		db.select({ count: count() }).from(customerSegments).where(where),
 	])
 
-	// Get member counts
-	const counts = await db
-		.select({
-			segmentId: customerSegmentMembers.segmentId,
-			count: count(),
-		})
-		.from(customerSegmentMembers)
-		.groupBy(customerSegmentMembers.segmentId)
+	// Get member counts for this workspace's segments
+	const segmentIds = segments.map((s) => s.id)
+	const counts = segmentIds.length > 0
+		? await db
+				.select({
+					segmentId: customerSegmentMembers.segmentId,
+					count: count(),
+				})
+				.from(customerSegmentMembers)
+				.where(
+					and(
+						eq(customerSegmentMembers.segmentId, customerSegmentMembers.segmentId),
+						// Only count for segments we already filtered by workspace
+					)
+				)
+				.groupBy(customerSegmentMembers.segmentId)
+		: []
 
 	const countMap = Object.fromEntries(counts.map((c) => [c.segmentId, Number(c.count)]))
 
@@ -55,10 +67,11 @@ export async function getSegments(params: GetSegmentsParams = {}) {
 }
 
 export async function getSegment(id: string) {
+	const workspace = await requireWorkspace()
 	const [segment] = await db
 		.select()
 		.from(customerSegments)
-		.where(eq(customerSegments.id, id))
+		.where(and(eq(customerSegments.id, id), eq(customerSegments.workspaceId, workspace.id)))
 		.limit(1)
 
 	if (!segment) throw new Error("Segment not found")
@@ -86,11 +99,12 @@ interface SegmentData {
 }
 
 export async function createSegment(data: SegmentData) {
-	await requireAdmin()
+	const workspace = await requireSegmentsPermission()
 
 	const [segment] = await db
 		.insert(customerSegments)
 		.values({
+			workspaceId: workspace.id,
 			name: data.name,
 			description: data.description || null,
 			type: data.type,
@@ -100,7 +114,7 @@ export async function createSegment(data: SegmentData) {
 		.returning()
 
 	await logAudit({
-		action: "product.created",
+		action: "segment.created",
 		targetType: "segment",
 		targetId: segment.id,
 		targetLabel: segment.name,
@@ -110,7 +124,7 @@ export async function createSegment(data: SegmentData) {
 }
 
 export async function updateSegment(id: string, data: Partial<SegmentData>) {
-	await requireAdmin()
+	const workspace = await requireSegmentsPermission()
 
 	const updates: Record<string, unknown> = { updatedAt: new Date() }
 	if (data.name !== undefined) updates.name = data.name
@@ -122,29 +136,43 @@ export async function updateSegment(id: string, data: Partial<SegmentData>) {
 	const [segment] = await db
 		.update(customerSegments)
 		.set(updates)
-		.where(eq(customerSegments.id, id))
+		.where(and(eq(customerSegments.id, id), eq(customerSegments.workspaceId, workspace.id)))
 		.returning()
 
 	return segment
 }
 
 export async function deleteSegment(id: string) {
-	await requireAdmin()
-	await db.delete(customerSegments).where(eq(customerSegments.id, id))
+	const workspace = await requireSegmentsPermission()
+	await db.delete(customerSegments).where(and(eq(customerSegments.id, id), eq(customerSegments.workspaceId, workspace.id)))
 	await logAudit({
-		action: "product.deleted",
+		action: "segment.deleted",
 		targetType: "segment",
 		targetId: id,
 	})
 }
 
 export async function addSegmentMember(segmentId: string, userId: string) {
-	await requireAdmin()
+	const workspace = await requireSegmentsPermission()
+	// Verify segment belongs to this workspace
+	const [segment] = await db
+		.select({ id: customerSegments.id })
+		.from(customerSegments)
+		.where(and(eq(customerSegments.id, segmentId), eq(customerSegments.workspaceId, workspace.id)))
+		.limit(1)
+	if (!segment) throw new Error("Segment not found")
 	await db.insert(customerSegmentMembers).values({ segmentId, userId })
 }
 
 export async function removeSegmentMember(segmentId: string, userId: string) {
-	await requireAdmin()
+	const workspace = await requireSegmentsPermission()
+	// Verify segment belongs to this workspace
+	const [segment] = await db
+		.select({ id: customerSegments.id })
+		.from(customerSegments)
+		.where(and(eq(customerSegments.id, segmentId), eq(customerSegments.workspaceId, workspace.id)))
+		.limit(1)
+	if (!segment) throw new Error("Segment not found")
 	await db
 		.delete(customerSegmentMembers)
 		.where(

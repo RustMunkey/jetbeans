@@ -28,7 +28,90 @@ import {
   CheckListIcon,
   Call02Icon,
   ArrowLeft01Icon,
+  ArrowRight01Icon,
   WorkflowSquare10Icon,
+  Coins01Icon,
+  Key02Icon,
+  Add01Icon,
+  FlashIcon,
+  Home01Icon,
+  // Workflow trigger/action icons
+  ShoppingCart01Icon,
+  UserAdd01Icon,
+  Tag01Icon,
+  Clock01Icon,
+  Calendar01Icon,
+  Cursor01Icon,
+  Mail01Icon,
+  MessageNotification01Icon,
+  Database01Icon,
+  Link01Icon,
+  GitBranchIcon,
+  AuctionIcon,
+  // Specific trigger icons
+  ShoppingCartCheck01Icon,
+  CreditCardIcon,
+  PackageDeliveredIcon,
+  MoneyReceive01Icon,
+  UserEdit01Icon,
+  PackageAddIcon,
+  Alert01Icon,
+  PackageRemoveIcon,
+  RecordIcon,
+  CheckmarkCircle02Icon,
+  RefreshIcon,
+  CancelCircleIcon,
+  CreditCardNotFoundIcon,
+  ThumbsUpIcon,
+  Flag01Icon,
+  PlayIcon,
+  TimerIcon,
+  HourglassIcon,
+  // Specific action icons
+  MailSend01Icon,
+  FileEditIcon,
+  SmartPhone01Icon,
+  MessageEdit01Icon,
+  Tag02Icon,
+  NoteEditIcon,
+  Edit01Icon,
+  Layers01Icon,
+  WebhookIcon,
+  SlackIcon,
+  FilterIcon,
+  PauseIcon,
+  CalendarCheckIn01Icon,
+  // Additional integration icons
+  AiChat02Icon,
+  LanguageSkillIcon,
+  NewTwitterIcon,
+  Facebook01Icon,
+  InstagramIcon,
+  Linkedin01Icon,
+  TiktokIcon,
+  PinterestIcon,
+  DiscordIcon,
+  TelegramIcon,
+  WhatsappIcon,
+  GoogleIcon,
+  GoogleDriveIcon,
+  CloudUploadIcon,
+  GithubIcon,
+  RocketIcon,
+  Invoice02Icon,
+  Analytics01Icon,
+  Globe02Icon,
+  FolderAddIcon,
+  Ticket02Icon,
+  ContactIcon,
+  Message01Icon,
+  MailAdd01Icon,
+  UserAdd02Icon,
+  ChartHistogramIcon,
+  Notification03Icon,
+  FunctionIcon,
+  GiftIcon,
+  AwardIcon,
 } from "@hugeicons/core-free-icons"
 
 import Link from "next/link"
@@ -39,18 +122,30 @@ import { useCommandMenu } from "@/components/command-menu"
 import { useSidebarStateProvider, SidebarStateContext } from "@/lib/use-sidebar-state"
 import { useSidebarMode } from "@/lib/sidebar-mode"
 import { ChatSidebar, useChat } from "@/components/messages"
+import { useWorkflowStore } from "@/lib/workflow-context"
+import { TRIGGER_CATEGORIES, ACTION_CATEGORIES } from "@/app/(dashboard)/automation/constants"
+import type { WorkflowTrigger, WorkflowAction } from "@jetbeans/db/schema"
+import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { ServersSidebar } from "@/components/servers-sidebar"
+import { WorkspaceSidebar } from "@/components/workspace-sidebar"
+import type { WorkspaceWithRole } from "@/lib/workspace"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
+import { motion, AnimatePresence } from "framer-motion"
 
 const data = {
   navOverview: [
@@ -102,6 +197,16 @@ const data = {
         { title: "All Reviews", url: "/reviews" },
         { title: "Pending", url: "/reviews/pending" },
         { title: "Reported", url: "/reviews/reported" },
+      ],
+    },
+    {
+      title: "Auctions",
+      url: "/auctions",
+      icon: Coins01Icon,
+      items: [
+        { title: "Active", url: "/auctions" },
+        { title: "Drafts", url: "/auctions/drafts" },
+        { title: "Closed", url: "/auctions/closed" },
       ],
     },
     {
@@ -252,6 +357,7 @@ const data = {
         { title: "Notifications", url: "/settings/notifications" },
         { title: "Team & Permissions", url: "/settings/team" },
         { title: "Sessions", url: "/settings/sessions" },
+        { title: "Storefronts", url: "/settings/storefronts" },
         { title: "Payments", url: "/settings/payments" },
         { title: "Tax", url: "/settings/tax" },
         { title: "Exports", url: "/settings/exports" },
@@ -260,6 +366,11 @@ const data = {
     },
   ],
   navDevelopers: [
+    {
+      title: "API Keys",
+      url: "/developers/api-keys",
+      icon: Key02Icon,
+    },
     {
       title: "Developer Tools",
       url: "/developers",
@@ -278,6 +389,27 @@ type UserData = {
   email: string
   avatar: string
   role: string
+}
+
+type WorkspaceData = {
+  name: string
+  logo: string | null
+  role: "owner" | "admin" | "member" | "viewer"
+}
+
+function getRoleLabel(role: WorkspaceData["role"]): string {
+  switch (role) {
+    case "owner":
+      return "Owner"
+    case "admin":
+      return "Admin"
+    case "member":
+      return "Member"
+    case "viewer":
+      return "Viewer"
+    default:
+      return "Member"
+  }
 }
 
 function DigitalClock() {
@@ -322,23 +454,19 @@ function MessagesHeader() {
   )
 }
 
-function NormalHeader({ openCommandMenu }: { openCommandMenu: () => void }) {
+function NormalHeader({ openCommandMenu, workspace }: { openCommandMenu: () => void; workspace: WorkspaceData | null }) {
   return (
     <>
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton size="lg" asChild>
             <Link href="/">
-              <div className="bg-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg overflow-hidden">
-                <img src="/logos/coffee-white.png" alt="JetBeans" className="size-5 dark:hidden" />
-                <img src="/logos/coffee.png" alt="JetBeans" className="size-5 hidden dark:block" />
-              </div>
               <div className="grid flex-1 text-left leading-tight">
                 <span className="truncate font-[family-name:var(--font-rubik-mono)] text-base">
-                  JETBEANS
+                  {workspace?.name ?? "Workspace"}
                 </span>
                 <span className="truncate font-sans text-xs text-muted-foreground">
-                  Admin Panel
+                  {workspace ? getRoleLabel(workspace.role) : "Member"}
                 </span>
               </div>
             </Link>
@@ -380,6 +508,407 @@ function MessagesSidebarContent() {
   )
 }
 
+function WorkflowHeader() {
+  return (
+    <div className="flex items-center justify-center py-3">
+      <DigitalClock />
+    </div>
+  )
+}
+
+// Icon mappings for workflow triggers and actions
+const TRIGGER_CATEGORY_ICONS: Record<string, typeof ShoppingCart01Icon> = {
+  orders: ShoppingCart01Icon,
+  customers: UserGroupIcon,
+  products: Package01Icon,
+  subscriptions: RepeatIcon,
+  reviews: StarIcon,
+  auctions: AuctionIcon,
+  cart: ShoppingCart01Icon,
+  giftcards: GiftIcon,
+  loyalty: StarIcon,
+  inbox: Mail01Icon,
+  webhooks: WebhookIcon,
+  forms: FileEditIcon,
+  referrals: UserAdd01Icon,
+  schedule: Calendar01Icon,
+  manual: Cursor01Icon,
+}
+
+// Specific icons for each trigger value
+const TRIGGER_ICONS: Record<string, typeof ShoppingCart01Icon> = {
+  // Orders
+  "order.created": ShoppingCartCheck01Icon,
+  "order.paid": CreditCardIcon,
+  "order.fulfilled": PackageDeliveredIcon,
+  "order.cancelled": CancelCircleIcon,
+  "order.refunded": MoneyReceive01Icon,
+  // Customers
+  "customer.created": UserAdd01Icon,
+  "customer.updated": UserEdit01Icon,
+  "customer.tag_added": Tag01Icon,
+  // Products
+  "product.created": PackageAddIcon,
+  "product.updated": Edit01Icon,
+  "product.low_stock": Alert01Icon,
+  "product.out_of_stock": PackageRemoveIcon,
+  // Subscriptions
+  "subscription.created": CheckmarkCircle02Icon,
+  "subscription.renewed": RefreshIcon,
+  "subscription.cancelled": CancelCircleIcon,
+  "subscription.payment_failed": CreditCardNotFoundIcon,
+  // Reviews
+  "review.created": Edit01Icon,
+  "review.approved": ThumbsUpIcon,
+  "review.reported": Flag01Icon,
+  // Auctions
+  "auction.started": PlayIcon,
+  "auction.bid_placed": AuctionIcon,
+  "auction.ending_soon": TimerIcon,
+  "auction.ended": HourglassIcon,
+  // Cart
+  "cart.abandoned": ShoppingCart01Icon,
+  "cart.recovered": ShoppingCartCheck01Icon,
+  // Gift Cards
+  "giftcard.purchased": GiftIcon,
+  "giftcard.redeemed": Ticket02Icon,
+  "giftcard.low_balance": Alert01Icon,
+  // Loyalty
+  "loyalty.points_earned": StarIcon,
+  "loyalty.tier_changed": AwardIcon,
+  "loyalty.reward_redeemed": GiftIcon,
+  // Inbox
+  "inbox.email_received": Mail01Icon,
+  "inbox.email_replied": MailSend01Icon,
+  // Webhooks
+  "webhook.received": WebhookIcon,
+  // Forms
+  "form.submitted": FileEditIcon,
+  // Referrals
+  "referral.signup": UserAdd01Icon,
+  "referral.conversion": MoneyReceive01Icon,
+  // Schedule
+  "schedule.cron": CalendarCheckIn01Icon,
+  "schedule.interval": Clock01Icon,
+  // Manual
+  "manual.trigger": Cursor01Icon,
+}
+
+const ACTION_CATEGORY_ICONS: Record<string, typeof Mail01Icon> = {
+  email: Mail01Icon,
+  notifications: MessageNotification01Icon,
+  data: Database01Icon,
+  ai: AiChat02Icon,
+  social: NewTwitterIcon,
+  communication: Message01Icon,
+  google: GoogleIcon,
+  microsoft: Globe02Icon,
+  productivity: CheckListIcon,
+  github: GithubIcon,
+  cloudflare: Globe02Icon,
+  aws: CloudUploadIcon,
+  deployment: RocketIcon,
+  crm: ContactIcon,
+  ecommerce: ShoppingBag01Icon,
+  analytics: Analytics01Icon,
+  integrations: Link01Icon,
+  utilities: Settings02Icon,
+  flow: GitBranchIcon,
+}
+
+// Specific icons for each action value
+const ACTION_ICONS: Record<string, typeof Mail01Icon> = {
+  // Email
+  "email.send": MailSend01Icon,
+  "email.send_template": FileEditIcon,
+  // Notifications
+  "notification.push": SmartPhone01Icon,
+  "notification.sms": MessageEdit01Icon,
+  // Data
+  "customer.add_tag": Tag01Icon,
+  "customer.remove_tag": Tag02Icon,
+  "customer.update_field": UserEdit01Icon,
+  "order.add_note": NoteEditIcon,
+  "order.update_status": Edit01Icon,
+  "product.update_stock": Layers01Icon,
+  // AI & Bots
+  "ai.generate_text": AiChat02Icon,
+  "ai.analyze_sentiment": AiChat02Icon,
+  "ai.categorize": AiChat02Icon,
+  "ai.translate": LanguageSkillIcon,
+  "ai.summarize": AiChat02Icon,
+  // Social Media
+  "twitter.post": NewTwitterIcon,
+  "twitter.dm": NewTwitterIcon,
+  "facebook.post": Facebook01Icon,
+  "facebook.message": Facebook01Icon,
+  "instagram.post": InstagramIcon,
+  "instagram.story": InstagramIcon,
+  "linkedin.post": Linkedin01Icon,
+  "tiktok.post": TiktokIcon,
+  "pinterest.pin": PinterestIcon,
+  "threads.post": NewTwitterIcon,
+  // Communication
+  "slack.send_message": SlackIcon,
+  "discord.send_message": DiscordIcon,
+  "discord.create_thread": DiscordIcon,
+  "teams.send_message": Globe02Icon,
+  "telegram.send_message": TelegramIcon,
+  "whatsapp.send_message": WhatsappIcon,
+  // Google Suite
+  "google_sheets.add_row": GoogleIcon,
+  "google_sheets.update_row": GoogleIcon,
+  "google_docs.create": GoogleIcon,
+  "google_slides.create": GoogleIcon,
+  "google_drive.upload": GoogleDriveIcon,
+  "google_drive.create_folder": FolderAddIcon,
+  "google_calendar.create_event": Calendar01Icon,
+  "gmail.send": MailSend01Icon,
+  // Microsoft Suite
+  "outlook.send_email": MailSend01Icon,
+  "excel.add_row": Database01Icon,
+  "word.create_doc": FileEditIcon,
+  "powerpoint.create": FileEditIcon,
+  "onedrive.upload": CloudUploadIcon,
+  "microsoft_todo.create_task": CheckListIcon,
+  // Productivity
+  "notion.create_page": FileEditIcon,
+  "notion.update_database": Database01Icon,
+  "airtable.create_record": Database01Icon,
+  "trello.create_card": CheckListIcon,
+  "asana.create_task": CheckListIcon,
+  "monday.create_item": CheckListIcon,
+  "clickup.create_task": CheckListIcon,
+  "jira.create_issue": Ticket02Icon,
+  "linear.create_issue": Ticket02Icon,
+  // GitHub
+  "github.create_issue": GithubIcon,
+  "github.create_pr_comment": GithubIcon,
+  "github.trigger_workflow": GithubIcon,
+  "github.create_release": GithubIcon,
+  // Cloudflare
+  "cloudflare.purge_cache": Globe02Icon,
+  "cloudflare.create_dns_record": Globe02Icon,
+  "cloudflare_r2.upload": CloudUploadIcon,
+  // AWS
+  "aws_s3.upload": CloudUploadIcon,
+  "aws_sns.publish": Notification03Icon,
+  "aws_sqs.send_message": MessageNotification01Icon,
+  "aws_lambda.invoke": FunctionIcon,
+  "aws_ses.send_email": MailSend01Icon,
+  // Deployment
+  "vercel.deploy": RocketIcon,
+  "vercel.redeploy": RocketIcon,
+  "netlify.trigger_build": RocketIcon,
+  // CRM
+  "hubspot.create_contact": ContactIcon,
+  "hubspot.create_deal": SaleTag01Icon,
+  "salesforce.create_lead": ContactIcon,
+  "pipedrive.create_deal": SaleTag01Icon,
+  "zendesk.create_ticket": Ticket02Icon,
+  "intercom.send_message": Message01Icon,
+  "freshdesk.create_ticket": Ticket02Icon,
+  // E-commerce
+  "shopify.create_order": ShoppingBag01Icon,
+  "stripe.create_invoice": Invoice02Icon,
+  "mailchimp.add_subscriber": MailAdd01Icon,
+  "klaviyo.add_profile": UserAdd02Icon,
+  "sendgrid.send_email": MailSend01Icon,
+  // Analytics
+  "segment.track": Analytics01Icon,
+  "mixpanel.track": ChartHistogramIcon,
+  "posthog.capture": Analytics01Icon,
+  // Integrations
+  "webhook.send": WebhookIcon,
+  "http.request": Globe02Icon,
+  // Flow Control
+  "condition.if": FilterIcon,
+  "delay.wait": PauseIcon,
+  "delay.wait_until": CalendarCheckIn01Icon,
+}
+
+
+// Hook for managing workflow sidebar open state
+function useWorkflowSidebarState() {
+  const defaultOpen = new Set(["trigger-orders", "trigger-customers", "action-email", "action-notifications"])
+  const [openItems, setOpenItems] = React.useState<Set<string>>(() => {
+    if (typeof window === "undefined") return defaultOpen
+    const stored = localStorage.getItem("workflow-sidebar-open")
+    if (stored) {
+      try {
+        return new Set(JSON.parse(stored))
+      } catch {
+        return defaultOpen
+      }
+    }
+    return defaultOpen
+  })
+
+  const toggle = (key: string) => {
+    setOpenItems((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      localStorage.setItem("workflow-sidebar-open", JSON.stringify([...next]))
+      return next
+    })
+  }
+
+  return { openItems, toggle }
+}
+
+function WorkflowSidebarContent() {
+  const workflow = useWorkflowStore()
+  const { openItems, toggle } = useWorkflowSidebarState()
+
+  // All trigger and action categories
+  const allTriggers = Object.entries(TRIGGER_CATEGORIES)
+  const allActions = Object.entries(ACTION_CATEGORIES)
+
+  // Show loading state if workflow context is not yet available
+  if (!workflow) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full py-8 text-muted-foreground">
+        <span className="text-sm">Loading...</span>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {/* Triggers */}
+      {!workflow.hasTrigger && (
+        <SidebarGroup>
+          <SidebarGroupLabel>Triggers</SidebarGroupLabel>
+          <SidebarMenu>
+            {allTriggers.map(([key, category]) => {
+              const CategoryIcon = TRIGGER_CATEGORY_ICONS[key] || FlashIcon
+              const isOpen = openItems.has(`trigger-${key}`)
+
+              return (
+                <SidebarMenuItem key={key}>
+                  <SidebarMenuButton
+                    tooltip={category.label}
+                    onClick={() => toggle(`trigger-${key}`)}
+                    data-state={isOpen ? "open" : "closed"}
+                  >
+                    <HugeiconsIcon icon={CategoryIcon} size={16} />
+                    <span>{category.label}</span>
+                  </SidebarMenuButton>
+                  <SidebarMenuAction
+                    className="data-[state=open]:rotate-90 transition-transform duration-200"
+                    onClick={() => toggle(`trigger-${key}`)}
+                    data-state={isOpen ? "open" : "closed"}
+                  >
+                    <HugeiconsIcon icon={ArrowRight01Icon} size={14} />
+                    <span className="sr-only">Toggle</span>
+                  </SidebarMenuAction>
+                  <AnimatePresence initial={false}>
+                    {isOpen && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                        className="overflow-hidden"
+                      >
+                        <SidebarMenuSub>
+                          {category.triggers.map((t) => {
+                            const TriggerIcon = TRIGGER_ICONS[t.value] || CategoryIcon
+                            return (
+                              <SidebarMenuSubItem key={t.value}>
+                                <SidebarMenuSubButton
+                                  onClick={() => workflow.addTriggerNode(t.value as WorkflowTrigger, t.label, category.label)}
+                                  className="cursor-pointer"
+                                >
+                                  <HugeiconsIcon icon={TriggerIcon} size={14} className="text-muted-foreground shrink-0" />
+                                  <span>{t.label}</span>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            )
+                          })}
+                        </SidebarMenuSub>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </SidebarMenuItem>
+              )
+            })}
+          </SidebarMenu>
+        </SidebarGroup>
+      )}
+
+      {/* Actions */}
+      <SidebarGroup>
+        <SidebarGroupLabel>Actions</SidebarGroupLabel>
+        <SidebarMenu>
+          {allActions.map(([key, category]) => {
+            const CategoryIcon = ACTION_CATEGORY_ICONS[key] || Add01Icon
+            const isOpen = openItems.has(`action-${key}`)
+            const isDisabled = !workflow.hasTrigger
+
+            return (
+              <SidebarMenuItem key={key}>
+                <SidebarMenuButton
+                  tooltip={category.label}
+                  onClick={() => !isDisabled && toggle(`action-${key}`)}
+                  data-state={isOpen ? "open" : "closed"}
+                  className={cn(isDisabled && "opacity-50 cursor-not-allowed")}
+                >
+                  <HugeiconsIcon icon={CategoryIcon} size={16} />
+                  <span>{category.label}</span>
+                </SidebarMenuButton>
+                <SidebarMenuAction
+                  className={cn(
+                    "data-[state=open]:rotate-90 transition-transform duration-200",
+                    isDisabled && "opacity-50 cursor-not-allowed"
+                  )}
+                  onClick={() => !isDisabled && toggle(`action-${key}`)}
+                  data-state={isOpen ? "open" : "closed"}
+                >
+                  <HugeiconsIcon icon={ArrowRight01Icon} size={14} />
+                  <span className="sr-only">Toggle</span>
+                </SidebarMenuAction>
+                <AnimatePresence initial={false}>
+                  {isOpen && !isDisabled && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                      className="overflow-hidden"
+                    >
+                      <SidebarMenuSub>
+                        {category.actions.map((a) => {
+                          const ActionIcon = ACTION_ICONS[a.value] || CategoryIcon
+                          return (
+                            <SidebarMenuSubItem key={a.value}>
+                              <SidebarMenuSubButton
+                                onClick={() => workflow.addActionNode(a.value as WorkflowAction, a.label, category.label)}
+                                className="cursor-pointer"
+                              >
+                                <HugeiconsIcon icon={ActionIcon} size={14} className="text-muted-foreground shrink-0" />
+                                <span>{a.label}</span>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          )
+                        })}
+                      </SidebarMenuSub>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </SidebarMenuItem>
+            )
+          })}
+        </SidebarMenu>
+      </SidebarGroup>
+    </>
+  )
+}
+
 function NormalSidebarContent({
   navSystem,
   sidebarState
@@ -411,17 +940,28 @@ function NormalSidebarContent({
   )
 }
 
-export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sidebar> & { user: UserData }) {
+export function AppSidebar({
+  user,
+  workspace,
+  workspaces = [],
+  activeWorkspaceId = null,
+  ...props
+}: React.ComponentProps<typeof Sidebar> & {
+  user: UserData
+  workspace: WorkspaceData | null
+  workspaces?: WorkspaceWithRole[]
+  activeWorkspaceId?: string | null
+}) {
   const { open: openCommandMenu } = useCommandMenu()
   const sidebarState = useSidebarStateProvider()
   const { mode } = useSidebarMode()
   const isMessagesMode = mode === "messages"
+  const isWorkflowMode = mode === "workflow"
   const isMobile = useIsMobile()
 
-  // On mobile: always collapsible (sheet behavior)
-  // On desktop in messages mode: fixed sidebar (no collapse)
-  // On desktop in normal mode: icon collapse
-  const collapsible = isMobile ? "icon" : (isMessagesMode ? "none" : "icon")
+  // On mobile: collapsible (sheet behavior)
+  // On desktop: fixed sidebar (no collapse) - same as messages layout
+  const collapsible = isMobile ? "icon" : "none"
 
   // Filter out Integrations link for non-owners
   const navSystem = React.useMemo(() => {
@@ -437,23 +977,45 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
     })
   }, [user.role])
 
-  // On mobile in messages mode, we render the servers bar inside the sidebar
+  // On mobile, we render the workspace/servers bar inside the sidebar sheet
   // so they slide out together as one unit
-  const showMobileServersBar = isMobile && isMessagesMode
+  const showMobileSidebarWithBar = isMobile
 
   return (
     <SidebarStateContext.Provider value={sidebarState}>
       <Sidebar variant="inset" collapsible={collapsible} {...props}>
-        {/* Mobile messages mode: servers bar + chat sidebar side by side */}
-        {showMobileServersBar ? (
+        {/* Mobile: workspace/servers bar + main sidebar side by side */}
+        {showMobileSidebarWithBar ? (
           <div className="flex h-full">
-            <ServersSidebar />
+            {isMessagesMode ? (
+              <ServersSidebar />
+            ) : (
+              <WorkspaceSidebar
+                workspaces={workspaces}
+                activeWorkspaceId={activeWorkspaceId}
+              />
+            )}
             <div className="flex flex-col flex-1 min-w-0">
               <SidebarHeader>
-                <MessagesHeader />
+                {isMessagesMode ? (
+                  <MessagesHeader />
+                ) : isWorkflowMode ? (
+                  <WorkflowHeader />
+                ) : (
+                  <NormalHeader openCommandMenu={openCommandMenu} workspace={workspace} />
+                )}
               </SidebarHeader>
-              <SidebarContent>
-                <MessagesSidebarContent />
+              <SidebarContent
+                onScrollPosition={isMessagesMode || isWorkflowMode ? undefined : sidebarState.setScrollPosition}
+                initialScrollTop={isMessagesMode || isWorkflowMode ? 0 : sidebarState.scrollPosition}
+              >
+                {isMessagesMode ? (
+                  <MessagesSidebarContent />
+                ) : isWorkflowMode ? (
+                  <WorkflowSidebarContent />
+                ) : (
+                  <NormalSidebarContent navSystem={navSystem} sidebarState={sidebarState} />
+                )}
               </SidebarContent>
               <SidebarFooter>
                 <NavUser user={user} />
@@ -465,16 +1027,20 @@ export function AppSidebar({ user, ...props }: React.ComponentProps<typeof Sideb
             <SidebarHeader>
               {isMessagesMode ? (
                 <MessagesHeader />
+              ) : isWorkflowMode ? (
+                <WorkflowHeader />
               ) : (
-                <NormalHeader openCommandMenu={openCommandMenu} />
+                <NormalHeader openCommandMenu={openCommandMenu} workspace={workspace} />
               )}
             </SidebarHeader>
             <SidebarContent
-              onScrollPosition={isMessagesMode ? undefined : sidebarState.setScrollPosition}
-              initialScrollTop={isMessagesMode ? 0 : sidebarState.scrollPosition}
+              onScrollPosition={isMessagesMode || isWorkflowMode ? undefined : sidebarState.setScrollPosition}
+              initialScrollTop={isMessagesMode || isWorkflowMode ? 0 : sidebarState.scrollPosition}
             >
               {isMessagesMode ? (
                 <MessagesSidebarContent />
+              ) : isWorkflowMode ? (
+                <WorkflowSidebarContent />
               ) : (
                 <NormalSidebarContent navSystem={navSystem} sidebarState={sidebarState} />
               )}

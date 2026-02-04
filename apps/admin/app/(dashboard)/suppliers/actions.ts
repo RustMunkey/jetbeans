@@ -1,6 +1,5 @@
 "use server"
 
-import { headers } from "next/headers"
 import { eq, desc, count, and } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import {
@@ -10,16 +9,16 @@ import {
 	productVariants,
 	products,
 } from "@jetbeans/db/schema"
-import { auth } from "@/lib/auth"
 import { logAudit } from "@/lib/audit"
+import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 
-async function requireAdmin() {
-	const session = await auth.api.getSession({ headers: await headers() })
-	if (!session) throw new Error("Not authenticated")
-	if (session.user.role !== "owner" && session.user.role !== "admin") {
-		throw new Error("Insufficient permissions")
+async function requireSuppliersPermission() {
+	const workspace = await requireWorkspace()
+	const canManage = await checkWorkspacePermission("canManageProducts")
+	if (!canManage) {
+		throw new Error("You don't have permission to manage suppliers")
 	}
-	return session.user
+	return workspace
 }
 
 // --- SUPPLIERS ---
@@ -30,27 +29,32 @@ interface GetSuppliersParams {
 }
 
 export async function getSuppliers(params: GetSuppliersParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30 } = params
 	const offset = (page - 1) * pageSize
+
+	const where = eq(suppliers.workspaceId, workspace.id)
 
 	const [items, [total]] = await Promise.all([
 		db
 			.select()
 			.from(suppliers)
+			.where(where)
 			.orderBy(desc(suppliers.createdAt))
 			.limit(pageSize)
 			.offset(offset),
-		db.select({ count: count() }).from(suppliers),
+		db.select({ count: count() }).from(suppliers).where(where),
 	])
 
 	return { items, totalCount: total.count }
 }
 
 export async function getSupplier(id: string) {
+	const workspace = await requireWorkspace()
 	const [supplier] = await db
 		.select()
 		.from(suppliers)
-		.where(eq(suppliers.id, id))
+		.where(and(eq(suppliers.id, id), eq(suppliers.workspaceId, workspace.id)))
 		.limit(1)
 
 	return supplier ?? null
@@ -65,9 +69,9 @@ export async function createSupplier(data: {
 	averageLeadTimeDays?: string
 	notes?: string
 }) {
-	await requireAdmin()
+	const workspace = await requireSuppliersPermission()
 
-	const [supplier] = await db.insert(suppliers).values(data).returning()
+	const [supplier] = await db.insert(suppliers).values({ ...data, workspaceId: workspace.id }).returning()
 
 	await logAudit({
 		action: "supplier.created",
@@ -88,12 +92,12 @@ export async function updateSupplier(id: string, data: {
 	averageLeadTimeDays?: string
 	notes?: string
 }) {
-	await requireAdmin()
+	const workspace = await requireSuppliersPermission()
 
 	await db
 		.update(suppliers)
 		.set({ ...data, updatedAt: new Date() })
-		.where(eq(suppliers.id, id))
+		.where(and(eq(suppliers.id, id), eq(suppliers.workspaceId, workspace.id)))
 
 	await logAudit({
 		action: "supplier.updated",
@@ -103,9 +107,9 @@ export async function updateSupplier(id: string, data: {
 }
 
 export async function deleteSupplier(id: string) {
-	await requireAdmin()
+	const workspace = await requireSuppliersPermission()
 
-	await db.delete(suppliers).where(eq(suppliers.id, id))
+	await db.delete(suppliers).where(and(eq(suppliers.id, id), eq(suppliers.workspaceId, workspace.id)))
 
 	await logAudit({
 		action: "supplier.deleted",
@@ -123,15 +127,17 @@ interface GetPurchaseOrdersParams {
 }
 
 export async function getPurchaseOrders(params: GetPurchaseOrdersParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30, status } = params
 	const offset = (page - 1) * pageSize
 
-	const conditions = []
+	// Filter by workspace through suppliers
+	const conditions = [eq(suppliers.workspaceId, workspace.id)]
 	if (status) {
 		conditions.push(eq(purchaseOrders.status, status))
 	}
 
-	const where = conditions.length > 0 ? and(...conditions) : undefined
+	const where = and(...conditions)
 
 	const [items, [total]] = await Promise.all([
 		db
@@ -152,13 +158,19 @@ export async function getPurchaseOrders(params: GetPurchaseOrdersParams = {}) {
 			.orderBy(desc(purchaseOrders.createdAt))
 			.limit(pageSize)
 			.offset(offset),
-		db.select({ count: count() }).from(purchaseOrders).where(where),
+		db
+			.select({ count: count() })
+			.from(purchaseOrders)
+			.innerJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
+			.where(where),
 	])
 
 	return { items, totalCount: total.count }
 }
 
 export async function getPurchaseOrder(id: string) {
+	const workspace = await requireWorkspace()
+
 	const [po] = await db
 		.select({
 			id: purchaseOrders.id,
@@ -177,7 +189,7 @@ export async function getPurchaseOrder(id: string) {
 		})
 		.from(purchaseOrders)
 		.innerJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
-		.where(eq(purchaseOrders.id, id))
+		.where(and(eq(purchaseOrders.id, id), eq(suppliers.workspaceId, workspace.id)))
 		.limit(1)
 
 	if (!po) return null
@@ -207,7 +219,16 @@ export async function createPurchaseOrder(data: {
 	notes?: string
 	expectedDelivery?: Date
 }) {
-	await requireAdmin()
+	const workspace = await requireSuppliersPermission()
+
+	// Verify supplier belongs to this workspace
+	const [supplier] = await db
+		.select({ id: suppliers.id })
+		.from(suppliers)
+		.where(and(eq(suppliers.id, data.supplierId), eq(suppliers.workspaceId, workspace.id)))
+		.limit(1)
+
+	if (!supplier) throw new Error("Supplier not found")
 
 	const poNumber = `PO-${Date.now().toString(36).toUpperCase()}`
 
@@ -232,7 +253,17 @@ export async function createPurchaseOrder(data: {
 }
 
 export async function updatePurchaseOrderStatus(id: string, status: string) {
-	await requireAdmin()
+	const workspace = await requireSuppliersPermission()
+
+	// Verify PO's supplier belongs to this workspace
+	const [po] = await db
+		.select({ id: purchaseOrders.id })
+		.from(purchaseOrders)
+		.innerJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
+		.where(and(eq(purchaseOrders.id, id), eq(suppliers.workspaceId, workspace.id)))
+		.limit(1)
+
+	if (!po) throw new Error("Purchase order not found")
 
 	const updates: Record<string, unknown> = {
 		status,
@@ -253,7 +284,17 @@ export async function updatePurchaseOrderStatus(id: string, status: string) {
 }
 
 export async function deletePurchaseOrder(id: string) {
-	await requireAdmin()
+	const workspace = await requireSuppliersPermission()
+
+	// Verify PO's supplier belongs to this workspace
+	const [po] = await db
+		.select({ id: purchaseOrders.id })
+		.from(purchaseOrders)
+		.innerJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
+		.where(and(eq(purchaseOrders.id, id), eq(suppliers.workspaceId, workspace.id)))
+		.limit(1)
+
+	if (!po) throw new Error("Purchase order not found")
 
 	await db.delete(purchaseOrders).where(eq(purchaseOrders.id, id))
 

@@ -1,22 +1,22 @@
 "use server"
 
-import { headers } from "next/headers"
-import { eq, and, like, desc, sql, count, ilike, inArray } from "@jetbeans/db/drizzle"
+import { eq, and, desc, count, ilike, inArray } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { products, productVariants, categories, inventory } from "@jetbeans/db/schema"
-import { auth } from "@/lib/auth"
 import { logAudit } from "@/lib/audit"
 import { slugify } from "@/lib/format"
 import { pusherServer } from "@/lib/pusher-server"
 import { fireWebhooks } from "@/lib/webhooks/outgoing"
+import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
+import { emitProductCreated, emitProductUpdated } from "@/lib/workflows"
 
-async function requireAdmin() {
-	const session = await auth.api.getSession({ headers: await headers() })
-	if (!session) throw new Error("Not authenticated")
-	if (session.user.role !== "owner" && session.user.role !== "admin") {
-		throw new Error("Insufficient permissions")
+async function requireProductsPermission() {
+	const workspace = await requireWorkspace()
+	const canManage = await checkWorkspacePermission("canManageProducts")
+	if (!canManage) {
+		throw new Error("You don't have permission to manage products")
 	}
-	return session.user
+	return workspace
 }
 
 interface GetProductsParams {
@@ -28,10 +28,12 @@ interface GetProductsParams {
 }
 
 export async function getProducts(params: GetProductsParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30, search, category, status } = params
 	const offset = (page - 1) * pageSize
 
-	const conditions = []
+	// Always filter by workspace
+	const conditions = [eq(products.workspaceId, workspace.id)]
 	if (search) {
 		conditions.push(ilike(products.name, `%${search}%`))
 	}
@@ -44,7 +46,7 @@ export async function getProducts(params: GetProductsParams = {}) {
 		conditions.push(eq(products.isActive, false))
 	}
 
-	const where = conditions.length > 0 ? and(...conditions) : undefined
+	const where = and(...conditions)
 
 	const [items, [total]] = await Promise.all([
 		db
@@ -73,10 +75,12 @@ export async function getProducts(params: GetProductsParams = {}) {
 }
 
 export async function getProduct(id: string) {
+	const workspace = await requireWorkspace()
+
 	const [product] = await db
 		.select()
 		.from(products)
-		.where(eq(products.id, id))
+		.where(and(eq(products.id, id), eq(products.workspaceId, workspace.id)))
 		.limit(1)
 
 	if (!product) throw new Error("Product not found")
@@ -101,7 +105,12 @@ export async function getProduct(id: string) {
 }
 
 export async function getCategories() {
-	return db.select().from(categories).orderBy(categories.sortOrder)
+	const workspace = await requireWorkspace()
+	return db
+		.select()
+		.from(categories)
+		.where(eq(categories.workspaceId, workspace.id))
+		.orderBy(categories.sortOrder)
 }
 
 interface ProductData {
@@ -127,13 +136,14 @@ interface ProductData {
 }
 
 export async function createProduct(data: ProductData) {
-	const user = await requireAdmin()
+	const workspace = await requireProductsPermission()
 
 	const slug = data.slug || slugify(data.name)
 
 	const [product] = await db
 		.insert(products)
 		.values({
+			workspaceId: workspace.id,
 			name: data.name,
 			slug,
 			description: data.description || null,
@@ -190,11 +200,20 @@ export async function createProduct(data: ProductData) {
 		createdAt: product.createdAt?.toISOString(),
 	})
 
+	// Emit workflow event
+	await emitProductCreated({
+		workspaceId: workspace.id,
+		productId: product.id,
+		name: product.name,
+		slug: product.slug,
+		price: product.price,
+	})
+
 	return product
 }
 
 export async function updateProduct(id: string, data: Partial<ProductData>) {
-	const user = await requireAdmin()
+	const workspace = await requireProductsPermission()
 
 	const updates: Record<string, unknown> = { updatedAt: new Date() }
 	if (data.name !== undefined) updates.name = data.name
@@ -220,7 +239,7 @@ export async function updateProduct(id: string, data: Partial<ProductData>) {
 	const [product] = await db
 		.update(products)
 		.set(updates)
-		.where(eq(products.id, id))
+		.where(and(eq(products.id, id), eq(products.workspaceId, workspace.id)))
 		.returning()
 
 	await logAudit({
@@ -256,19 +275,30 @@ export async function updateProduct(id: string, data: Partial<ProductData>) {
 		updatedAt: product.updatedAt?.toISOString(),
 	})
 
+	// Emit workflow event
+	await emitProductUpdated({
+		workspaceId: workspace.id,
+		productId: product.id,
+		name: product.name,
+		slug: product.slug,
+		price: product.price,
+	})
+
 	return product
 }
 
 export async function deleteProduct(id: string) {
-	const user = await requireAdmin()
+	const workspace = await requireProductsPermission()
 
 	const [product] = await db
 		.select({ name: products.name })
 		.from(products)
-		.where(eq(products.id, id))
+		.where(and(eq(products.id, id), eq(products.workspaceId, workspace.id)))
 		.limit(1)
 
-	await db.delete(products).where(eq(products.id, id))
+	if (!product) throw new Error("Product not found")
+
+	await db.delete(products).where(and(eq(products.id, id), eq(products.workspaceId, workspace.id)))
 
 	await logAudit({
 		action: "product.deleted",
@@ -285,10 +315,13 @@ export async function deleteProduct(id: string) {
 }
 
 export async function bulkUpdateProducts(ids: string[], action: "activate" | "deactivate" | "delete") {
-	const user = await requireAdmin()
+	const workspace = await requireProductsPermission()
+
+	// Only affect products in this workspace
+	const workspaceCondition = and(inArray(products.id, ids), eq(products.workspaceId, workspace.id))
 
 	if (action === "delete") {
-		await db.delete(products).where(inArray(products.id, ids))
+		await db.delete(products).where(workspaceCondition)
 		await logAudit({
 			action: "product.deleted",
 			targetType: "product",
@@ -310,7 +343,7 @@ export async function bulkUpdateProducts(ids: string[], action: "activate" | "de
 		await db
 			.update(products)
 			.set({ isActive, updatedAt: new Date() })
-			.where(inArray(products.id, ids))
+			.where(workspaceCondition)
 		await logAudit({
 			action: "product.updated",
 			targetType: "product",
@@ -341,7 +374,16 @@ interface VariantData {
 }
 
 export async function createVariant(productId: string, data: VariantData) {
-	const user = await requireAdmin()
+	const workspace = await requireProductsPermission()
+
+	// Verify product belongs to this workspace
+	const [product] = await db
+		.select({ id: products.id })
+		.from(products)
+		.where(and(eq(products.id, productId), eq(products.workspaceId, workspace.id)))
+		.limit(1)
+
+	if (!product) throw new Error("Product not found")
 
 	const [variant] = await db
 		.insert(productVariants)
@@ -373,7 +415,17 @@ export async function createVariant(productId: string, data: VariantData) {
 }
 
 export async function updateVariant(id: string, data: Partial<VariantData>) {
-	const user = await requireAdmin()
+	const workspace = await requireProductsPermission()
+
+	// Verify variant's product belongs to this workspace
+	const [variant] = await db
+		.select({ id: productVariants.id, productId: productVariants.productId })
+		.from(productVariants)
+		.innerJoin(products, eq(products.id, productVariants.productId))
+		.where(and(eq(productVariants.id, id), eq(products.workspaceId, workspace.id)))
+		.limit(1)
+
+	if (!variant) throw new Error("Variant not found")
 
 	const updates: Record<string, unknown> = {}
 	if (data.name !== undefined) updates.name = data.name
@@ -382,7 +434,7 @@ export async function updateVariant(id: string, data: Partial<VariantData>) {
 	if (data.attributes !== undefined) updates.attributes = data.attributes
 	if (data.isActive !== undefined) updates.isActive = data.isActive
 
-	const [variant] = await db
+	const [updated] = await db
 		.update(productVariants)
 		.set(updates)
 		.where(eq(productVariants.id, id))
@@ -395,10 +447,21 @@ export async function updateVariant(id: string, data: Partial<VariantData>) {
 			.where(eq(inventory.variantId, id))
 	}
 
-	return variant
+	return updated
 }
 
 export async function deleteVariant(id: string) {
-	const user = await requireAdmin()
+	const workspace = await requireProductsPermission()
+
+	// Verify variant's product belongs to this workspace
+	const [variant] = await db
+		.select({ id: productVariants.id })
+		.from(productVariants)
+		.innerJoin(products, eq(products.id, productVariants.productId))
+		.where(and(eq(productVariants.id, id), eq(products.workspaceId, workspace.id)))
+		.limit(1)
+
+	if (!variant) throw new Error("Variant not found")
+
 	await db.delete(productVariants).where(eq(productVariants.id, id))
 }

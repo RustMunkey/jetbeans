@@ -1,7 +1,7 @@
 import { eq } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { emailTemplates, messages } from "@jetbeans/db/schema"
-import { getResend } from "./resend"
+import { getResend, getWorkspaceResend, getWorkspaceEmailConfig } from "./resend"
 
 type SendTemplateEmailOptions = {
 	to: string
@@ -9,6 +9,7 @@ type SendTemplateEmailOptions = {
 	variables?: Record<string, string>
 	sentBy?: string
 	recipientId?: string
+	workspaceId?: string // Optional - if provided, uses workspace-specific config
 }
 
 export async function sendTemplateEmail({
@@ -17,8 +18,10 @@ export async function sendTemplateEmail({
 	variables = {},
 	sentBy,
 	recipientId,
+	workspaceId,
 }: SendTemplateEmailOptions) {
-	const resend = getResend()
+	// Get Resend instance (workspace-specific or default)
+	const resend = workspaceId ? await getWorkspaceResend(workspaceId) : getResend()
 	if (!resend) return null
 
 	const [template] = await db
@@ -39,13 +42,22 @@ export async function sendTemplateEmail({
 		body = body.replaceAll(placeholder, value)
 	}
 
-	const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@jetbeans.app"
+	// Get email config (workspace-specific or default)
+	const emailConfig = workspaceId
+		? await getWorkspaceEmailConfig(workspaceId)
+		: { fromEmail: process.env.RESEND_FROM_EMAIL || "noreply@jetbeans.app" }
+
+	// Format "from" address
+	const from = emailConfig.fromName
+		? `${emailConfig.fromName} <${emailConfig.fromEmail}>`
+		: emailConfig.fromEmail
 
 	const result = await resend.emails.send({
-		from: fromEmail,
+		from,
 		to,
 		subject,
 		html: body,
+		replyTo: emailConfig.replyTo,
 	})
 
 	// Log to messages table
@@ -57,6 +69,51 @@ export async function sendTemplateEmail({
 		body,
 		status: result.error ? "failed" : "sent",
 		sentBy: sentBy || null,
+	})
+
+	return result
+}
+
+type SendEmailOptions = {
+	to: string | string[]
+	subject: string
+	html?: string
+	text?: string
+	replyTo?: string
+	workspaceId?: string
+}
+
+/**
+ * Send a direct email (not using a template)
+ */
+export async function sendEmail({
+	to,
+	subject,
+	html,
+	text,
+	replyTo,
+	workspaceId,
+}: SendEmailOptions) {
+	const resend = workspaceId ? await getWorkspaceResend(workspaceId) : getResend()
+	if (!resend) return null
+
+	const emailConfig = workspaceId
+		? await getWorkspaceEmailConfig(workspaceId)
+		: { fromEmail: process.env.RESEND_FROM_EMAIL || "noreply@jetbeans.app" }
+
+	const from = emailConfig.fromName
+		? `${emailConfig.fromName} <${emailConfig.fromEmail}>`
+		: emailConfig.fromEmail
+
+	const finalReplyTo = replyTo || emailConfig.replyTo
+
+	const result = await resend.emails.send({
+		from,
+		to,
+		subject,
+		html: html || text || "", // Resend requires at least html or text
+		...(text && { text }),
+		...(finalReplyTo && { replyTo: finalReplyTo }),
 	})
 
 	return result

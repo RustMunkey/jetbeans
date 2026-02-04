@@ -3,6 +3,16 @@
 import { db } from "@jetbeans/db/client"
 import * as schema from "@jetbeans/db/schema"
 import { eq, desc, and, ilike, count } from "@jetbeans/db/drizzle"
+import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
+
+async function requireContentPermission() {
+	const workspace = await requireWorkspace()
+	const canManage = await checkWorkspacePermission("canManageSettings")
+	if (!canManage) {
+		throw new Error("You don't have permission to manage content")
+	}
+	return workspace
+}
 
 // --- BLOG POSTS ---
 interface GetBlogPostsParams {
@@ -12,15 +22,16 @@ interface GetBlogPostsParams {
 }
 
 export async function getBlogPosts(params: GetBlogPostsParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30, status } = params
 	const offset = (page - 1) * pageSize
 
-	const conditions = []
+	const conditions = [eq(schema.blogPosts.workspaceId, workspace.id)]
 	if (status && status !== "all") {
 		conditions.push(eq(schema.blogPosts.status, status))
 	}
 
-	const where = conditions.length > 0 ? and(...conditions) : undefined
+	const where = and(...conditions)
 
 	const [items, [total]] = await Promise.all([
 		db
@@ -37,10 +48,11 @@ export async function getBlogPosts(params: GetBlogPostsParams = {}) {
 }
 
 export async function getBlogPost(id: string) {
+	const workspace = await requireWorkspace()
 	const [post] = await db
 		.select()
 		.from(schema.blogPosts)
-		.where(eq(schema.blogPosts.id, id))
+		.where(and(eq(schema.blogPosts.id, id), eq(schema.blogPosts.workspaceId, workspace.id)))
 	return post ?? null
 }
 
@@ -55,9 +67,11 @@ export async function createBlogPost(data: {
 	metaDescription?: string
 	tags?: string[]
 }) {
+	const workspace = await requireContentPermission()
 	const [post] = await db
 		.insert(schema.blogPosts)
 		.values({
+			workspaceId: workspace.id,
 			title: data.title,
 			slug: data.slug,
 			excerpt: data.excerpt || undefined,
@@ -84,6 +98,7 @@ export async function updateBlogPost(id: string, data: {
 	metaDescription?: string
 	tags?: string[]
 }) {
+	const workspace = await requireContentPermission()
 	const updateData: Record<string, unknown> = { ...data, updatedAt: new Date() }
 	if (data.status === "published" && !updateData.publishedAt) {
 		updateData.publishedAt = new Date()
@@ -91,13 +106,14 @@ export async function updateBlogPost(id: string, data: {
 	const [post] = await db
 		.update(schema.blogPosts)
 		.set(updateData)
-		.where(eq(schema.blogPosts.id, id))
+		.where(and(eq(schema.blogPosts.id, id), eq(schema.blogPosts.workspaceId, workspace.id)))
 		.returning()
 	return post
 }
 
 export async function deleteBlogPost(id: string) {
-	await db.delete(schema.blogPosts).where(eq(schema.blogPosts.id, id))
+	const workspace = await requireContentPermission()
+	await db.delete(schema.blogPosts).where(and(eq(schema.blogPosts.id, id), eq(schema.blogPosts.workspaceId, workspace.id)))
 }
 
 // --- SITE PAGES ---
@@ -107,27 +123,32 @@ interface GetSitePagesParams {
 }
 
 export async function getSitePages(params: GetSitePagesParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30 } = params
 	const offset = (page - 1) * pageSize
+
+	const where = eq(schema.sitePages.workspaceId, workspace.id)
 
 	const [items, [total]] = await Promise.all([
 		db
 			.select()
 			.from(schema.sitePages)
+			.where(where)
 			.orderBy(desc(schema.sitePages.updatedAt))
 			.limit(pageSize)
 			.offset(offset),
-		db.select({ count: count() }).from(schema.sitePages),
+		db.select({ count: count() }).from(schema.sitePages).where(where),
 	])
 
 	return { items, totalCount: total.count }
 }
 
 export async function getSitePage(id: string) {
+	const workspace = await requireWorkspace()
 	const [page] = await db
 		.select()
 		.from(schema.sitePages)
-		.where(eq(schema.sitePages.id, id))
+		.where(and(eq(schema.sitePages.id, id), eq(schema.sitePages.workspaceId, workspace.id)))
 	return page ?? null
 }
 
@@ -139,9 +160,11 @@ export async function createSitePage(data: {
 	metaTitle?: string
 	metaDescription?: string
 }) {
+	const workspace = await requireContentPermission()
 	const [page] = await db
 		.insert(schema.sitePages)
 		.values({
+			workspaceId: workspace.id,
 			title: data.title,
 			slug: data.slug,
 			content: data.content || undefined,
@@ -161,47 +184,53 @@ export async function updateSitePage(id: string, data: {
 	metaTitle?: string
 	metaDescription?: string
 }) {
+	const workspace = await requireContentPermission()
 	const [page] = await db
 		.update(schema.sitePages)
 		.set({ ...data, updatedAt: new Date() })
-		.where(eq(schema.sitePages.id, id))
+		.where(and(eq(schema.sitePages.id, id), eq(schema.sitePages.workspaceId, workspace.id)))
 		.returning()
 	return page
 }
 
 export async function deleteSitePage(id: string) {
-	await db.delete(schema.sitePages).where(eq(schema.sitePages.id, id))
+	const workspace = await requireContentPermission()
+	await db.delete(schema.sitePages).where(and(eq(schema.sitePages.id, id), eq(schema.sitePages.workspaceId, workspace.id)))
 }
 
 // --- SITE CONTENT ---
 export async function getSiteContent() {
+	const workspace = await requireWorkspace()
 	return db
 		.select()
 		.from(schema.siteContent)
+		.where(eq(schema.siteContent.workspaceId, workspace.id))
 		.orderBy(schema.siteContent.key)
 }
 
 export async function updateSiteContent(key: string, value: string) {
+	const workspace = await requireContentPermission()
 	const [existing] = await db
 		.select()
 		.from(schema.siteContent)
-		.where(eq(schema.siteContent.key, key))
+		.where(and(eq(schema.siteContent.key, key), eq(schema.siteContent.workspaceId, workspace.id)))
 
 	if (existing) {
 		await db
 			.update(schema.siteContent)
 			.set({ value, updatedAt: new Date() })
-			.where(eq(schema.siteContent.key, key))
+			.where(and(eq(schema.siteContent.key, key), eq(schema.siteContent.workspaceId, workspace.id)))
 	} else {
 		await db
 			.insert(schema.siteContent)
-			.values({ key, value, type: "text" })
+			.values({ key, value, type: "text", workspaceId: workspace.id })
 	}
 }
 
 // --- MEDIA LIBRARY ---
 export async function getMediaItems(params?: { type?: string; folder?: string }) {
-	const conditions = []
+	const workspace = await requireWorkspace()
+	const conditions = [eq(schema.mediaItems.workspaceId, workspace.id)]
 	if (params?.type === "image") {
 		conditions.push(ilike(schema.mediaItems.mimeType, "image/%"))
 	} else if (params?.type === "video") {
@@ -214,7 +243,7 @@ export async function getMediaItems(params?: { type?: string; folder?: string })
 	return db
 		.select()
 		.from(schema.mediaItems)
-		.where(conditions.length > 0 ? and(...conditions) : undefined)
+		.where(and(...conditions))
 		.orderBy(desc(schema.mediaItems.createdAt))
 }
 
@@ -226,22 +255,25 @@ export async function createMediaItem(data: {
 	alt?: string
 	folder?: string
 }) {
+	const workspace = await requireContentPermission()
 	const [item] = await db
 		.insert(schema.mediaItems)
-		.values(data)
+		.values({ ...data, workspaceId: workspace.id })
 		.returning()
 	return item
 }
 
 export async function updateMediaItem(id: string, data: { alt?: string; folder?: string }) {
+	const workspace = await requireContentPermission()
 	const [item] = await db
 		.update(schema.mediaItems)
 		.set(data)
-		.where(eq(schema.mediaItems.id, id))
+		.where(and(eq(schema.mediaItems.id, id), eq(schema.mediaItems.workspaceId, workspace.id)))
 		.returning()
 	return item
 }
 
 export async function deleteMediaItem(id: string) {
-	await db.delete(schema.mediaItems).where(eq(schema.mediaItems.id, id))
+	const workspace = await requireContentPermission()
+	await db.delete(schema.mediaItems).where(and(eq(schema.mediaItems.id, id), eq(schema.mediaItems.workspaceId, workspace.id)))
 }

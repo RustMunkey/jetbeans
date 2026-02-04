@@ -1,22 +1,18 @@
+import { Suspense } from "react"
 import { getCustomers } from "./actions"
 import { CustomersTable } from "./customers-table"
+import { customersParamsCache } from "@/lib/search-params"
 
 interface PageProps {
-	searchParams: Promise<{
-		page?: string
-		search?: string
-		segment?: string
-	}>
+	searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 export default async function CustomersPage({ searchParams }: PageProps) {
-	const params = await searchParams
-	const page = Number(params.page) || 1
+	const { page, search } = await customersParamsCache.parse(searchParams)
 	const { items, totalCount } = await getCustomers({
 		page,
 		pageSize: 30,
-		search: params.search,
-		segment: params.segment,
+		search: search || undefined,
 	})
 
 	return (
@@ -28,11 +24,12 @@ export default async function CustomersPage({ searchParams }: PageProps) {
 				</p>
 			</div>
 
-			<CustomersTable
-				customers={items}
-				totalCount={totalCount}
-				currentPage={page}
-			/>
+			<Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded-lg" />}>
+				<CustomersTable
+					customers={items}
+					totalCount={totalCount}
+				/>
+			</Suspense>
 		</div>
 	)
 }

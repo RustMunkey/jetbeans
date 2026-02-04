@@ -1,20 +1,19 @@
 "use server"
 
-import { headers } from "next/headers"
 import { eq, and, desc, count, inArray } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { reviews, products, users } from "@jetbeans/db/schema"
-import { auth } from "@/lib/auth"
 import { logAudit } from "@/lib/audit"
 import { fireWebhooks } from "@/lib/webhooks/outgoing"
+import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 
-async function requireAdmin() {
-	const session = await auth.api.getSession({ headers: await headers() })
-	if (!session) throw new Error("Not authenticated")
-	if (session.user.role !== "owner" && session.user.role !== "admin") {
-		throw new Error("Insufficient permissions")
+async function requireReviewsPermission() {
+	const workspace = await requireWorkspace()
+	const canManage = await checkWorkspacePermission("canManageProducts")
+	if (!canManage) {
+		throw new Error("You don't have permission to manage reviews")
 	}
-	return session.user
+	return workspace
 }
 
 interface GetReviewsParams {
@@ -24,15 +23,17 @@ interface GetReviewsParams {
 }
 
 export async function getReviews(params: GetReviewsParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30, status } = params
 	const offset = (page - 1) * pageSize
 
-	const conditions = []
+	// Filter reviews by workspace through products
+	const conditions = [eq(products.workspaceId, workspace.id)]
 	if (status && status !== "all") {
 		conditions.push(eq(reviews.status, status))
 	}
 
-	const where = conditions.length > 0 ? and(...conditions) : undefined
+	const where = and(...conditions)
 
 	const [items, [total]] = await Promise.all([
 		db
@@ -52,19 +53,25 @@ export async function getReviews(params: GetReviewsParams = {}) {
 				customerEmail: users.email,
 			})
 			.from(reviews)
-			.leftJoin(products, eq(reviews.productId, products.id))
+			.innerJoin(products, eq(reviews.productId, products.id))
 			.leftJoin(users, eq(reviews.userId, users.id))
 			.where(where)
 			.orderBy(desc(reviews.createdAt))
 			.limit(pageSize)
 			.offset(offset),
-		db.select({ count: count() }).from(reviews).where(where),
+		db
+			.select({ count: count() })
+			.from(reviews)
+			.innerJoin(products, eq(reviews.productId, products.id))
+			.where(where),
 	])
 
 	return { items, totalCount: Number(total.count) }
 }
 
 export async function getReview(id: string) {
+	const workspace = await requireWorkspace()
+
 	const [review] = await db
 		.select({
 			id: reviews.id,
@@ -83,9 +90,9 @@ export async function getReview(id: string) {
 			customerEmail: users.email,
 		})
 		.from(reviews)
-		.leftJoin(products, eq(reviews.productId, products.id))
+		.innerJoin(products, eq(reviews.productId, products.id))
 		.leftJoin(users, eq(reviews.userId, users.id))
-		.where(eq(reviews.id, id))
+		.where(and(eq(reviews.id, id), eq(products.workspaceId, workspace.id)))
 		.limit(1)
 
 	if (!review) throw new Error("Review not found")
@@ -93,13 +100,23 @@ export async function getReview(id: string) {
 }
 
 export async function moderateReview(id: string, status: "approved" | "rejected" | "reported") {
-	const user = await requireAdmin()
+	const workspace = await requireReviewsPermission()
+
+	// Verify review belongs to a product in this workspace
+	const [existing] = await db
+		.select({ id: reviews.id })
+		.from(reviews)
+		.innerJoin(products, eq(reviews.productId, products.id))
+		.where(and(eq(reviews.id, id), eq(products.workspaceId, workspace.id)))
+		.limit(1)
+
+	if (!existing) throw new Error("Review not found")
 
 	const [review] = await db
 		.update(reviews)
 		.set({
 			status,
-			moderatedBy: user.id,
+			moderatedBy: workspace.ownerId,
 			moderatedAt: new Date(),
 			updatedAt: new Date(),
 		})
@@ -129,7 +146,17 @@ export async function moderateReview(id: string, status: "approved" | "rejected"
 }
 
 export async function deleteReview(id: string) {
-	await requireAdmin()
+	const workspace = await requireReviewsPermission()
+
+	// Verify review belongs to a product in this workspace
+	const [existing] = await db
+		.select({ id: reviews.id })
+		.from(reviews)
+		.innerJoin(products, eq(reviews.productId, products.id))
+		.where(and(eq(reviews.id, id), eq(products.workspaceId, workspace.id)))
+		.limit(1)
+
+	if (!existing) throw new Error("Review not found")
 
 	await db.delete(reviews).where(eq(reviews.id, id))
 
@@ -142,27 +169,37 @@ export async function deleteReview(id: string) {
 }
 
 export async function bulkModerate(ids: string[], status: "approved" | "rejected") {
-	const user = await requireAdmin()
+	const workspace = await requireReviewsPermission()
+
+	// Get only reviews for products in this workspace
+	const validReviews = await db
+		.select({ id: reviews.id })
+		.from(reviews)
+		.innerJoin(products, eq(reviews.productId, products.id))
+		.where(and(inArray(reviews.id, ids), eq(products.workspaceId, workspace.id)))
+
+	const validIds = validReviews.map(r => r.id)
+	if (validIds.length === 0) return
 
 	await db
 		.update(reviews)
 		.set({
 			status,
-			moderatedBy: user.id,
+			moderatedBy: workspace.ownerId,
 			moderatedAt: new Date(),
 			updatedAt: new Date(),
 		})
-		.where(inArray(reviews.id, ids))
+		.where(inArray(reviews.id, validIds))
 
 	await logAudit({
 		action: "product.updated",
 		targetType: "review",
-		metadata: { action: `bulk_${status}`, count: ids.length },
+		metadata: { action: `bulk_${status}`, count: validIds.length },
 	})
 
 	// Fire webhooks for approved reviews
 	if (status === "approved") {
-		for (const reviewId of ids) {
+		for (const reviewId of validIds) {
 			await fireWebhooks("review.approved", {
 				reviewId,
 				status,

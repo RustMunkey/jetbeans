@@ -31,28 +31,65 @@ export function ParticipantTile({
 		.toUpperCase()
 		.slice(0, 2)
 
-	// Attach video track
+	// Attach video track - include participant.id to re-run when participant changes
 	useEffect(() => {
 		const track = showScreenShare ? participant.screenTrack : participant.videoTrack
-		if (!track || !videoRef.current) return
+		const videoEl = videoRef.current
 
-		track.attach(videoRef.current)
+		if (!track || !videoEl) {
+			console.log("[ParticipantTile] No video track or element:", {
+				hasTrack: !!track,
+				hasEl: !!videoEl,
+				participantId: participant.id
+			})
+			return
+		}
+
+		console.log("[ParticipantTile] Attaching video track for:", participant.name)
+		try {
+			track.attach(videoEl)
+		} catch (err) {
+			console.error("[ParticipantTile] Failed to attach video:", err)
+		}
 
 		return () => {
-			track.detach(videoRef.current!)
+			try {
+				track.detach(videoEl)
+			} catch {
+				// Ignore detach errors
+			}
 		}
-	}, [participant.videoTrack, participant.screenTrack, showScreenShare])
+	}, [participant.id, participant.videoTrack, participant.screenTrack, participant.name, showScreenShare])
 
-	// Attach audio track (only for remote participants)
+	// Attach audio track (only for remote participants) - include participant.id
 	useEffect(() => {
-		if (participant.isLocal || !participant.audioTrack || !audioRef.current) return
+		const audioEl = audioRef.current
 
-		participant.audioTrack.attach(audioRef.current)
+		if (participant.isLocal) return
+		if (!participant.audioTrack || !audioEl) {
+			console.log("[ParticipantTile] No audio track or element for remote:", {
+				hasTrack: !!participant.audioTrack,
+				hasEl: !!audioEl,
+				participantId: participant.id
+			})
+			return
+		}
+
+		console.log("[ParticipantTile] Attaching audio track for:", participant.name)
+		try {
+			participant.audioTrack.attach(audioEl)
+		} catch (err) {
+			console.error("[ParticipantTile] Failed to attach audio:", err)
+		}
 
 		return () => {
-			participant.audioTrack?.detach(audioRef.current!)
+			try {
+				participant.audioTrack?.detach(audioEl)
+			} catch {
+				// Ignore detach errors
+			}
 		}
-	}, [participant.audioTrack, participant.isLocal])
+	}, [participant.id, participant.audioTrack, participant.isLocal, participant.name])
 
 	const showVideo = showScreenShare
 		? participant.isScreenSharing && participant.screenTrack

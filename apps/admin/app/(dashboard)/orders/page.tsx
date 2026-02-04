@@ -1,22 +1,19 @@
+import { Suspense } from "react"
 import { getOrders } from "./actions"
 import { OrdersTable } from "./orders-table"
+import { ordersParamsCache } from "@/lib/search-params"
 
 interface PageProps {
-	searchParams: Promise<{
-		page?: string
-		status?: string
-		search?: string
-	}>
+	searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 export default async function OrdersPage({ searchParams }: PageProps) {
-	const params = await searchParams
-	const page = Number(params.page) || 1
+	const { page, status, search } = await ordersParamsCache.parse(searchParams)
 	const { items, totalCount } = await getOrders({
 		page,
 		pageSize: 30,
-		status: params.status,
-		search: params.search,
+		status: status === "all" ? undefined : status,
+		search: search || undefined,
 	})
 
 	return (
@@ -28,12 +25,12 @@ export default async function OrdersPage({ searchParams }: PageProps) {
 				</p>
 			</div>
 
-			<OrdersTable
-				orders={items}
-				totalCount={totalCount}
-				currentPage={page}
-				currentStatus={params.status}
-			/>
+			<Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded-lg" />}>
+				<OrdersTable
+					orders={items}
+					totalCount={totalCount}
+				/>
+			</Suspense>
 		</div>
 	)
 }

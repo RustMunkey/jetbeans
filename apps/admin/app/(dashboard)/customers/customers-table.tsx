@@ -1,22 +1,26 @@
 "use client"
 
-import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { DataTable, type Column } from "@/components/data-table"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { formatCurrency, formatDate } from "@/lib/format"
 import { useLiveCustomers, type LiveCustomer } from "@/hooks/use-live-customers"
+import { useCustomersParams } from "@/hooks/use-table-params"
+import { useQueryState, parseAsStringLiteral } from "nuqs"
 
 interface CustomersTableProps {
 	customers: LiveCustomer[]
 	totalCount: number
-	currentPage: number
 }
 
-export function CustomersTable({ customers: initialCustomers, totalCount, currentPage }: CustomersTableProps) {
+export function CustomersTable({ customers: initialCustomers, totalCount }: CustomersTableProps) {
 	const router = useRouter()
+	const [params, setParams] = useCustomersParams()
+	const [activityFilter, setActivityFilter] = useQueryState(
+		"activity",
+		parseAsStringLiteral(["all", "active", "inactive"] as const).withDefault("all")
+	)
 	const { customers } = useLiveCustomers({ initialCustomers })
-	const [activityFilter, setActivityFilter] = useState("all")
 
 	const columns: Column<LiveCustomer>[] = [
 		{
@@ -78,14 +82,15 @@ export function CustomersTable({ customers: initialCustomers, totalCount, curren
 			data={filtered}
 			searchPlaceholder="Search customers..."
 			totalCount={totalCount}
-			currentPage={currentPage}
+			currentPage={params.page}
 			pageSize={30}
+			onPageChange={(page) => setParams({ page })}
 			getId={(row) => row.id}
 			onRowClick={(row) => router.push(`/customers/${row.id}`)}
 			emptyMessage="No customers yet"
 			emptyDescription="Customers will appear here when they create accounts."
 			filters={
-				<Select value={activityFilter} onValueChange={setActivityFilter}>
+				<Select value={activityFilter ?? "all"} onValueChange={(v) => setActivityFilter(v as "all" | "active" | "inactive")}>
 					<SelectTrigger className="h-9 w-full sm:w-[150px]">
 						<SelectValue placeholder="All Customers" />
 					</SelectTrigger>

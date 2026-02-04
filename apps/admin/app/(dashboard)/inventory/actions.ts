@@ -1,21 +1,20 @@
 "use server"
 
-import { headers } from "next/headers"
 import { eq, and, desc, sql, count, lte, ilike, or } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { inventory, inventoryLogs, products, productVariants } from "@jetbeans/db/schema"
-import { auth } from "@/lib/auth"
 import { logAudit } from "@/lib/audit"
 import { pusherServer } from "@/lib/pusher-server"
 import { fireWebhooks } from "@/lib/webhooks/outgoing"
+import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 
-async function requireAdmin() {
-	const session = await auth.api.getSession({ headers: await headers() })
-	if (!session) throw new Error("Not authenticated")
-	if (session.user.role !== "owner" && session.user.role !== "admin") {
-		throw new Error("Insufficient permissions")
+async function requireInventoryPermission() {
+	const workspace = await requireWorkspace()
+	const canManage = await checkWorkspacePermission("canManageProducts")
+	if (!canManage) {
+		throw new Error("You don't have permission to manage inventory")
 	}
-	return session.user
+	return workspace
 }
 
 interface GetInventoryParams {
@@ -26,17 +25,19 @@ interface GetInventoryParams {
 }
 
 export async function getInventory(params: GetInventoryParams = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30, search, filter } = params
 	const offset = (page - 1) * pageSize
 
-	const conditions = []
+	// Always filter by workspace through products
+	const conditions = [eq(products.workspaceId, workspace.id)]
 	if (search) {
 		conditions.push(
 			or(
 				ilike(products.name, `%${search}%`),
 				ilike(productVariants.sku, `%${search}%`),
 				ilike(productVariants.name, `%${search}%`)
-			)
+			)!
 		)
 	}
 	if (filter === "low") {
@@ -44,13 +45,13 @@ export async function getInventory(params: GetInventoryParams = {}) {
 			and(
 				sql`${inventory.quantity} - ${inventory.reservedQuantity} <= ${inventory.lowStockThreshold}`,
 				sql`${inventory.quantity} - ${inventory.reservedQuantity} > 0`
-			)
+			)!
 		)
 	} else if (filter === "out") {
 		conditions.push(lte(sql`${inventory.quantity} - ${inventory.reservedQuantity}`, 0))
 	}
 
-	const where = conditions.length > 0 ? and(...conditions) : undefined
+	const where = and(...conditions)
 
 	const [items, [total]] = await Promise.all([
 		db
@@ -85,10 +86,14 @@ export async function getInventory(params: GetInventoryParams = {}) {
 }
 
 export async function getAlerts(params: { page?: number; pageSize?: number } = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30 } = params
 	const offset = (page - 1) * pageSize
 
-	const whereCondition = sql`${inventory.quantity} - ${inventory.reservedQuantity} <= ${inventory.lowStockThreshold}`
+	const whereCondition = and(
+		eq(products.workspaceId, workspace.id),
+		sql`${inventory.quantity} - ${inventory.reservedQuantity} <= ${inventory.lowStockThreshold}`
+	)
 
 	const [items, [total]] = await Promise.all([
 		db
@@ -123,8 +128,11 @@ export async function getAlerts(params: { page?: number; pageSize?: number } = {
 }
 
 export async function getInventoryLogs(params: { page?: number; pageSize?: number } = {}) {
+	const workspace = await requireWorkspace()
 	const { page = 1, pageSize = 30 } = params
 	const offset = (page - 1) * pageSize
+
+	const whereCondition = eq(products.workspaceId, workspace.id)
 
 	const [items, [total]] = await Promise.all([
 		db
@@ -143,10 +151,16 @@ export async function getInventoryLogs(params: { page?: number; pageSize?: numbe
 			.from(inventoryLogs)
 			.innerJoin(productVariants, eq(inventoryLogs.variantId, productVariants.id))
 			.innerJoin(products, eq(productVariants.productId, products.id))
+			.where(whereCondition)
 			.orderBy(desc(inventoryLogs.createdAt))
 			.limit(pageSize)
 			.offset(offset),
-		db.select({ count: count() }).from(inventoryLogs),
+		db
+			.select({ count: count() })
+			.from(inventoryLogs)
+			.innerJoin(productVariants, eq(inventoryLogs.variantId, productVariants.id))
+			.innerJoin(products, eq(productVariants.productId, products.id))
+			.where(whereCondition),
 	])
 
 	return { items, totalCount: total.count }
@@ -157,7 +171,7 @@ export async function adjustStock(
 	newQuantity: number,
 	reason: string
 ) {
-	const user = await requireAdmin()
+	const workspace = await requireInventoryPermission()
 
 	const [itemWithDetails] = await db
 		.select({
@@ -174,7 +188,7 @@ export async function adjustStock(
 		.from(inventory)
 		.innerJoin(productVariants, eq(inventory.variantId, productVariants.id))
 		.innerJoin(products, eq(productVariants.productId, products.id))
-		.where(eq(inventory.id, inventoryId))
+		.where(and(eq(inventory.id, inventoryId), eq(products.workspaceId, workspace.id)))
 		.limit(1)
 
 	if (!itemWithDetails) throw new Error("Inventory record not found")
@@ -202,10 +216,21 @@ export async function adjustStock(
 		metadata: { previous: itemWithDetails.quantity, new: newQuantity, reason },
 	})
 
-	// Broadcast real-time inventory updates
+	// Broadcast real-time inventory updates - consolidated into single event
+	// Optimized: Single Pusher call instead of 2 separate calls
 	if (pusherServer) {
-		// Always broadcast the full updated item for live UI updates
-		const fullItemData = {
+		// Determine state transition if any
+		let stateChange: "out_of_stock" | "low_stock" | "restocked" | null = null
+		if (newAvailable <= 0 && previousAvailable > 0) {
+			stateChange = "out_of_stock"
+		} else if (newAvailable <= threshold && previousAvailable > threshold) {
+			stateChange = "low_stock"
+		} else if (newAvailable > threshold && previousAvailable <= threshold) {
+			stateChange = "restocked"
+		}
+
+		// Single consolidated event with all data
+		await pusherServer.trigger("private-inventory", "inventory:updated", {
 			id: inventoryId,
 			variantId: itemWithDetails.variantId,
 			quantity: newQuantity,
@@ -216,26 +241,11 @@ export async function adjustStock(
 			variantSku: itemWithDetails.variantSku,
 			productName: itemWithDetails.productName,
 			productId: itemWithDetails.productId,
-		}
-
-		await pusherServer.trigger("private-inventory", "inventory:updated", fullItemData)
-
-		// Also broadcast alert events for notifications
-		const alertData = {
-			productId: inventoryId,
-			productName: `${itemWithDetails.productName} - ${itemWithDetails.variantName}`,
-			sku: itemWithDetails.variantSku || "",
-			currentStock: newAvailable,
-			threshold,
-		}
-
-		if (newAvailable <= 0 && previousAvailable > 0) {
-			await pusherServer.trigger("private-inventory", "inventory:out-of-stock", alertData)
-		} else if (newAvailable <= threshold && previousAvailable > threshold) {
-			await pusherServer.trigger("private-inventory", "inventory:low-stock", alertData)
-		} else if (newAvailable > threshold && previousAvailable <= threshold) {
-			await pusherServer.trigger("private-inventory", "inventory:restocked", alertData)
-		}
+			// State transition info included in same event
+			availableStock: newAvailable,
+			previousAvailable,
+			stateChange,
+		})
 	}
 
 	// Fire outgoing webhooks for inventory alerts
@@ -263,7 +273,18 @@ export async function adjustStock(
 }
 
 export async function updateThreshold(inventoryId: string, threshold: number) {
-	const user = await requireAdmin()
+	const workspace = await requireInventoryPermission()
+
+	// Verify inventory belongs to a product in this workspace
+	const [item] = await db
+		.select({ id: inventory.id })
+		.from(inventory)
+		.innerJoin(productVariants, eq(inventory.variantId, productVariants.id))
+		.innerJoin(products, eq(productVariants.productId, products.id))
+		.where(and(eq(inventory.id, inventoryId), eq(products.workspaceId, workspace.id)))
+		.limit(1)
+
+	if (!item) throw new Error("Inventory record not found")
 
 	await db
 		.update(inventory)

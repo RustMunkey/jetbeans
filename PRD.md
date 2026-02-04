@@ -2,237 +2,623 @@
 
 ## Vision
 
-JetBeans is evolving into a **multi-tenant SaaS platform** for ecommerce businesses. Starting as a Canadian coffee brand (jetbeans.cafe), the platform will be monetized as a subscription service where merchants get their own isolated dashboard to run their business.
+JetBeans is a **Backend-as-a-Service platform** — Discord meets Shopify. Users get a powerful backend with real-time communication, ecommerce tools, and workflow automation. They connect their own frontends or use ours.
 
-**Primary Domain**: jetbeans.cafe (JetBeans store)
-**Admin Domain**: admin.jetbeans.cafe
+Think: One app, many workspaces. Like Discord servers, but each workspace can run a business.
+
+**Primary Domain**: jetbeans.cafe (JetBeans flagship store)
+**Platform Domain**: app.jetbeans.cafe (main dashboard for all users)
 **Hosting**: Vercel
-**Database**: Neon (production) / Docker PostgreSQL (development)
-**Team**: Ash, Reese, Lorena, Ashley
+**Database**: Neon PostgreSQL (single database, multi-tenant)
+**Founder**: Ash
+
+---
+
+## Top Priority: URL State Management (nuqs)
+
+Before building new features, implement nuqs for URL state:
+
+```typescript
+// Instead of useState for filters, tabs, pagination
+import { useQueryState } from 'nuqs'
+
+const [filter, setFilter] = useQueryState('filter')
+const [sort, setSort] = useQueryState('sort')
+const [page, setPage] = useQueryState('page', parseAsInteger)
+```
+
+**Benefits:**
+- Shareable links (send someone your filtered view)
+- Browser back/forward works correctly
+- Page refresh preserves state
+- SSR pre-renders correct state
+- Faster perceived performance
+
+**Where to apply:**
+- All data tables (products, orders, customers, inventory)
+- Analytics filters
+- Settings tabs
+- Any filterable/sortable view
+
+---
+
+## Core Concept: The Discord/Shopify Hybrid
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         JETBEANS PLATFORM                                │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │                    SINGLE APP, SINGLE DATABASE                   │    │
+│  │                                                                  │    │
+│  │   USER SIGNS UP ──→ Onboarding ──→ Gets OWN WORKSPACE           │    │
+│  │         │                                                        │    │
+│  │         ▼                                                        │    │
+│  │   YOUR WORKSPACE (your business hub):                            │    │
+│  │   ├── Channels (text, voice - team communication)                │    │
+│  │   ├── Team members (limited by tier, have dashboard access)      │    │
+│  │   ├── Storefronts (connected websites, limited by tier)          │    │
+│  │   ├── Products, Orders, Customers, Inventory                     │    │
+│  │   ├── Automations (node-based workflows)                         │    │
+│  │   └── Settings, Branding, Integrations                           │    │
+│  │                                                                  │    │
+│  │   PLATFORM-WIDE (not workspace-limited):                         │    │
+│  │   ├── DMs with ANY user (unlimited)                              │    │
+│  │   ├── Friend discovery & requests                                │    │
+│  │   ├── Join OTHER workspaces as team member                       │    │
+│  │   └── Global presence (who's online)                             │    │
+│  │                                                                  │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                                                                          │
+│  DATA ISOLATION:                                                         │
+│  Every business row has workspace_id. Queries filter automatically.      │
+│  You only see YOUR workspace's data. Other workspaces are invisible.     │
+│  But you CAN be a team member in multiple workspaces (switch between).   │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Team Members vs Friends
+
+| Concept | Description | Limits |
+|---------|-------------|--------|
+| **Team Members** | People with access to YOUR workspace dashboard. Can view/edit products, orders, etc based on role. | Limited by tier (Free: 3, Starter: 10, etc) |
+| **Friends** | People you can DM, call, discover. No dashboard access unless you add them as team. | Unlimited |
+
+You can be a team member in MULTIPLE workspaces. Example:
+- Ash has "JetBeans" workspace
+- Reese has "Reese's Store" workspace
+- Ash joins Reese's workspace as team member (helps build)
+- Reese joins Ash's workspace as team member (helps build)
+- They're also friends, can DM anytime
+
+### Why This Model
+
+- **One codebase** — No maintaining separate instances
+- **One database** — Efficient, scalable, Neon handles it
+- **Cross-communication** — DM anyone, friend anyone
+- **Multi-workspace** — Be a team member in many places
+- **Logical isolation** — Each workspace's data is separate
 
 ---
 
 ## Platform Architecture
 
-### Three-Tier System
+### User Hierarchy
+
+```
+SUPER ADMIN (Ash)
+    │
+    ├── Platform-wide control
+    ├── All workspaces visible
+    ├── Revenue dashboard
+    ├── User management
+    └── Feature flags
+
+WORKSPACE OWNER (Subscriber)
+    │
+    ├── Creates/owns workspace
+    ├── Billing responsibility
+    ├── Full workspace control
+    └── Can invite anyone
+
+WORKSPACE ADMIN
+    │
+    ├── Most permissions
+    ├── Can't delete workspace
+    └── Can't manage billing
+
+WORKSPACE MEMBER
+    │
+    ├── Day-to-day operations
+    ├── Limited settings access
+    └── Full communication access
+```
+
+### Onboarding Flow
+
+Simple but intentional. User sets up their environment BEFORE accessing dashboard:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     SUPER ADMIN PANEL                            │
-│  (Ash's personal control center for the entire platform)        │
-│  - Manage all tenants/users                                      │
-│  - Platform-wide analytics                                       │
-│  - Subscription management                                       │
-│  - Service configuration                                         │
-│  - Revenue/billing overview                                      │
+│                      ONBOARDING FLOW                             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. SIGN UP                                                      │
+│     └─→ Email + Google OAuth                                     │
+│                                                                  │
+│  2. PROFILE SETUP (required)                                     │
+│     ├─→ Display name                                             │
+│     ├─→ Avatar upload                                            │
+│     └─→ Theme preference (light/dark/system/coffee)              │
+│                                                                  │
+│  3. WORKSPACE SETUP (required)                                   │
+│     ├─→ Workspace name (their business name)                     │
+│     ├─→ Workspace type (ecommerce, community, agency, other)     │
+│     └─→ Logo upload (optional, can skip)                         │
+│                                                                  │
+│  4. DONE → Dashboard                                             │
+│     └─→ Welcome modal with quick tips                            │
+│                                                                  │
 └─────────────────────────────────────────────────────────────────┘
-                              │
-          ┌───────────────────┼───────────────────┐
-          ▼                   ▼                   ▼
-┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-│  TENANT A       │ │  TENANT B       │ │  TENANT C       │
-│  (JetBeans)     │ │  (Other Biz)    │ │  (Other Biz)    │
-│  - Own dashboard│ │  - Own dashboard│ │  - Own dashboard│
-│  - Own data     │ │  - Own data     │ │  - Own data     │
-│  - Own theme    │ │  - Own theme    │ │  - Own theme    │
-└─────────────────┘ └─────────────────┘ └─────────────────┘
 ```
 
-### Tenant Model (White-Label SaaS)
+Keep it minimal. More settings available in dashboard after onboarding.
 
-Each paying customer gets:
-- **Isolated dashboard** - Their own admin panel instance
-- **Isolated data** - Products, orders, customers scoped to them
-- **Custom branding** - Logo, colors, theme
-- **Custom domain** - Optional: admin.theirstore.com
-- **Full feature access** - Based on subscription tier
+### Workspace Model
 
-### User Tiers
-
-| Tier | Description | Access |
-|------|-------------|--------|
-| **Super Admin** | Platform owner (Ash) | Everything, all tenants |
-| **Tenant Owner** | Paying subscriber | Their dashboard, their team |
-| **Tenant Admin** | Team member (admin) | Dashboard, limited settings |
-| **Tenant Member** | Team member (staff) | Day-to-day operations |
-| **Free Beta** | Hand-picked testers | Full access, no payment |
-
----
-
-## Authentication & Onboarding Flow
-
-### Invite-Only System
-
-The platform is **invite-only**. No public signup.
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                        INVITE FLOW                                │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  1. Owner/Admin sends invite                                      │
-│     └─→ Email with secure token (expires 7 days)                 │
-│                                                                   │
-│  2. Invitee clicks link                                          │
-│     └─→ /invite/[token] - validate token                         │
-│                                                                   │
-│  3. Onboarding Portal                                            │
-│     ├─→ Email pre-filled (locked, from invite)                   │
-│     ├─→ Set profile picture                                      │
-│     ├─→ Set banner image (profile customization)                 │
-│     ├─→ Set display name                                         │
-│     ├─→ Set preferences (theme, notifications)                   │
-│     └─→ Continue with Google OAuth                               │
-│                                                                   │
-│  4. Account created                                              │
-│     ├─→ User record with role from invite                        │
-│     ├─→ Preferences saved (synced across devices)                │
-│     └─→ Redirect to dashboard                                    │
-│                                                                   │
-│  5. Welcome experience                                           │
-│     ├─→ Welcome modal                                            │
-│     ├─→ Optional product tour                                    │
-│     └─→ Getting started checklist                                │
-│                                                                   │
-└──────────────────────────────────────────────────────────────────┘
-```
-
-### Default Theme
-
-New users default to **Coffee theme** (warm browns, amber accents) until they set their preference.
-
-### User Preferences (Database-Synced)
-
-Single JSONB column on `users` table for cross-device sync:
+A workspace is your business hub. Every user gets one after onboarding.
 
 ```typescript
-preferences: jsonb("preferences").$type<{
-  theme?: "light" | "dark" | "system" | "coffee"
-  sidebarOpen?: boolean
-  soundEnabled?: boolean
-  desktopNotifications?: boolean
-  // Extensible without migrations
-}>()
+workspace: {
+  id: string
+  name: string
+  slug: string              // workspace URL slug
+  ownerId: string           // billing responsible
+  subscriptionTier: string  // free | starter | growth | pro
+  subscriptionStatus: string
+  visibility: string        // private | public
+
+  // Branding
+  logo: string
+  banner: string
+  primaryColor: string
+
+  // Limits (based on tier)
+  maxStorefronts: number
+  maxTeamMembers: number    // team members, NOT friends
+
+  // Features (based on tier)
+  features: {
+    api: boolean
+    automation: boolean
+    whiteLabel: boolean
+    customDomain: boolean
+  }
+}
+```
+
+### Public vs Private Workspaces
+
+Workspace owner chooses visibility:
+
+| Visibility | Description |
+|------------|-------------|
+| **Private** | Invite-only. Must receive invite link to join as team member. |
+| **Public** | Anyone can discover and request to join (or auto-join if open). |
+
+Use cases:
+- **Private**: Your business workspace, clients only
+- **Public**: Community workspace, open server for your brand
+
+### Storefront Model (Connected Websites)
+
+Users can connect multiple frontend websites to their workspace:
+
+```typescript
+storefront: {
+  id: string
+  workspaceId: string
+  name: string
+  domain: string           // their-store.com
+  apiKey: string           // for frontend auth
+  apiSecret: string        // server-side only
+
+  // What this storefront can access
+  permissions: {
+    products: boolean
+    orders: boolean
+    customers: boolean
+    checkout: boolean
+  }
+}
+```
+
+**How it works:**
+1. User creates storefront in dashboard
+2. Gets API key + secret
+3. Connects their frontend (Next.js, React, whatever)
+4. Frontend calls our API for products, checkout, etc.
+5. All data flows through our backend
+
+---
+
+## Communication System (Discord-Style)
+
+### Two Levels of Communication
+
+**1. Workspace Channels (Team Communication)**
+- Scoped to YOUR workspace
+- Only team members can access
+- NOT limited by tier (unlimited channels)
+
+```
+WORKSPACE: "JetBeans Coffee"
+├── # general           (text)
+├── # orders            (text, auto-posts new orders)
+├── # announcements     (text, admins only post)
+├── # support           (text)
+└── Voice Lounge        (voice/video)
+```
+
+**2. Platform-Wide (Friends & Discovery)**
+- DM any user on the platform
+- NOT limited by tier
+- Works across workspaces
+
+### Friend System
+
+- **Discover users** — Search by name/email
+- **Send friend request** — They accept/decline
+- **DM friends** — Direct messages, voice/video calls
+- **See presence** — Who's online across platform
+
+### Interaction Types
+
+| Type | Description |
+|------|-------------|
+| **P2P** | Person to Person — DMs, calls with friends |
+| **Team** | Within workspace — Channels, collaboration |
+| **Cross-workspace** | Be a team member in multiple workspaces |
+
+---
+
+## Subscription Tiers
+
+| Tier | Price | Storefronts | Team Members | Features |
+|------|-------|-------------|--------------|----------|
+| **Free** | $0 | 1 | 3 | Basic commerce, messaging, channels |
+| **Starter** | $29/mo | 2 | 10 | + Analytics, integrations, plugins |
+| **Growth** | $79/mo | 5 | 50 | + API access, automation |
+| **Pro** | $199/mo | Unlimited | Unlimited | + White-label, priority support |
+| **Beta** | $0 | Unlimited | Unlimited | Full Pro access (hand-picked by Ash) |
+
+**What's NOT limited:**
+- Friends (DM anyone, discover anyone)
+- Channels within workspace (communication)
+- Basic features (products, orders, customers)
+
+**What IS limited:**
+- Storefronts (connected websites)
+- Team members (dashboard access)
+- Advanced features (API, automation, white-label)
+
+### Payment Integrations
+
+Users can connect their own payment processors:
+- Stripe
+- PayPal
+- Reown (Web3/crypto)
+- More via plugins
+
+### Plugins & Integrations
+
+Extensible via plugins (free and paid):
+- Shipping carriers
+- Email providers
+- Accounting software
+- Marketing tools
+- Custom integrations
+
+### Feature Gating
+
+Super Admin (Ash) has everything. Lower tiers have sections locked/hidden:
+
+```typescript
+// Check feature access
+const canUseAutomation = workspace.features.automation
+const canUseAPI = workspace.features.api
+
+// In UI
+{canUseAutomation && <AutomationSection />}
+{!canUseAutomation && <UpgradePrompt feature="automation" />}
 ```
 
 ---
 
-## Monetization
+## Backend-as-a-Service (Headless Mode)
 
-### Polar Integration
+### The Problem We Solve
 
-Polar handles all subscription billing:
-- Monthly/annual plans
-- Payment processing
-- Tax handling
-- Subscription management (pause, cancel, upgrade)
-- Webhook events for provisioning
+Your friend Reese has a frontend but needs a backend. Options:
+1. Build backend from scratch (months of work)
+2. Use Shopify (expensive, limited)
+3. **Use JetBeans** (full-featured, affordable)
 
-### Revenue Model
+### How It Works
 
-| Tier | Price | Features |
-|------|-------|----------|
-| **Starter** | $29/mo | 1 user, 100 products, basic features |
-| **Growth** | $79/mo | 5 users, unlimited products, API access |
-| **Pro** | $199/mo | Unlimited users, white-label, priority support |
-| **Enterprise** | Custom | Dedicated infrastructure, SLA, custom features |
-| **Free Beta** | $0 | Hand-picked testers, full access |
+```
+┌─────────────────────┐         ┌─────────────────────┐
+│   REESE'S FRONTEND  │         │   JETBEANS BACKEND  │
+│   (his-store.com)   │ ──API── │   (app.jetbeans.cafe)│
+│                     │         │                     │
+│   - Next.js site    │         │   - Products API    │
+│   - Custom design   │         │   - Orders API      │
+│   - His branding    │         │   - Checkout API    │
+│                     │         │   - Customers API   │
+│                     │         │   - Dashboard UI    │
+└─────────────────────┘         └─────────────────────┘
+```
 
-### Free Beta Users
+### API Endpoints (Storefront API)
 
-Manually granted by Super Admin:
-- Full Pro-tier access
-- No payment required
-- For early adopters, friends, strategic partners
-- Flag in database: `isBetaTester: true`
+```
+GET  /api/storefront/products
+GET  /api/storefront/products/:id
+POST /api/storefront/cart
+POST /api/storefront/checkout
+GET  /api/storefront/orders/:id
+```
 
----
-
-## Social Features (Planned)
-
-### User Discovery
-
-- Search for users by name/email
-- Send connection requests
-- View public profiles
-- Follow/friend system (optional)
-
-### Use Cases
-
-- Find team members to invite
-- Network with other merchants
-- Community features (future)
+Authentication via API key in header:
+```
+X-Storefront-Key: sf_live_xxxxx
+```
 
 ---
 
-## Business Verticals
+## Automation System
 
-JetBeans (the flagship store) covers:
+### Node-Based Workflow Builder
 
-### Phase 1: Coffee (Current)
-- Resell roasted coffee
-- White-label with Latin American suppliers
-- Subscriptions (weekly, biweekly, monthly)
+Visual automation tool (like n8n) integrated into dashboard:
 
-### Phase 2: Expand Categories
-- **Tea & Matcha** — Premium loose-leaf, ceremonial grade
-- **Coffee Gear** — Grinders, french presses, pour-over sets
-- **Accessories** — Mugs, tumblers, merchandise
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    AUTOMATION CANVAS                         │
+│                                                              │
+│   [Trigger: New Order] ──→ [Send Email] ──→ [Update Sheet]  │
+│          │                                                   │
+│          └──→ [If: High Value] ──→ [Notify Slack]           │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### Future Expansion
-- **Skate Gear** — Decks, trucks, wheels, bearings
-- **Custom Apparel** — Branded clothing
-- **Legal Cannabis** — Canadian market (when licensed)
+### Planned Triggers
+
+- Order created/updated/fulfilled
+- Customer signed up
+- Payment received/failed
+- Inventory low
+- Subscription renewed/canceled
+- Webhook received
+- Scheduled (cron)
+
+### Planned Actions
+
+- Send email
+- Send SMS
+- Post to Slack/Discord
+- Update Google Sheets
+- Call external API
+- Create/update records
+- AI processing (GPT)
+
+### Implementation
+
+Ash will build the workflow builder separately following a tutorial, then integrate:
+- Strip its auth
+- Connect to existing user system
+- Place under Automation in sidebar
+- May use tRPC
 
 ---
 
-## Core Features (Implemented)
+## AI-Powered Features (Future)
 
-### Admin Panel
+### Vision
 
-- **Products** — CRUD, variants, categories, inventory, SEO
-- **Orders** — Management, fulfillment, returns, refunds, tracking
-- **Customers** — Profiles, segments, loyalty/rewards, gift cards
-- **Subscriptions** — Recurring deliveries, dunning, pause/cancel
-- **Marketing** — Discounts, campaigns, referrals
-- **Content (CMS)** — Blog posts, static pages, media library
-- **Shipping** — Carriers, zones, labels, tracking
-- **Suppliers** — Partner management, purchase orders
-- **Settings** — Store config, payments, tax, integrations
-- **Analytics** — Sales, traffic, customers, subscriptions
-- **Activity Log** — Full audit trail
+Automated ecommerce pipeline where:
+- Customer service has AI assist
+- Order processing is automated
+- Inventory reordering is smart
+- Marketing campaigns auto-generate
+- Reports write themselves
 
-### Real-Time Features (Pusher)
+### Not Replacing Humans
 
-- **Team Messaging** — DMs and channels
-- **Live Notifications** — Bell with unread count
-- **Presence System** — Who's online, who's viewing what
-- **Live Data Updates** — Orders, products, inventory refresh in real-time
-- **Incoming Webhooks** — Discord/Slack-style message posting
+AI handles the backend busywork. Humans still:
+- Make strategic decisions
+- Handle complex support
+- Build relationships
+- Create content
 
-### Voice/Video Calls (LiveKit)
+---
 
-- 1:1 and group calls (up to 10)
-- Voice and video
-- Screen sharing
-- Custom ringtone (`/sounds/ringtone.mp3`)
-- Floating/fullscreen call interface
-- Call history
+## Native Applications
 
-### Webhook System
+The dashboard is the product. Native apps are the same dashboard on different platforms.
 
-| Provider | Purpose |
-|----------|---------|
-| **Polar** | Payment events, subscription lifecycle |
-| **Resend** | Email delivery status |
-| **Shipping** | Tracking updates (ShipStation, Shippo, EasyPost, generic) |
+### Desktop App (Tauri)
 
-### Live Dashboard Updates
+Same dashboard, native wrapper:
+- Lighter than Electron
+- Native performance
+- System tray (presence, notifications)
+- Native keyboard shortcuts
+- Offline indicator
+- Auto-updates
 
-- Animated stat counters (odometer effect)
-- Live revenue charts
-- Real-time table updates (products, orders, customers, subscriptions)
-- Inventory alerts
+### Mobile App (React Native)
+
+Same dashboard, mobile-optimized:
+- iOS and Android
+- Push notifications
+- Quick actions (approve orders, reply to messages)
+- Camera for product photos
+- Barcode scanning
+- Touch-optimized UI
+
+### How It Works
+
+```
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│   WEB APP   │  │ DESKTOP APP │  │ MOBILE APP  │
+│  (Browser)  │  │  (Tauri)    │  │(React Native│
+└──────┬──────┘  └──────┬──────┘  └──────┬──────┘
+       │                │                │
+       └────────────────┼────────────────┘
+                        │
+                        ▼
+              ┌─────────────────┐
+              │  SAME BACKEND   │
+              │  (Next.js API)  │
+              └─────────────────┘
+```
+
+All platforms, one backend, one database. Your data syncs everywhere.
+
+---
+
+## Technical Enhancements
+
+### URL State Management (nuqs)
+
+Store UI state in URL for:
+- Shareable filtered views
+- Browser back/forward works
+- No loading spinners on refresh
+- SSR pre-renders correct state
+
+```typescript
+// Instead of useState
+const [filter, setFilter] = useQueryState('filter')
+// URL: ?filter=active
+
+// Filters, sorts, tabs, pagination all in URL
+```
+
+### Security
+
+- **SQL Injection**: Drizzle ORM uses parameterized queries
+- **XSS**: React escapes output by default
+- **CSRF**: Better Auth handles token validation
+- **Passwords**: Hashed with bcrypt (never stored plain)
+- **Data at rest**: Neon encrypts with AES-256
+
+### Database Scaling Strategy
+
+Current: 0.04 GB used. Can handle 100+ workspaces before hitting 1GB.
+
+When needed:
+1. Indexes on workspace_id (already planned)
+2. Row-Level Security (Postgres enforces isolation)
+3. Connection pooling (Neon handles this)
+4. Archival for old data
+5. Read replicas (if millions of users)
+
+---
+
+## Data Model
+
+### Core Tables (workspace-scoped)
+
+All business data has `workspace_id`:
+
+```sql
+products (workspace_id, ...)
+orders (workspace_id, ...)
+customers (workspace_id, ...)
+subscriptions (workspace_id, ...)
+inventory (workspace_id, ...)
+channels (workspace_id, ...)
+```
+
+### Platform Tables (global)
+
+```sql
+users (id, email, name, preferences, ...)
+workspaces (id, name, owner_id, subscription_tier, ...)
+workspace_members (workspace_id, user_id, role, ...)
+storefronts (workspace_id, domain, api_key, ...)
+friendships (user_id, friend_id, status, ...)
+direct_messages (sender_id, recipient_id, ...)
+```
+
+---
+
+## Implementation Status
+
+### Completed (60%)
+
+**Infrastructure:**
+- [x] Neon database (multi-tenant ready)
+- [x] Pusher (real-time messaging)
+- [x] Google OAuth
+- [x] Vercel deployment
+- [x] LiveKit (voice/video)
+- [x] Sentry (error tracking)
+- [x] Polar (billing configured)
+
+**Admin Panel:**
+- [x] Full dashboard UI
+- [x] Products/Orders/Customers/Inventory
+- [x] Content CMS
+- [x] Team messaging + channels
+- [x] Voice/video calls
+- [x] Command palette (⌘K)
+- [x] Activity log
+- [x] Settings pages
+- [x] Notification system
+- [x] Live data updates
+- [x] Presence system
+
+### Next Priority
+
+- [ ] **nuqs URL state** — All tables, filters, tabs (tomorrow's session)
+
+### In Progress
+
+- [ ] Multi-tenant workspace isolation
+- [ ] Storefront API (headless mode)
+- [ ] Subscription tier enforcement
+
+### Planned (40%)
+
+**Multi-Tenant:**
+- [ ] Workspace CRUD
+- [ ] Member invites
+- [ ] Role permissions
+- [ ] Feature gating by tier
+
+**Communication:**
+- [ ] Cross-workspace DMs
+- [ ] User discovery
+- [ ] Friend system
+
+**Automation:**
+- [ ] Workflow builder integration
+- [ ] Trigger system
+- [ ] Action executors
+
+**API:**
+- [ ] Storefront API endpoints
+- [ ] API key management
+- [ ] Rate limiting
+
+**Native Apps:**
+- [ ] Tauri desktop app
+- [ ] React Native mobile app
 
 ---
 
@@ -244,177 +630,29 @@ JetBeans (the flagship store) covers:
 | Language | TypeScript (strict) |
 | Monorepo | pnpm + Turborepo |
 | ORM | Drizzle ORM |
-| Database (prod) | Neon PostgreSQL |
-| Database (dev) | Docker PostgreSQL 17 |
-| Cache | Redis (Upstash prod, Docker dev) |
-| Auth | Better Auth (roles: owner, admin, member) |
-| Payments | Polar (fiat), Reown (crypto) |
+| Database | Neon PostgreSQL 17 |
+| Cache | Redis (Upstash) |
+| Auth | Better Auth |
+| Payments | Polar |
 | Real-time | Pusher |
 | Calls | LiveKit |
-| UI | shadcn/ui (stone theme) |
+| UI | shadcn/ui |
 | Icons | Hugeicons |
 | Styling | Tailwind CSS 4 |
-| Linting | Biome |
-| Images | Vercel Blob |
-| Rich Text | TipTap |
-| Error Tracking | Sentry |
-| Hosting | Vercel |
-
----
-
-## Recent Updates (Session Log)
-
-### Login Page Redesign
-- New shadcn `login-02` component
-- Split layout: coffee beans image (left), login form (right)
-- JetBeans branding with Rubik Mono font
-- Google OAuth integration
-- Dev login bypass (development only)
-
-### Call System Fixes
-- Added `roomCreate` permission for call initiators
-- Better error handling (connection failures reset state)
-- Console logging for debugging
-- Custom ringtone support
-
-### Database Schema Sync
-- Pushed missing tables to production Neon:
-  - `notifications`
-  - `notification_preferences`
-  - `message_channels`
-  - `incoming_webhook_urls`
-  - `outgoing_webhook_endpoints`
-  - `outgoing_webhook_deliveries`
-- Added missing columns to `team_messages`:
-  - `webhook_id`, `webhook_username`, `webhook_avatar_url`
-  - `content_type`, `embeds`, `is_system_message`
-  - Made `sender_id` and `body` nullable
-
-### Static Asset Proxy (Next.js 16)
-- Created `proxy.ts` (replaces middleware.ts in Next.js 16)
-- Allows unauthenticated access to `/images/`, `/logos/`, `/sounds/`, etc.
-
-### Notification Preferences
-- New settings page for notification preferences
-- Toggle switches for event types and delivery methods
-
-### Presence System
-- Global admin presence tracking
-- Page-specific viewer indicators
-- Online status in sessions page
-
----
-
-## Database Schema Additions
-
-### User Preferences (Planned)
-```sql
--- Add to users table
-preferences JSONB DEFAULT '{}'
-```
-
-### Webhooks
-- `webhook_endpoints` — Registered webhook sources
-- `webhook_events` — Event log for debugging/replay
-- `webhook_idempotency` — Prevent duplicate processing
-- `outgoing_webhook_endpoints` — User-configured destinations
-- `outgoing_webhook_deliveries` — Delivery attempt log
-- `incoming_webhook_urls` — Discord/Slack-style message webhooks
-
-### Notifications
-- `notifications` — In-app notification store
-- `notification_preferences` — User notification settings
-
-### Presence
-- User presence tracked via Pusher presence channels
-- Page viewers via `presence-page-{type}-{id}` channels
-
----
-
-## Pusher Channel Design
-
-| Channel | Type | Purpose |
-|---------|------|---------|
-| `private-user-{userId}` | Private | User-specific events |
-| `private-orders` | Private | Order broadcasts |
-| `private-inventory` | Private | Inventory alerts |
-| `private-analytics` | Private | Real-time analytics |
-| `private-products` | Private | Product CRUD broadcasts |
-| `private-customers` | Private | Customer events |
-| `private-subscriptions` | Private | Subscription events |
-| `presence-admin` | Presence | Global admin online status |
-| `presence-page-{type}-{id}` | Presence | Page-specific viewers |
-
----
-
-## Implementation Status
-
-### ✅ Completed
-
-**Infrastructure:**
-- [x] Neon database (production)
-- [x] Pusher (real-time messaging)
-- [x] Google OAuth (admin login)
-- [x] Vercel deployment
-- [x] LiveKit (voice/video calls)
-- [x] Sentry (error tracking)
-- [x] Polar (payments - configured)
-
-**Admin Panel:**
-- [x] Full admin panel UI
-- [x] Product/Order/Customer management
-- [x] Inventory tracking
-- [x] Content CMS
-- [x] Team messaging
-- [x] Voice/video calls
-- [x] Ambient radio (SomaFM)
-- [x] Command palette (`⌘K`)
-- [x] Keyboard shortcuts
-- [x] Activity log
-- [x] Settings pages
-- [x] Notification preferences
-- [x] Login page (shadcn)
-- [x] Webhook system (Polar, Resend)
-- [x] Live data updates (all tables)
-- [x] Presence system
-
-### 🚧 In Progress
-
-- [ ] Invite → Onboarding flow
-- [ ] User preferences (JSONB sync)
-- [ ] Super Admin Panel
-- [ ] Fulfillment pipeline (Dripshipper email ingestion)
-
-### 📋 Planned
-
-**Multi-Tenant SaaS:**
-- [ ] Tenant isolation (storeId scoping)
-- [ ] Subscription provisioning (Polar webhooks)
-- [ ] Super Admin dashboard
-- [ ] Free beta user management
-- [ ] User discovery/search
-
-**Storefront (apps/web):**
-- [ ] Product listing/detail pages
-- [ ] Shopping cart + checkout
-- [ ] Customer accounts
-- [ ] Order tracking
-
-**Native Apps:**
-- [ ] Desktop app (Tauri)
-- [ ] Mobile app (React Native)
+| Desktop | Tauri (planned) |
+| Mobile | React Native (planned) |
+| Automation | Custom (n8n-inspired) |
 
 ---
 
 ## Environment Variables
 
-### Required (Production)
 ```env
+# Required
 DATABASE_URL=
 REDIS_URL=
 BETTER_AUTH_SECRET=
 BETTER_AUTH_URL=
-NEXT_PUBLIC_ADMIN_URL=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 PUSHER_APP_ID=
@@ -423,16 +661,13 @@ PUSHER_SECRET=
 PUSHER_CLUSTER=
 NEXT_PUBLIC_PUSHER_KEY=
 NEXT_PUBLIC_PUSHER_CLUSTER=
-```
 
-### Optional
-```env
+# Optional
 LIVEKIT_API_KEY=
 LIVEKIT_API_SECRET=
 LIVEKIT_URL=
 POLAR_WEBHOOK_SECRET=
 RESEND_WEBHOOK_SECRET=
-INITIAL_ADMIN_EMAILS=
 ```
 
 ---
@@ -440,32 +675,30 @@ INITIAL_ADMIN_EMAILS=
 ## Development Commands
 
 ```bash
-# Start local services
-pnpm docker:up
-
-# Push schema to database
-pnpm db:push
-
-# Seed development data
-pnpm db:seed
-
-# Start dev server
-pnpm dev
-
-# Type check
-npx tsc --noEmit
-
-# Build
-pnpm build
+pnpm docker:up      # Start local services
+pnpm db:push        # Push schema to database
+pnpm db:seed        # Seed development data
+pnpm dev            # Start dev server
+pnpm build          # Production build
 ```
 
 ---
 
-## Future Considerations
+## Timeline
 
-- NeoEngine migration for decentralized storage
-- Multi-language support (French for Canada)
-- Wholesale/B2B portal
-- Physical POS integration
-- Node-based automation builder (like n8n)
-- Custom workflow pipelines
+MVP target: 2 weeks
+
+**Week 1:**
+- Workspace model + isolation
+- Storefront API basics
+- Subscription tier enforcement
+
+**Week 2:**
+- Cross-workspace communication
+- Automation builder integration
+- Polish + testing
+
+Post-MVP:
+- Native apps
+- AI features
+- Advanced automation

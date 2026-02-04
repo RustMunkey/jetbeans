@@ -31,7 +31,7 @@ type DeveloperNote = {
 	type: string
 	status: string
 	priority: string
-	authorId: string
+	authorId: string | null
 	authorName: string | null
 	authorImage: string | null
 	assignedTo: string | null

@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 
-type SidebarMode = "normal" | "messages"
+type SidebarMode = "normal" | "messages" | "workflow"
 
 type SidebarModeContextType = {
 	mode: SidebarMode
@@ -11,6 +11,7 @@ type SidebarModeContextType = {
 	previousPath: string | null
 	setPreviousPath: (path: string | null) => void
 	exitMessagesMode: () => void
+	exitWorkflowMode: () => void
 }
 
 const SidebarModeContext = React.createContext<SidebarModeContextType | null>(null)
@@ -30,6 +31,11 @@ export function SidebarModeProvider({ children }: { children: React.ReactNode })
 		}
 	}, [previousPath, router])
 
+	const exitWorkflowMode = React.useCallback(() => {
+		setMode("normal")
+		router.push("/automation")
+	}, [router])
+
 	return (
 		<SidebarModeContext.Provider
 			value={{
@@ -38,6 +44,7 @@ export function SidebarModeProvider({ children }: { children: React.ReactNode })
 				previousPath,
 				setPreviousPath,
 				exitMessagesMode,
+				exitWorkflowMode,
 			}}
 		>
 			{children}

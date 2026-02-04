@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, jsonb, date } from "drizzle-orm/pg-core";
 
 // User preferences type for cross-device sync
 export type UserPreferences = {
@@ -8,19 +8,38 @@ export type UserPreferences = {
 	desktopNotifications?: boolean;
 };
 
+// User social links type
+export type UserSocials = {
+	twitter?: string;
+	instagram?: string;
+	linkedin?: string;
+	github?: string;
+	youtube?: string;
+	tiktok?: string;
+};
+
 export const users = pgTable("users", {
 	id: text("id").primaryKey(),
 	name: text("name").notNull(),
+	username: text("username").unique(), // @handle - set during onboarding
 	email: text("email").notNull().unique(),
 	emailVerified: boolean("email_verified").default(false),
 	image: text("image"),
 	bannerImage: text("banner_image"),
+	bannerGradient: text("banner_gradient"), // preset gradient id when no custom image
+	bio: text("bio"),
+	location: text("location"),
+	website: text("website"),
+	socials: jsonb("socials").$type<UserSocials>().default({}),
+	birthdate: date("birthdate"),
+	occupation: text("occupation"),
 	role: text("role").default("member"),
 	phone: text("phone"),
 	discountType: text("discount_type"),
 	walletAddress: text("wallet_address"),
 	preferences: jsonb("preferences").$type<UserPreferences>().default({}),
 	isBetaTester: boolean("is_beta_tester").default(false),
+	onboardingCompletedAt: timestamp("onboarding_completed_at"), // null = needs onboarding
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
