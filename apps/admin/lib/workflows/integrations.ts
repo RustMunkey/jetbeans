@@ -644,6 +644,22 @@ export const INTEGRATION_METADATA: Record<
 		authType: "oauth2",
 		docUrl: "https://developer.squareup.com/docs/",
 	},
+	polar: {
+		name: "Polar",
+		description: "Accept payments and subscriptions for digital products",
+		category: "E-commerce",
+		icon: "CreditCardIcon",
+		authType: "api_key",
+		docUrl: "https://docs.polar.sh/",
+	},
+	reown: {
+		name: "Reown (WalletConnect)",
+		description: "Accept crypto payments via WalletConnect",
+		category: "E-commerce",
+		icon: "WalletIcon",
+		authType: "api_key",
+		docUrl: "https://docs.reown.com/",
+	},
 
 	// Marketing & Email
 	resend: {

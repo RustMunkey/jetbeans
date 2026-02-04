@@ -11,6 +11,8 @@ import {
 	shipmentTracking,
 	trustedSenders,
 	orders,
+	storeSettings,
+	addresses,
 } from "@jetbeans/db/schema"
 import { logAudit } from "@/lib/audit"
 import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
@@ -863,4 +865,337 @@ export async function isTrustedSender(email: string, workspaceId: string): Promi
 		.limit(1)
 
 	return !!sender
+}
+
+// ============================================
+// SHIPPO LABEL GENERATION
+// ============================================
+
+const SHIPPO_API_KEY = process.env.SHIPPO_API_KEY
+const SHIPPO_API_URL = "https://api.goshippo.com"
+
+interface ShippoAddress {
+	name: string
+	company?: string
+	street1: string
+	street2?: string
+	city: string
+	state: string
+	zip: string
+	country: string
+	phone?: string
+	email?: string
+}
+
+interface ShippoParcel {
+	length: string
+	width: string
+	height: string
+	distance_unit: "in" | "cm"
+	weight: string
+	mass_unit: "lb" | "kg" | "oz" | "g"
+}
+
+interface ShippoRate {
+	object_id: string
+	provider: string
+	servicelevel: { name: string; token: string }
+	amount: string
+	currency: string
+	estimated_days: number
+	duration_terms: string
+}
+
+interface ShippoShipment {
+	object_id: string
+	status: string
+	address_from: ShippoAddress
+	address_to: ShippoAddress
+	parcels: ShippoParcel[]
+	rates: ShippoRate[]
+}
+
+interface ShippoTransaction {
+	object_id: string
+	status: "SUCCESS" | "QUEUED" | "WAITING" | "ERROR"
+	tracking_number?: string
+	label_url?: string
+	tracking_url_provider?: string
+	rate: string
+	messages?: Array<{ text: string }>
+}
+
+async function shippoRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+	if (!SHIPPO_API_KEY) {
+		throw new Error("SHIPPO_API_KEY is not configured")
+	}
+
+	const response = await fetch(`${SHIPPO_API_URL}${endpoint}`, {
+		...options,
+		headers: {
+			"Authorization": `ShippoToken ${SHIPPO_API_KEY}`,
+			"Content-Type": "application/json",
+			...options.headers,
+		},
+	})
+
+	if (!response.ok) {
+		const error = await response.text()
+		throw new Error(`Shippo API error: ${response.status} ${error}`)
+	}
+
+	return response.json()
+}
+
+/**
+ * Get the ship-from address from workspace settings
+ */
+async function getShipFromAddress(workspaceId: string): Promise<ShippoAddress | null> {
+	const settings = await db
+		.select()
+		.from(storeSettings)
+		.where(and(
+			eq(storeSettings.workspaceId, workspaceId),
+			eq(storeSettings.group, "shipping")
+		))
+
+	const getValue = (key: string) => settings.find(s => s.key === key)?.value || ""
+
+	const street1 = getValue("ship_from_street1")
+	const city = getValue("ship_from_city")
+	const state = getValue("ship_from_state")
+	const zip = getValue("ship_from_zip")
+	const country = getValue("ship_from_country")
+
+	// Validate required fields
+	if (!street1 || !city || !state || !zip || !country) {
+		return null
+	}
+
+	return {
+		name: getValue("ship_from_name") || getValue("ship_from_company"),
+		company: getValue("ship_from_company") || undefined,
+		street1,
+		street2: getValue("ship_from_street2") || undefined,
+		city,
+		state,
+		zip,
+		country,
+		phone: getValue("ship_from_phone") || undefined,
+		email: getValue("ship_from_email") || undefined,
+	}
+}
+
+/**
+ * Get shipping rates for an order
+ */
+export async function getShippingRates(orderId: string): Promise<{ success: boolean; rates?: ShippoRate[]; shipmentId?: string; error?: string }> {
+	try {
+		const workspace = await requireWorkspace()
+
+		// Get order with shipping address
+		const [result] = await db
+			.select({
+				order: orders,
+				address: addresses,
+			})
+			.from(orders)
+			.leftJoin(addresses, eq(orders.shippingAddressId, addresses.id))
+			.where(and(eq(orders.id, orderId), eq(orders.workspaceId, workspace.id)))
+			.limit(1)
+
+		if (!result?.order) {
+			return { success: false, error: "Order not found" }
+		}
+
+		const order = result.order
+		const shippingAddress = result.address
+
+		if (!shippingAddress?.addressLine1 || !shippingAddress?.city) {
+			return { success: false, error: "Order has no shipping address" }
+		}
+
+		// Get ship-from address from settings
+		const fromAddress = await getShipFromAddress(workspace.id)
+		if (!fromAddress) {
+			return { success: false, error: "Ship-from address not configured. Please set it in Settings > Shipping." }
+		}
+
+		// Get shipping preferences
+		const settings = await db
+			.select()
+			.from(storeSettings)
+			.where(and(
+				eq(storeSettings.workspaceId, workspace.id),
+				eq(storeSettings.group, "shipping")
+			))
+
+		const getValue = (key: string, defaultVal: string) => settings.find(s => s.key === key)?.value || defaultVal
+		const weightUnit = getValue("ship_weight_unit", "lb") as "lb" | "kg" | "oz" | "g"
+		const dimensionUnit = getValue("ship_dimension_unit", "in") as "in" | "cm"
+		const defaultWeight = getValue("ship_default_weight", "1")
+
+		// Create shipment to get rates
+		const shipment = await shippoRequest<ShippoShipment>("/shipments", {
+			method: "POST",
+			body: JSON.stringify({
+				address_from: fromAddress,
+				address_to: {
+					name: `${shippingAddress.firstName} ${shippingAddress.lastName}`.trim() || "Customer",
+					company: shippingAddress.company || undefined,
+					street1: shippingAddress.addressLine1,
+					street2: shippingAddress.addressLine2 || "",
+					city: shippingAddress.city,
+					state: shippingAddress.state || "",
+					zip: shippingAddress.postalCode || "",
+					country: shippingAddress.country || "US",
+					phone: shippingAddress.phone || "",
+				},
+				parcels: [{
+					length: "10",
+					width: "8",
+					height: "4",
+					distance_unit: dimensionUnit,
+					weight: defaultWeight,
+					mass_unit: weightUnit,
+				}],
+				async: false,
+			}),
+		})
+
+		return {
+			success: true,
+			rates: shipment.rates,
+			shipmentId: shipment.object_id,
+		}
+	} catch (error) {
+		console.error("[Shippo] Error getting rates:", error)
+		return { success: false, error: error instanceof Error ? error.message : "Failed to get shipping rates" }
+	}
+}
+
+/**
+ * Purchase a shipping label
+ */
+export async function purchaseShippingLabel(
+	orderId: string,
+	rateId: string,
+	shipmentId: string
+): Promise<{ success: boolean; label?: { trackingNumber: string; labelUrl: string; trackingUrl?: string }; error?: string }> {
+	try {
+		const workspace = await requireShippingPermission()
+
+		// Verify order belongs to workspace
+		const [order] = await db
+			.select()
+			.from(orders)
+			.where(and(eq(orders.id, orderId), eq(orders.workspaceId, workspace.id)))
+			.limit(1)
+
+		if (!order) {
+			return { success: false, error: "Order not found" }
+		}
+
+		// Get label preferences
+		const settings = await db
+			.select()
+			.from(storeSettings)
+			.where(and(
+				eq(storeSettings.workspaceId, workspace.id),
+				eq(storeSettings.group, "shipping")
+			))
+
+		const getValue = (key: string, defaultVal: string) => settings.find(s => s.key === key)?.value || defaultVal
+		const labelFormat = getValue("ship_label_format", "PDF")
+
+		// Purchase the label
+		const transaction = await shippoRequest<ShippoTransaction>("/transactions", {
+			method: "POST",
+			body: JSON.stringify({
+				rate: rateId,
+				label_file_type: labelFormat,
+				async: false,
+			}),
+		})
+
+		if (transaction.status !== "SUCCESS") {
+			const errorMsg = transaction.messages?.map(m => m.text).join(", ") || "Label purchase failed"
+			return { success: false, error: errorMsg }
+		}
+
+		if (!transaction.tracking_number || !transaction.label_url) {
+			return { success: false, error: "Label created but missing tracking number or URL" }
+		}
+
+		// Update order with tracking info
+		await db
+			.update(orders)
+			.set({
+				trackingNumber: transaction.tracking_number,
+				trackingUrl: transaction.tracking_url_provider || null,
+				status: order.status === "processing" ? "shipped" : order.status,
+				updatedAt: new Date(),
+			})
+			.where(eq(orders.id, orderId))
+
+		// Find or create Shippo carrier for this workspace
+		let [shippoCarrier] = await db
+			.select()
+			.from(shippingCarriers)
+			.where(and(
+				eq(shippingCarriers.workspaceId, workspace.id),
+				eq(shippingCarriers.code, "shippo")
+			))
+			.limit(1)
+
+		if (!shippoCarrier) {
+			[shippoCarrier] = await db
+				.insert(shippingCarriers)
+				.values({
+					workspaceId: workspace.id,
+					name: "Shippo",
+					code: "shippo",
+					trackingUrlTemplate: "https://track.goshippo.com/{tracking}",
+				})
+				.returning()
+		}
+
+		// Create shipping label record
+		await db.insert(shippingLabels).values({
+			orderId: order.id,
+			carrierId: shippoCarrier.id,
+			trackingNumber: transaction.tracking_number,
+			labelUrl: transaction.label_url,
+			status: "created",
+		})
+
+		// Create tracking record
+		await db.insert(shipmentTracking).values({
+			orderId: order.id,
+			carrierId: shippoCarrier.id,
+			trackingNumber: transaction.tracking_number,
+			status: "pending",
+			source: "shippo",
+			reviewStatus: "approved",
+		})
+
+		await logAudit({
+			action: "label.purchased",
+			targetType: "order",
+			targetId: orderId,
+			metadata: { trackingNumber: transaction.tracking_number },
+		})
+
+		return {
+			success: true,
+			label: {
+				trackingNumber: transaction.tracking_number,
+				labelUrl: transaction.label_url,
+				trackingUrl: transaction.tracking_url_provider,
+			},
+		}
+	} catch (error) {
+		console.error("[Shippo] Error purchasing label:", error)
+		return { success: false, error: error instanceof Error ? error.message : "Failed to purchase label" }
+	}
 }

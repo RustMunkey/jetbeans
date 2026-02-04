@@ -2,8 +2,9 @@ import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { db } from "@jetbeans/db/client"
-import { eq } from "@jetbeans/db/drizzle"
-import { users } from "@jetbeans/db/schema"
+import { eq, and, inArray } from "@jetbeans/db/drizzle"
+import { users, storeSettings } from "@jetbeans/db/schema"
+import { DynamicFavicon } from "@/components/dynamic-favicon"
 import { AppSidebar } from "@/components/app-sidebar"
 import { BreadcrumbNav } from "@/components/breadcrumb-nav"
 import { BreadcrumbProvider } from "@/components/breadcrumb-context"
@@ -72,11 +73,36 @@ export default async function DashboardLayout({
     getActiveWorkspace(),
   ])
 
+  // Fetch workspace branding if we have an active workspace
+  let workspaceFavicon: string | null = null
+  let workspaceStoreName: string | null = null
+  let workspaceTagline: string | null = null
+  if (activeWorkspace?.id) {
+    const brandingSettings = await db
+      .select({ key: storeSettings.key, value: storeSettings.value })
+      .from(storeSettings)
+      .where(and(
+        eq(storeSettings.workspaceId, activeWorkspace.id),
+        inArray(storeSettings.key, ["store_favicon_url", "store_name", "store_tagline"])
+      ))
+    for (const setting of brandingSettings) {
+      if (setting.key === "store_favicon_url") workspaceFavicon = setting.value
+      if (setting.key === "store_name") workspaceStoreName = setting.value
+      if (setting.key === "store_tagline") workspaceTagline = setting.value
+    }
+  }
+
   const cookieStore = await cookies()
   const sidebarOpen = cookieStore.get("sidebar_state")?.value !== "false"
   const rightSidebarOpen = cookieStore.get("right_sidebar_state")?.value !== "false"
 
   return (
+    <>
+    <DynamicFavicon
+      faviconUrl={workspaceFavicon}
+      storeName={workspaceStoreName}
+      tagline={workspaceTagline}
+    />
     <PusherProvider
       pusherKey={process.env.NEXT_PUBLIC_PUSHER_KEY}
       pusherCluster={process.env.NEXT_PUBLIC_PUSHER_CLUSTER}
@@ -156,5 +182,6 @@ export default async function DashboardLayout({
       </CallProvider>
       </UserStatusProvider>
     </PusherProvider>
+    </>
   )
 }

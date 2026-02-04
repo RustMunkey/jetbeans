@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ImageUpload } from "@/components/ui/image-upload"
 import { updateSettings } from "./actions"
 
 type Setting = {
@@ -460,13 +461,26 @@ export function GeneralSettings({ settings }: { settings: Setting[] }) {
 							<Label>Tagline</Label>
 							<Input value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="Premium coffee, delivered." />
 						</div>
-						<div className="space-y-2">
-							<Label>Logo URL</Label>
-							<Input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://..." />
-						</div>
-						<div className="space-y-2">
-							<Label>Favicon URL</Label>
-							<Input value={faviconUrl} onChange={(e) => setFaviconUrl(e.target.value)} placeholder="https://..." />
+						<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+							<div className="space-y-2">
+								<Label>Logo</Label>
+								<ImageUpload
+									value={logoUrl}
+									onChange={setLogoUrl}
+									placeholder="Upload store logo"
+								/>
+								<p className="text-xs text-muted-foreground">Recommended: 400×100px PNG or SVG</p>
+							</div>
+							<div className="space-y-2">
+								<Label>Favicon</Label>
+								<ImageUpload
+									value={faviconUrl}
+									onChange={setFaviconUrl}
+									placeholder="Upload favicon"
+									accept="image/png,image/x-icon,image/svg+xml"
+								/>
+								<p className="text-xs text-muted-foreground">Recommended: 32×32px PNG or ICO</p>
+							</div>
 						</div>
 					</div>
 				</CardContent>

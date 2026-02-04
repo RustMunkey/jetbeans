@@ -31,7 +31,7 @@ export function ParticipantTile({
 		.toUpperCase()
 		.slice(0, 2)
 
-	// Attach video track - include participant.id to re-run when participant changes
+	// Attach video track - include participant.identity to re-run when participant changes
 	useEffect(() => {
 		const track = showScreenShare ? participant.screenTrack : participant.videoTrack
 		const videoEl = videoRef.current
@@ -40,7 +40,7 @@ export function ParticipantTile({
 			console.log("[ParticipantTile] No video track or element:", {
 				hasTrack: !!track,
 				hasEl: !!videoEl,
-				participantId: participant.id
+				participantId: participant.identity
 			})
 			return
 		}
@@ -59,9 +59,9 @@ export function ParticipantTile({
 				// Ignore detach errors
 			}
 		}
-	}, [participant.id, participant.videoTrack, participant.screenTrack, participant.name, showScreenShare])
+	}, [participant.identity, participant.videoTrack, participant.screenTrack, participant.name, showScreenShare])
 
-	// Attach audio track (only for remote participants) - include participant.id
+	// Attach audio track (only for remote participants) - include participant.identity
 	useEffect(() => {
 		const audioEl = audioRef.current
 
@@ -70,7 +70,7 @@ export function ParticipantTile({
 			console.log("[ParticipantTile] No audio track or element for remote:", {
 				hasTrack: !!participant.audioTrack,
 				hasEl: !!audioEl,
-				participantId: participant.id
+				participantId: participant.identity
 			})
 			return
 		}
@@ -89,7 +89,7 @@ export function ParticipantTile({
 				// Ignore detach errors
 			}
 		}
-	}, [participant.id, participant.audioTrack, participant.isLocal, participant.name])
+	}, [participant.identity, participant.audioTrack, participant.isLocal, participant.name])
 
 	const showVideo = showScreenShare
 		? participant.isScreenSharing && participant.screenTrack

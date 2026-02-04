@@ -23,11 +23,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-	title: {
-		default: "JetBeans Admin",
-		template: "%s • JetBeans Admin",
-	},
-	description: "JetBeans administration panel.",
+	title: "Admin",
+	description: "Administration panel.",
 };
 
 export default function AdminLayout({

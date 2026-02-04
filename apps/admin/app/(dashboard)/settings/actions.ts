@@ -59,9 +59,24 @@ export async function updateSetting(key: string, value: string, group: string = 
 }
 
 export async function updateSettings(entries: { key: string; value: string; group: string }[]) {
+	const workspace = await requireSettingsPermission()
+
 	for (const entry of entries) {
 		await updateSetting(entry.key, entry.value, entry.group)
 	}
+
+	// Sync logo to workspaces table for sidebar display
+	const logoEntry = entries.find(e => e.key === "store_logo_url")
+	if (logoEntry !== undefined) {
+		await db
+			.update(schema.workspaces)
+			.set({ logo: logoEntry.value || null, updatedAt: new Date() })
+			.where(eq(schema.workspaces.id, workspace.id))
+	}
+
+	// Revalidate to update sidebar with new logo/branding
+	const { revalidatePath } = await import("next/cache")
+	revalidatePath("/", "layout")
 }
 
 // ============================================

@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Add01Icon, Delete02Icon, Logout02Icon, Settings01Icon } from "@hugeicons/core-free-icons"
+import { Add01Icon, Delete02Icon, Home01Icon, Logout02Icon, Mail01Icon, Navigation04Icon, Settings01Icon } from "@hugeicons/core-free-icons"
 import { Store, Users, Building2, Sparkles, Loader2 } from "lucide-react"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -39,7 +39,6 @@ import {
 	ContextMenuSeparator,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu"
-import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import { setActiveWorkspace, createWorkspaceAction, deleteWorkspaceAction, leaveWorkspaceAction } from "@/lib/workspace"
 import type { WorkspaceWithRole } from "@/lib/workspace"
@@ -102,17 +101,22 @@ function WorkspaceIcon({
 
 								{/* Workspace avatar */}
 								<div className="relative overflow-visible">
-									<Avatar className="size-10 rounded-lg transition-all duration-200">
-										{workspace.logo && <AvatarImage src={workspace.logo} alt={workspace.name} />}
-										<AvatarFallback className={cn(
-											"rounded-lg text-sm font-semibold transition-colors duration-200",
-											isActive
-												? "bg-primary text-primary-foreground"
-												: "bg-muted text-foreground"
-										)}>
-											{initials}
-										</AvatarFallback>
-									</Avatar>
+									<div className={cn(
+										"size-10 rounded-lg flex items-center justify-center transition-colors duration-200",
+										isActive
+											? "bg-primary text-primary-foreground"
+											: "bg-muted text-foreground"
+									)}>
+										{workspace.logo ? (
+											<img
+												src={workspace.logo}
+												alt={workspace.name}
+												className="size-6 object-contain"
+											/>
+										) : (
+											<span className="text-sm font-semibold">{initials}</span>
+										)}
+									</div>
 									<NotificationBadge count={0} />
 								</div>
 							</button>
@@ -148,7 +152,7 @@ function WorkspaceIcon({
 	)
 }
 
-function HomeButton({ isActive, onClick }: { isActive: boolean; onClick: () => void }) {
+function NavButton({ icon, label, onClick }: { icon: typeof Home01Icon; label: string; onClick: () => void }) {
 	return (
 		<Tooltip delayDuration={0}>
 			<TooltipTrigger asChild>
@@ -157,29 +161,15 @@ function HomeButton({ isActive, onClick }: { isActive: boolean; onClick: () => v
 					onClick={onClick}
 					className="relative group flex items-center justify-center w-full"
 				>
-					{/* Active indicator pill */}
-					<div
-						className={cn(
-							"absolute left-0 w-1 rounded-r-full bg-foreground transition-all duration-200",
-							isActive ? "h-8" : "h-0 group-hover:h-4"
-						)}
-					/>
-
 					<Avatar className="size-10 rounded-lg transition-all duration-200">
-						<AvatarFallback className={cn(
-							"rounded-lg transition-colors duration-200",
-							isActive
-								? "bg-primary"
-								: "bg-foreground"
-						)}>
-							<img src="/logos/coffee-white.png" alt="JetBeans" className="size-6 dark:hidden" />
-							<img src="/logos/coffee.png" alt="JetBeans" className="size-6 hidden dark:block" />
+						<AvatarFallback className="rounded-lg bg-muted text-muted-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-200">
+							<HugeiconsIcon icon={icon} size={18} />
 						</AvatarFallback>
 					</Avatar>
 				</button>
 			</TooltipTrigger>
 			<TooltipContent side="right" sideOffset={8}>
-				<p className="font-medium">JetBeans Home</p>
+				<p className="font-medium">{label}</p>
 			</TooltipContent>
 		</Tooltip>
 	)
@@ -389,20 +379,9 @@ export function WorkspaceSidebar({ workspaces, activeWorkspaceId }: WorkspaceSid
 	return (
 		<>
 			<aside className="shrink-0 w-16 h-screen flex flex-col items-center py-3 bg-sidebar border-r border-sidebar-border overflow-visible">
-				{/* Home/JetBeans button */}
-				<HomeButton
-					isActive={!activeWorkspaceId}
-					onClick={() => {
-						router.push("/")
-					}}
-				/>
-
-				<div className="w-8 my-2">
-					<Separator className="bg-sidebar-border" />
-				</div>
-
-				{/* Workspace list */}
-				<div className="min-h-0 flex-1 flex flex-col items-center gap-2 w-full overflow-auto overscroll-contain [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+				{/* All buttons in one vertical flow */}
+				<div className="flex flex-col items-center gap-2 w-full">
+					{/* Workspace list */}
 					{workspaces.map((workspace) => (
 						<WorkspaceIcon
 							key={workspace.id}
@@ -414,14 +393,27 @@ export function WorkspaceSidebar({ workspaces, activeWorkspaceId }: WorkspaceSid
 							onSettings={() => router.push("/settings")}
 						/>
 					))}
-				</div>
 
-				<div className="w-8 my-2">
-					<Separator className="bg-sidebar-border" />
-				</div>
+					{/* Navigation buttons */}
+					<NavButton
+						icon={Home01Icon}
+						label="Home"
+						onClick={() => router.push("/")}
+					/>
+					<NavButton
+						icon={Mail01Icon}
+						label="Messages"
+						onClick={() => router.push("/notifications/messages")}
+					/>
+					<NavButton
+						icon={Navigation04Icon}
+						label="Discover"
+						onClick={() => router.push("/discover")}
+					/>
 
-				{/* Add workspace button */}
-				<AddWorkspaceButton onClick={() => setCreateDialogOpen(true)} />
+					{/* Add workspace button */}
+					<AddWorkspaceButton onClick={() => setCreateDialogOpen(true)} />
+				</div>
 			</aside>
 
 			{/* Create Workspace Dialog */}

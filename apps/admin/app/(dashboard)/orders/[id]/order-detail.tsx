@@ -17,7 +17,7 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format"
 import { useBreadcrumbOverride } from "@/components/breadcrumb-context"
-import { updateOrderStatus, addTracking, removeTracking, processRefund, cancelOrder, clearOrderActivity } from "../actions"
+import { updateOrderStatus, addTracking, removeTracking, processRefund, cancelOrder, clearOrderActivity, getShippingRatesForOrder, generateShippingLabel, type ParcelDimensions } from "../actions"
 import { detectCarrier, type CarrierInfo } from "@/lib/tracking/carrier-detector"
 import { TrackingTimeline } from "@/components/tracking-timeline"
 
@@ -29,6 +29,25 @@ interface TrackingData {
 	estimatedDelivery: Date | null
 	lastUpdatedAt: Date
 	carrierName: string
+}
+
+interface ShippingRate {
+	object_id: string
+	provider: string
+	servicelevel: { name: string; token: string }
+	amount: string
+	currency: string
+	estimated_days: number
+	duration_terms: string
+}
+
+interface GeneratedLabel {
+	trackingNumber: string
+	trackingUrl: string
+	labelUrl: string
+	carrier: string
+	service: string
+	cost: string
 }
 
 interface OrderDetailProps {
@@ -116,6 +135,21 @@ export function OrderDetail({ order, activity, tracking }: OrderDetailProps) {
 	const [refundAmount, setRefundAmount] = useState(order.total)
 	const [refundReason, setRefundReason] = useState("")
 
+	// Label generation state
+	const [labelDialog, setLabelDialog] = useState(false)
+	const [labelStep, setLabelStep] = useState<"dimensions" | "rates" | "success">("dimensions")
+	const [parcelLength, setParcelLength] = useState("6")
+	const [parcelWidth, setParcelWidth] = useState("4")
+	const [parcelHeight, setParcelHeight] = useState("3")
+	const [parcelWeight, setParcelWeight] = useState("1")
+	const [distanceUnit, setDistanceUnit] = useState<"in" | "cm">("in")
+	const [massUnit, setMassUnit] = useState<"lb" | "kg" | "oz" | "g">("lb")
+	const [shippingRates, setShippingRates] = useState<ShippingRate[]>([])
+	const [selectedRateId, setSelectedRateId] = useState<string | null>(null)
+	const [generatedLabel, setGeneratedLabel] = useState<GeneratedLabel | null>(null)
+	const [fetchingRates, setFetchingRates] = useState(false)
+	const [purchasingLabel, setPurchasingLabel] = useState(false)
+
 	// Auto-detect carrier when tracking number changes
 	const handleTrackingNumberChange = (value: string) => {
 		setTrackingNumber(value)
@@ -195,6 +229,77 @@ export function OrderDetail({ order, activity, tracking }: OrderDetailProps) {
 
 	const isCancellable = !["cancelled", "refunded", "delivered"].includes(order.status)
 
+	const handleGetRates = async () => {
+		setFetchingRates(true)
+		try {
+			const parcel: ParcelDimensions = {
+				length: parseFloat(parcelLength),
+				width: parseFloat(parcelWidth),
+				height: parseFloat(parcelHeight),
+				weight: parseFloat(parcelWeight),
+				distanceUnit,
+				massUnit,
+			}
+			const result = await getShippingRatesForOrder(order.id, parcel)
+			setShippingRates(result.rates as ShippingRate[])
+			if (result.rates.length > 0) {
+				setSelectedRateId(result.rates[0].object_id)
+			}
+			setLabelStep("rates")
+		} catch (e: any) {
+			toast.error(e.message)
+		} finally {
+			setFetchingRates(false)
+		}
+	}
+
+	const handlePurchaseLabel = async () => {
+		if (!selectedRateId) {
+			toast.error("Please select a shipping rate")
+			return
+		}
+		const selectedRate = shippingRates.find(r => r.object_id === selectedRateId)
+		if (!selectedRate) return
+
+		setPurchasingLabel(true)
+		try {
+			const parcel: ParcelDimensions = {
+				length: parseFloat(parcelLength),
+				width: parseFloat(parcelWidth),
+				height: parseFloat(parcelHeight),
+				weight: parseFloat(parcelWeight),
+				distanceUnit,
+				massUnit,
+			}
+			const label = await generateShippingLabel(order.id, parcel, selectedRate.servicelevel.token)
+			setGeneratedLabel(label)
+			setLabelStep("success")
+			toast.success("Shipping label generated!")
+			router.refresh()
+		} catch (e: any) {
+			toast.error(e.message)
+		} finally {
+			setPurchasingLabel(false)
+		}
+	}
+
+	const handlePrintLabel = () => {
+		if (!generatedLabel?.labelUrl) return
+		const printWindow = window.open(generatedLabel.labelUrl, "_blank")
+		if (printWindow) {
+			printWindow.addEventListener("load", () => {
+				printWindow.print()
+			})
+		}
+	}
+
+	const resetLabelDialog = () => {
+		setLabelStep("dimensions")
+		setShippingRates([])
+		setSelectedRateId(null)
+		setGeneratedLabel(null)
+	}
+
 	return (
 		<>
 			{/* Header */}
@@ -220,8 +325,13 @@ export function OrderDetail({ order, activity, tracking }: OrderDetailProps) {
 						<Button size="sm" variant="outline" className="flex-1 sm:flex-initial" onClick={() => setStatusDialog(true)}>
 							Update Status
 						</Button>
+						{!order.trackingNumber && order.shippingAddress && (
+							<Button size="sm" variant="outline" className="flex-1 sm:flex-initial" onClick={() => { resetLabelDialog(); setLabelDialog(true) }}>
+								Generate Label
+							</Button>
+						)}
 						<Button size="sm" variant="outline" className="flex-1 sm:flex-initial" onClick={() => setTrackingDialog(true)}>
-							Add Tracking
+							{order.trackingNumber ? "Update" : "Add"} Tracking
 						</Button>
 						<Button size="sm" variant="outline" className="flex-1 sm:flex-initial" onClick={() => setRefundDialog(true)}>
 							Refund
@@ -635,6 +745,206 @@ export function OrderDetail({ order, activity, tracking }: OrderDetailProps) {
 						<Button variant="destructive" onClick={handleRefund} disabled={loading}>
 							{loading ? "Processing..." : "Process Refund"}
 						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* Label Generation Dialog */}
+			<Dialog open={labelDialog} onOpenChange={(open) => { setLabelDialog(open); if (!open) resetLabelDialog() }}>
+				<DialogContent className="sm:max-w-lg">
+					<DialogHeader>
+						<DialogTitle>
+							{labelStep === "dimensions" && "Package Dimensions"}
+							{labelStep === "rates" && "Select Shipping Rate"}
+							{labelStep === "success" && "Label Generated"}
+						</DialogTitle>
+					</DialogHeader>
+
+					{labelStep === "dimensions" && (
+						<div className="space-y-4 py-4">
+							<div className="grid grid-cols-3 gap-3">
+								<div className="space-y-2">
+									<Label>Length</Label>
+									<Input
+										type="number"
+										step="0.1"
+										value={parcelLength}
+										onChange={(e) => setParcelLength(e.target.value)}
+									/>
+								</div>
+								<div className="space-y-2">
+									<Label>Width</Label>
+									<Input
+										type="number"
+										step="0.1"
+										value={parcelWidth}
+										onChange={(e) => setParcelWidth(e.target.value)}
+									/>
+								</div>
+								<div className="space-y-2">
+									<Label>Height</Label>
+									<Input
+										type="number"
+										step="0.1"
+										value={parcelHeight}
+										onChange={(e) => setParcelHeight(e.target.value)}
+									/>
+								</div>
+							</div>
+							<div className="space-y-2">
+								<Label>Unit</Label>
+								<Select value={distanceUnit} onValueChange={(v) => setDistanceUnit(v as "in" | "cm")}>
+									<SelectTrigger>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="in">Inches (in)</SelectItem>
+										<SelectItem value="cm">Centimeters (cm)</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
+							<div className="grid grid-cols-2 gap-3">
+								<div className="space-y-2">
+									<Label>Weight</Label>
+									<Input
+										type="number"
+										step="0.1"
+										value={parcelWeight}
+										onChange={(e) => setParcelWeight(e.target.value)}
+									/>
+								</div>
+								<div className="space-y-2">
+									<Label>Unit</Label>
+									<Select value={massUnit} onValueChange={(v) => setMassUnit(v as "lb" | "kg" | "oz" | "g")}>
+										<SelectTrigger>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="lb">Pounds (lb)</SelectItem>
+											<SelectItem value="oz">Ounces (oz)</SelectItem>
+											<SelectItem value="kg">Kilograms (kg)</SelectItem>
+											<SelectItem value="g">Grams (g)</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
+							</div>
+							<p className="text-xs text-muted-foreground">
+								Ship to: {order.shippingAddress?.city}, {order.shippingAddress?.state} {order.shippingAddress?.postalCode}, {order.shippingAddress?.country}
+							</p>
+						</div>
+					)}
+
+					{labelStep === "rates" && (
+						<div className="space-y-4 py-4">
+							{shippingRates.length === 0 ? (
+								<p className="text-sm text-muted-foreground text-center py-4">
+									No shipping rates available for this route.
+								</p>
+							) : (
+								<div className="space-y-2 max-h-[300px] overflow-y-auto">
+									{shippingRates.map((rate) => (
+										<div
+											key={rate.object_id}
+											className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+												selectedRateId === rate.object_id
+													? "border-primary bg-primary/5"
+													: "hover:border-muted-foreground/30"
+											}`}
+											onClick={() => setSelectedRateId(rate.object_id)}
+										>
+											<div className="flex items-center justify-between">
+												<div className="flex items-center gap-2">
+													<input
+														type="radio"
+														checked={selectedRateId === rate.object_id}
+														onChange={() => setSelectedRateId(rate.object_id)}
+														className="h-4 w-4"
+													/>
+													<div>
+														<p className="text-sm font-medium">
+															{rate.provider} - {rate.servicelevel.name}
+														</p>
+														<p className="text-xs text-muted-foreground">
+															{rate.estimated_days === 1 ? "1 day" : `${rate.estimated_days} days`}
+															{rate.duration_terms && ` • ${rate.duration_terms}`}
+														</p>
+													</div>
+												</div>
+												<p className="text-sm font-semibold">
+													${parseFloat(rate.amount).toFixed(2)}
+												</p>
+											</div>
+										</div>
+									))}
+								</div>
+							)}
+						</div>
+					)}
+
+					{labelStep === "success" && generatedLabel && (
+						<div className="space-y-4 py-4">
+							<div className="rounded-lg border p-4 bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+								<div className="flex items-center gap-2 text-green-600 dark:text-green-400 mb-3">
+									<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+									</svg>
+									<span className="font-medium">Label Created Successfully</span>
+								</div>
+								<div className="space-y-2 text-sm">
+									<div className="flex justify-between">
+										<span className="text-muted-foreground">Carrier:</span>
+										<span className="font-medium">{generatedLabel.carrier}</span>
+									</div>
+									<div className="flex justify-between">
+										<span className="text-muted-foreground">Service:</span>
+										<span className="font-medium">{generatedLabel.service}</span>
+									</div>
+									<div className="flex justify-between">
+										<span className="text-muted-foreground">Cost:</span>
+										<span className="font-medium">${parseFloat(generatedLabel.cost).toFixed(2)}</span>
+									</div>
+									<div className="flex justify-between">
+										<span className="text-muted-foreground">Tracking:</span>
+										<span className="font-mono text-xs">{generatedLabel.trackingNumber}</span>
+									</div>
+								</div>
+							</div>
+							<div className="flex gap-2">
+								<Button className="flex-1" onClick={handlePrintLabel}>
+									<svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+									</svg>
+									Print Label
+								</Button>
+								<Button variant="outline" asChild>
+									<a href={generatedLabel.labelUrl} target="_blank" rel="noopener noreferrer">
+										Download PDF
+									</a>
+								</Button>
+							</div>
+						</div>
+					)}
+
+					<DialogFooter>
+						{labelStep === "dimensions" && (
+							<>
+								<Button variant="outline" onClick={() => setLabelDialog(false)}>Cancel</Button>
+								<Button onClick={handleGetRates} disabled={fetchingRates}>
+									{fetchingRates ? "Getting Rates..." : "Get Shipping Rates"}
+								</Button>
+							</>
+						)}
+						{labelStep === "rates" && (
+							<>
+								<Button variant="outline" onClick={() => setLabelStep("dimensions")}>Back</Button>
+								<Button onClick={handlePurchaseLabel} disabled={purchasingLabel || !selectedRateId}>
+									{purchasingLabel ? "Purchasing..." : "Purchase Label"}
+								</Button>
+							</>
+						)}
+						{labelStep === "success" && (
+							<Button onClick={() => setLabelDialog(false)}>Done</Button>
+						)}
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>

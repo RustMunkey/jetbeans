@@ -26,7 +26,6 @@ async function handleGet(
 			id: products.id,
 			name: products.name,
 			slug: products.slug,
-			sku: products.sku,
 			description: products.description,
 			shortDescription: products.shortDescription,
 			price: products.price,
@@ -39,7 +38,6 @@ async function handleGet(
 			weightUnit: products.weightUnit,
 			metaTitle: products.metaTitle,
 			metaDescription: products.metaDescription,
-			metadata: products.metadata,
 			categoryId: products.categoryId,
 			categoryName: categories.name,
 			categorySlug: categories.slug,
@@ -101,7 +99,6 @@ async function handleGet(
 			id: product.id,
 			name: product.name,
 			slug: product.slug,
-			sku: product.sku,
 			description: product.description,
 			shortDescription: product.shortDescription,
 			price: product.price,
@@ -116,8 +113,6 @@ async function handleGet(
 				title: product.metaTitle,
 				description: product.metaDescription,
 			},
-			// Custom attributes stored in metadata (gemstone specs, etc.)
-			metadata: product.metadata,
 			category: product.categoryId
 				? { id: product.categoryId, name: product.categoryName, slug: product.categorySlug }
 				: null,
