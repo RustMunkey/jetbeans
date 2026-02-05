@@ -3,7 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { db } from "@jetbeans/db/client";
 import { eq, count } from "@jetbeans/db/drizzle";
-import { users, sessions, accounts, verifications, invites, auditLog } from "@jetbeans/db/schema";
+import { users, sessions, accounts, verifications, auditLog } from "@jetbeans/db/schema";
 
 export const auth = betterAuth({
 	baseURL: process.env.NEXT_PUBLIC_ADMIN_URL || "http://localhost:3001",
@@ -11,6 +11,7 @@ export const auth = betterAuth({
 	trustedOrigins: [
 		process.env.NEXT_PUBLIC_ADMIN_URL || "http://localhost:3001",
 		"http://localhost:3001",
+		"https://app.jetbeans.cafe",
 	],
 	database: drizzleAdapter(db, {
 		provider: "pg",
@@ -38,6 +39,12 @@ export const auth = betterAuth({
 		cookieCache: {
 			enabled: true,
 			maxAge: 60 * 5, // cache session for 5 min (avoids DB hit every request)
+		},
+	},
+	advanced: {
+		useSecureCookies: process.env.NODE_ENV === "production",
+		crossSubDomainCookies: {
+			enabled: false, // Set to true if you need cookies across subdomains
 		},
 	},
 	user: {
