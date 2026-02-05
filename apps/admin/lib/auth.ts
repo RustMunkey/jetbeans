@@ -41,12 +41,6 @@ export const auth = betterAuth({
 			maxAge: 60 * 5, // cache session for 5 min (avoids DB hit every request)
 		},
 	},
-	advanced: {
-		useSecureCookies: process.env.NODE_ENV === "production",
-		crossSubDomainCookies: {
-			enabled: false, // Set to true if you need cookies across subdomains
-		},
-	},
 	user: {
 		additionalFields: {
 			role: {
