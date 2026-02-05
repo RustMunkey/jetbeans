@@ -59,6 +59,14 @@ import {
 	deleteStorefront,
 	regenerateApiKey,
 } from "@/app/(dashboard)/settings/storefronts/actions"
+import {
+	createAdminApiKey,
+	updateAdminApiKey,
+	deleteAdminApiKey,
+	regenerateAdminApiKey,
+	DEFAULT_API_KEY_PERMISSIONS,
+	type ApiKeyPermissions,
+} from "./actions"
 import { toast } from "sonner"
 
 type Storefront = {
@@ -77,6 +85,22 @@ type Storefront = {
 	isActive: boolean | null
 	createdAt: Date
 	updatedAt: Date
+}
+
+type AdminApiKey = {
+	id: string
+	name: string
+	description: string | null
+	keyPrefix: string
+	permissions: ApiKeyPermissions
+	environment: string
+	isActive: boolean
+	expiresAt: Date | null
+	lastUsedAt: Date | null
+	usageCount: string | null
+	rateLimit: string | null
+	allowedIps: string[] | null
+	createdAt: Date
 }
 
 function CopyButton({ text, label }: { text: string; label?: string }) {
@@ -435,20 +459,506 @@ const ENDPOINTS = [
 	},
 ]
 
-export function ApiKeysClient({ storefronts }: { storefronts: Storefront[] }) {
+// Admin API key components
+function AdminApiKeyDisplay({ apiKey, keyId }: { apiKey: string; keyId: string }) {
+	const router = useRouter()
+	const [visible, setVisible] = React.useState(false)
+	const [regenerating, setRegenerating] = React.useState(false)
+
+	const regenerate = async () => {
+		setRegenerating(true)
+		try {
+			const result = await regenerateAdminApiKey(keyId)
+			toast.success("API key regenerated. Copy your new key now - it won't be shown again.")
+			// Show the new key briefly
+			setVisible(true)
+			router.refresh()
+		} catch (err) {
+			toast.error("Failed to regenerate key")
+		} finally {
+			setRegenerating(false)
+		}
+	}
+
+	const displayValue = visible ? apiKey : apiKey + "•".repeat(32)
+
 	return (
-		<Tabs defaultValue="keys" className="space-y-4">
+		<div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
+			<code className="flex-1 text-sm font-mono truncate">{displayValue}</code>
+			<Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setVisible(!visible)}>
+				<HugeiconsIcon icon={visible ? ViewOffIcon : ViewIcon} size={14} />
+			</Button>
+			<CopyButton text={apiKey} label="Copy API key" />
+			<AlertDialog>
+				<AlertDialogTrigger asChild>
+					<Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+						<HugeiconsIcon icon={RefreshIcon} size={14} />
+					</Button>
+				</AlertDialogTrigger>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Regenerate API key?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This will invalidate the current API key immediately. Any applications using
+							this key will stop working until updated with the new key.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction onClick={regenerate} disabled={regenerating}>
+							{regenerating ? "Regenerating..." : "Regenerate"}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+		</div>
+	)
+}
+
+function CreateAdminApiKeyDialog({ children, onCreated }: { children: React.ReactNode; onCreated?: (key: string) => void }) {
+	const router = useRouter()
+	const [open, setOpen] = React.useState(false)
+	const [name, setName] = React.useState("")
+	const [description, setDescription] = React.useState("")
+	const [environment, setEnvironment] = React.useState<"live" | "test">("live")
+	const [permissions, setPermissions] = React.useState<ApiKeyPermissions>({ ...DEFAULT_API_KEY_PERMISSIONS })
+	const [loading, setLoading] = React.useState(false)
+	const [newKey, setNewKey] = React.useState<string | null>(null)
+
+	const handleSubmit = async (e: React.FormEvent) => {
+		e.preventDefault()
+		if (!name.trim()) return
+
+		setLoading(true)
+		try {
+			const result = await createAdminApiKey({
+				name: name.trim(),
+				description: description.trim() || undefined,
+				permissions,
+				environment,
+			})
+			setNewKey(result.fullKey)
+			onCreated?.(result.fullKey)
+			router.refresh()
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Failed to create API key")
+		} finally {
+			setLoading(false)
+		}
+	}
+
+	const handleClose = () => {
+		setOpen(false)
+		setName("")
+		setDescription("")
+		setEnvironment("live")
+		setPermissions({ ...DEFAULT_API_KEY_PERMISSIONS })
+		setNewKey(null)
+	}
+
+	const togglePermission = (key: keyof ApiKeyPermissions) => {
+		setPermissions((p) => ({ ...p, [key]: !p[key] }))
+	}
+
+	if (newKey) {
+		return (
+			<Dialog open={open} onOpenChange={handleClose}>
+				<DialogTrigger asChild>{children}</DialogTrigger>
+				<DialogContent className="max-w-lg">
+					<DialogHeader>
+						<DialogTitle>API Key Created</DialogTitle>
+						<DialogDescription>
+							Copy your API key now. You won&apos;t be able to see it again.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-4 py-4">
+						<div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+							<p className="text-sm text-yellow-700 dark:text-yellow-300">
+								Make sure to copy your API key now. For security reasons, you won&apos;t be able to view it again.
+							</p>
+						</div>
+						<div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
+							<code className="flex-1 text-sm font-mono break-all">{newKey}</code>
+							<CopyButton text={newKey} label="Copy API key" />
+						</div>
+					</div>
+					<DialogFooter>
+						<Button onClick={handleClose}>Done</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		)
+	}
+
+	return (
+		<Dialog open={open} onOpenChange={setOpen}>
+			<DialogTrigger asChild>{children}</DialogTrigger>
+			<DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+				<form onSubmit={handleSubmit}>
+					<DialogHeader>
+						<DialogTitle>Create Admin API Key</DialogTitle>
+						<DialogDescription>
+							Create a secret key for server-to-server API access.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="grid gap-4 py-4">
+						<div className="grid gap-2">
+							<Label htmlFor="admin-name">Name</Label>
+							<Input
+								id="admin-name"
+								placeholder="e.g., Production Server"
+								value={name}
+								onChange={(e) => setName(e.target.value)}
+							/>
+						</div>
+						<div className="grid gap-2">
+							<Label htmlFor="admin-description">Description (optional)</Label>
+							<Input
+								id="admin-description"
+								placeholder="e.g., Used for order sync"
+								value={description}
+								onChange={(e) => setDescription(e.target.value)}
+							/>
+						</div>
+						<div className="grid gap-2">
+							<Label>Environment</Label>
+							<div className="flex gap-2">
+								<Button
+									type="button"
+									variant={environment === "live" ? "default" : "outline"}
+									size="sm"
+									onClick={() => setEnvironment("live")}
+								>
+									Live
+								</Button>
+								<Button
+									type="button"
+									variant={environment === "test" ? "default" : "outline"}
+									size="sm"
+									onClick={() => setEnvironment("test")}
+								>
+									Test
+								</Button>
+							</div>
+							<p className="text-xs text-muted-foreground">
+								{environment === "live" ? "Key prefix: jb_live_" : "Key prefix: jb_test_"}
+							</p>
+						</div>
+						<div className="grid gap-2">
+							<Label>Permissions</Label>
+							<div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-3">
+								{[
+									{ key: "fullAccess" as const, label: "Full Access", desc: "Override all permissions" },
+									{ key: "readProducts" as const, label: "Read Products", desc: "View products and variants" },
+									{ key: "writeProducts" as const, label: "Write Products", desc: "Create/update/delete products" },
+									{ key: "readOrders" as const, label: "Read Orders", desc: "View orders" },
+									{ key: "writeOrders" as const, label: "Write Orders", desc: "Update order status" },
+									{ key: "readCustomers" as const, label: "Read Customers", desc: "View customer data" },
+									{ key: "writeCustomers" as const, label: "Write Customers", desc: "Update customer data" },
+									{ key: "readInventory" as const, label: "Read Inventory", desc: "View stock levels" },
+									{ key: "writeInventory" as const, label: "Write Inventory", desc: "Update stock levels" },
+									{ key: "readWebhooks" as const, label: "Read Webhooks", desc: "View webhook configs" },
+									{ key: "writeWebhooks" as const, label: "Write Webhooks", desc: "Manage webhooks" },
+									{ key: "readAnalytics" as const, label: "Read Analytics", desc: "View analytics data" },
+								].map(({ key, label, desc }) => (
+									<div key={key} className="flex items-start space-x-2">
+										<Checkbox
+											id={`perm-${key}`}
+											checked={permissions[key] === true}
+											onCheckedChange={() => togglePermission(key)}
+										/>
+										<div className="grid gap-0.5 leading-none">
+											<label htmlFor={`perm-${key}`} className="text-sm font-medium cursor-pointer">
+												{label}
+											</label>
+											<p className="text-xs text-muted-foreground">{desc}</p>
+										</div>
+									</div>
+								))}
+							</div>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button type="button" variant="outline" onClick={() => setOpen(false)}>
+							Cancel
+						</Button>
+						<Button type="submit" disabled={loading || !name.trim()}>
+							{loading ? "Creating..." : "Create API Key"}
+						</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
+	)
+}
+
+function AdminApiKeyCard({ apiKey }: { apiKey: AdminApiKey }) {
+	const router = useRouter()
+	const [deleting, setDeleting] = React.useState(false)
+
+	const toggleActive = async () => {
+		await updateAdminApiKey(apiKey.id, { isActive: !apiKey.isActive })
+		router.refresh()
+	}
+
+	const handleDelete = async () => {
+		setDeleting(true)
+		try {
+			await deleteAdminApiKey(apiKey.id)
+			toast.success("API key deleted")
+			router.refresh()
+		} finally {
+			setDeleting(false)
+		}
+	}
+
+	const permissions = apiKey.permissions ?? DEFAULT_API_KEY_PERMISSIONS
+	const activePerms = Object.entries(permissions)
+		.filter(([_, v]) => v === true)
+		.map(([k]) => k)
+
+	return (
+		<Card>
+			<CardHeader className="pb-3">
+				<div className="flex items-start justify-between">
+					<div>
+						<CardTitle className="text-base flex items-center gap-2">
+							{apiKey.name}
+							<Badge variant={apiKey.environment === "live" ? "default" : "secondary"}>
+								{apiKey.environment}
+							</Badge>
+							{apiKey.isActive ? (
+								<Badge variant="outline" className="font-normal text-green-600">Active</Badge>
+							) : (
+								<Badge variant="secondary" className="font-normal">Disabled</Badge>
+							)}
+						</CardTitle>
+						<CardDescription>
+							{apiKey.description || "No description"}
+						</CardDescription>
+					</div>
+					<Switch checked={apiKey.isActive} onCheckedChange={toggleActive} />
+				</div>
+			</CardHeader>
+			<CardContent className="space-y-4">
+				<div>
+					<Label className="text-xs text-muted-foreground mb-1.5 block">Key Prefix</Label>
+					<AdminApiKeyDisplay apiKey={apiKey.keyPrefix} keyId={apiKey.id} />
+				</div>
+
+				<div>
+					<Label className="text-xs text-muted-foreground mb-1.5 block">Permissions</Label>
+					<div className="flex flex-wrap gap-1">
+						{permissions.fullAccess ? (
+							<Badge variant="default">Full Access</Badge>
+						) : (
+							activePerms.slice(0, 5).map((perm) => (
+								<Badge key={perm} variant="outline" className="text-xs">
+									{perm.replace(/([A-Z])/g, " $1").trim()}
+								</Badge>
+							))
+						)}
+						{!permissions.fullAccess && activePerms.length > 5 && (
+							<Badge variant="outline" className="text-xs">+{activePerms.length - 5} more</Badge>
+						)}
+					</div>
+				</div>
+
+				<div className="flex justify-between items-center pt-2 border-t text-xs text-muted-foreground">
+					<div className="space-y-1">
+						<p>Created {new Date(apiKey.createdAt).toLocaleDateString()}</p>
+						{apiKey.lastUsedAt && (
+							<p>Last used {new Date(apiKey.lastUsedAt).toLocaleDateString()}</p>
+						)}
+						{apiKey.usageCount && Number(apiKey.usageCount) > 0 && (
+							<p>{apiKey.usageCount} requests</p>
+						)}
+					</div>
+					<AlertDialog>
+						<AlertDialogTrigger asChild>
+							<Button variant="ghost" size="sm" className="text-destructive hover:text-destructive h-8">
+								<HugeiconsIcon icon={Delete02Icon} size={14} className="mr-1" />
+								Delete
+							</Button>
+						</AlertDialogTrigger>
+						<AlertDialogContent>
+							<AlertDialogHeader>
+								<AlertDialogTitle>Delete API key?</AlertDialogTitle>
+								<AlertDialogDescription>
+									This will permanently delete &quot;{apiKey.name}&quot; and revoke its API access.
+									Any applications using this key will immediately stop working.
+								</AlertDialogDescription>
+							</AlertDialogHeader>
+							<AlertDialogFooter>
+								<AlertDialogCancel>Cancel</AlertDialogCancel>
+								<AlertDialogAction
+									onClick={handleDelete}
+									disabled={deleting}
+									className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+								>
+									{deleting ? "Deleting..." : "Delete API Key"}
+								</AlertDialogAction>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
+				</div>
+			</CardContent>
+		</Card>
+	)
+}
+
+const ADMIN_API_ENDPOINTS = [
+	{
+		method: "GET",
+		path: "/api/v1/products",
+		description: "List all products with pagination",
+		example: `curl -H "Authorization: Bearer jb_live_xxxxx" \\
+  https://admin.jetbeans.app/api/v1/products?page=1&limit=50`,
+	},
+	{
+		method: "GET",
+		path: "/api/v1/products/:id",
+		description: "Get a single product with variants",
+		example: `curl -H "Authorization: Bearer jb_live_xxxxx" \\
+  https://admin.jetbeans.app/api/v1/products/abc123`,
+	},
+	{
+		method: "POST",
+		path: "/api/v1/products",
+		description: "Create a new product",
+		example: `curl -X POST -H "Authorization: Bearer jb_live_xxxxx" \\
+  -H "Content-Type: application/json" \\
+  -d '{"name": "Blue Sapphire", "price": 299.99}' \\
+  https://admin.jetbeans.app/api/v1/products`,
+	},
+	{
+		method: "GET",
+		path: "/api/v1/orders",
+		description: "List orders with filters",
+		example: `curl -H "Authorization: Bearer jb_live_xxxxx" \\
+  https://admin.jetbeans.app/api/v1/orders?status=pending`,
+	},
+	{
+		method: "PATCH",
+		path: "/api/v1/orders/:id",
+		description: "Update order status",
+		example: `curl -X PATCH -H "Authorization: Bearer jb_live_xxxxx" \\
+  -H "Content-Type: application/json" \\
+  -d '{"status": "shipped", "trackingNumber": "1Z999..."}' \\
+  https://admin.jetbeans.app/api/v1/orders/abc123`,
+	},
+	{
+		method: "GET",
+		path: "/api/v1/customers",
+		description: "List customers with order stats",
+		example: `curl -H "Authorization: Bearer jb_live_xxxxx" \\
+  https://admin.jetbeans.app/api/v1/customers`,
+	},
+]
+
+export function ApiKeysClient({ storefronts, adminApiKeys }: { storefronts: Storefront[]; adminApiKeys: AdminApiKey[] }) {
+	return (
+		<Tabs defaultValue="admin" className="space-y-4">
 			<TabsList>
-				<TabsTrigger value="keys">API Keys</TabsTrigger>
+				<TabsTrigger value="admin">Admin API</TabsTrigger>
+				<TabsTrigger value="storefront">Storefront API</TabsTrigger>
 				<TabsTrigger value="docs">Documentation</TabsTrigger>
 			</TabsList>
 
-			<TabsContent value="keys" className="space-y-4">
-				<div className="flex justify-end">
+			{/* ADMIN API TAB */}
+			<TabsContent value="admin" className="space-y-4">
+				<div className="flex justify-between items-start">
+					<div>
+						<h3 className="font-medium">Admin API Keys</h3>
+						<p className="text-sm text-muted-foreground">
+							Secret keys for server-to-server integrations. Full access to your workspace data.
+						</p>
+					</div>
+					<CreateAdminApiKeyDialog>
+						<Button size="sm">
+							<HugeiconsIcon icon={Add01Icon} size={14} className="mr-1" />
+							Create Admin Key
+						</Button>
+					</CreateAdminApiKeyDialog>
+				</div>
+
+				{adminApiKeys.length === 0 ? (
+					<Card>
+						<CardContent className="flex flex-col items-center justify-center py-12 text-center">
+							<div className="rounded-full bg-muted p-3 mb-4">
+								<HugeiconsIcon icon={CodeIcon} size={24} className="text-muted-foreground" />
+							</div>
+							<h3 className="font-medium mb-1">No Admin API keys yet</h3>
+							<p className="text-muted-foreground mb-4 max-w-sm">
+								Create an Admin API key to access your workspace data programmatically.
+							</p>
+							<CreateAdminApiKeyDialog>
+								<Button>
+									<HugeiconsIcon icon={Add01Icon} size={14} className="mr-1" />
+									Create Your First Admin Key
+								</Button>
+							</CreateAdminApiKeyDialog>
+						</CardContent>
+					</Card>
+				) : (
+					<div className="grid gap-4 md:grid-cols-2">
+						{adminApiKeys.map((key) => (
+							<AdminApiKeyCard key={key.id} apiKey={key} />
+						))}
+					</div>
+				)}
+
+				<Card className="bg-muted/50">
+					<CardHeader>
+						<CardTitle className="text-base">Admin API Endpoints</CardTitle>
+						<CardDescription>Available endpoints for Admin API keys</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<Accordion type="single" collapsible className="w-full">
+							{ADMIN_API_ENDPOINTS.map((endpoint, i) => (
+								<AccordionItem key={i} value={`admin-endpoint-${i}`}>
+									<AccordionTrigger className="hover:no-underline">
+										<div className="flex items-center gap-3 text-left">
+											<Badge
+												variant={endpoint.method === "GET" ? "secondary" : endpoint.method === "POST" ? "default" : "outline"}
+												className="font-mono text-xs"
+											>
+												{endpoint.method}
+											</Badge>
+											<code className="text-sm">{endpoint.path}</code>
+										</div>
+									</AccordionTrigger>
+									<AccordionContent className="space-y-3">
+										<p className="text-sm text-muted-foreground">
+											{endpoint.description}
+										</p>
+										<div className="bg-muted rounded-lg p-3 relative group">
+											<pre className="text-xs overflow-x-auto">{endpoint.example}</pre>
+											<div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+												<CopyButton text={endpoint.example} />
+											</div>
+										</div>
+									</AccordionContent>
+								</AccordionItem>
+							))}
+						</Accordion>
+					</CardContent>
+				</Card>
+			</TabsContent>
+
+			{/* STOREFRONT API TAB */}
+			<TabsContent value="storefront" className="space-y-4">
+				<div className="flex justify-between items-start">
+					<div>
+						<h3 className="font-medium">Storefront API Keys</h3>
+						<p className="text-sm text-muted-foreground">
+							Public keys for customer-facing storefronts with limited permissions.
+						</p>
+					</div>
 					<CreateApiKeyDialog>
 						<Button size="sm">
 							<HugeiconsIcon icon={Add01Icon} size={14} className="mr-1" />
-							Create API Key
+							Create Storefront Key
 						</Button>
 					</CreateApiKeyDialog>
 				</div>
@@ -459,14 +969,14 @@ export function ApiKeysClient({ storefronts }: { storefronts: Storefront[] }) {
 							<div className="rounded-full bg-muted p-3 mb-4">
 								<HugeiconsIcon icon={CodeIcon} size={24} className="text-muted-foreground" />
 							</div>
-							<h3 className="font-medium mb-1">No API keys yet</h3>
+							<h3 className="font-medium mb-1">No Storefront API keys yet</h3>
 							<p className="text-muted-foreground mb-4 max-w-sm">
-								Create an API key to connect your external applications and storefronts.
+								Create an API key to connect your external storefront applications.
 							</p>
 							<CreateApiKeyDialog>
 								<Button>
 									<HugeiconsIcon icon={Add01Icon} size={14} className="mr-1" />
-									Create Your First API Key
+									Create Your First Storefront Key
 								</Button>
 							</CreateApiKeyDialog>
 						</CardContent>

@@ -156,17 +156,17 @@ export async function updateSubscriptionStatus(id: string, status: string) {
 			subscriptionId: id,
 			status,
 			cancelledAt: new Date().toISOString(),
-		})
+		}, workspace.id)
 	} else if (status === "paused") {
 		await fireWebhooks("subscription.paused", {
 			subscriptionId: id,
 			status,
-		})
+		}, workspace.id)
 	} else if (status === "active") {
 		await fireWebhooks("subscription.resumed", {
 			subscriptionId: id,
 			status,
-		})
+		}, workspace.id)
 	}
 }
 
@@ -208,7 +208,7 @@ export async function cancelSubscription(id: string, reason: string) {
 		status: "cancelled",
 		cancelledAt: cancelledAt.toISOString(),
 		reason,
-	})
+	}, workspace.id)
 }
 
 export async function resumeSubscription(id: string) {
@@ -250,7 +250,7 @@ export async function resumeSubscription(id: string) {
 		subscriptionId: id,
 		status: "active",
 		nextDeliveryAt: nextDelivery.toISOString(),
-	})
+	}, workspace.id)
 }
 
 export async function updateFrequency(id: string, frequency: string) {

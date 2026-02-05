@@ -185,19 +185,19 @@ export async function updateOrderStatus(id: string, status: string) {
 		updatedAt: order.updatedAt?.toISOString(),
 	}
 
-	await fireWebhooks("order.updated", webhookData)
+	await fireWebhooks("order.updated", webhookData, workspace.id)
 
 	if (status === "shipped") {
 		await fireWebhooks("order.shipped", {
 			...webhookData,
 			shippedAt: order.shippedAt?.toISOString(),
 			trackingNumber: order.trackingNumber,
-		})
+		}, workspace.id)
 	} else if (status === "delivered") {
 		await fireWebhooks("order.delivered", {
 			...webhookData,
 			deliveredAt: order.deliveredAt?.toISOString(),
-		})
+		}, workspace.id)
 	}
 
 	// Emit workflow event for fulfilled orders
@@ -270,7 +270,7 @@ export async function addTracking(id: string, trackingNumber: string, trackingUr
 		trackingUrl: order.trackingUrl,
 		carrier: detectedCarrier?.name,
 		updatedAt: order.updatedAt?.toISOString(),
-	})
+	}, workspace.id)
 
 	// Send "shipped" notification to customer (non-blocking)
 	sendShippingNotification({
@@ -315,7 +315,7 @@ export async function removeTracking(id: string) {
 		trackingNumber: null,
 		trackingUrl: null,
 		updatedAt: order.updatedAt?.toISOString(),
-	})
+	}, workspace.id)
 
 	return order
 }
@@ -366,7 +366,7 @@ export async function processRefund(id: string, amount: string, reason: string) 
 		isFullRefund,
 		reason,
 		status: isFullRefund ? "refunded" : "partially_refunded",
-	})
+	}, workspace.id)
 }
 
 export async function cancelOrder(id: string) {
@@ -415,7 +415,7 @@ export async function cancelOrder(id: string) {
 		orderNumber: order.orderNumber,
 		total: order.total,
 		itemsRestored: items.length,
-	})
+	}, workspace.id)
 
 	// Emit workflow event for cancelled orders
 	await emitOrderCancelled({
@@ -565,20 +565,20 @@ export async function bulkUpdateOrderStatus(ids: string[], status: string) {
 			orderId,
 			status,
 			bulk: true,
-		})
+		}, workspace.id)
 
 		if (status === "shipped") {
 			await fireWebhooks("order.shipped", {
 				orderId,
 				status,
 				shippedAt: new Date().toISOString(),
-			})
+			}, workspace.id)
 		} else if (status === "delivered") {
 			await fireWebhooks("order.delivered", {
 				orderId,
 				status,
 				deliveredAt: new Date().toISOString(),
-			})
+			}, workspace.id)
 		}
 	}
 }
@@ -868,7 +868,7 @@ export async function generateShippingLabel(
 		service: label.service,
 		labelUrl: label.labelUrl,
 		shippedAt: new Date().toISOString(),
-	})
+	}, workspace.id)
 
 	// Send shipping notification to customer
 	sendShippingNotification({

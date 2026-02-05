@@ -1,4 +1,4 @@
-import { eq } from "@jetbeans/db/drizzle"
+import { eq, and } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { outgoingWebhookEndpoints, outgoingWebhookDeliveries } from "@jetbeans/db/schema"
 import { inngest } from "@/lib/inngest"
@@ -22,13 +22,22 @@ function generateSignature(payload: string, secret: string): string {
 /**
  * Fire outgoing webhooks for a specific event
  * This queues the webhooks for async delivery via Inngest
+ * IMPORTANT: workspaceId is REQUIRED to ensure proper tenant isolation
  */
-export async function fireWebhooks(event: WebhookEvent, data: Record<string, unknown>) {
-	// Find all active endpoints subscribed to this event
+export async function fireWebhooks(event: WebhookEvent, data: Record<string, unknown>, workspaceId: string) {
+	if (!workspaceId) {
+		console.error("[Webhooks] fireWebhooks called without workspaceId - skipping to prevent data leak")
+		return { queued: 0 }
+	}
+
+	// Find all active endpoints for THIS WORKSPACE ONLY subscribed to this event
 	const endpoints = await db
 		.select()
 		.from(outgoingWebhookEndpoints)
-		.where(eq(outgoingWebhookEndpoints.isActive, true))
+		.where(and(
+			eq(outgoingWebhookEndpoints.isActive, true),
+			eq(outgoingWebhookEndpoints.workspaceId, workspaceId)
+		))
 
 	// Filter to endpoints that are subscribed to this event
 	const subscribedEndpoints = endpoints.filter((ep) => {

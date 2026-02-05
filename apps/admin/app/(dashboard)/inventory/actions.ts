@@ -264,11 +264,11 @@ export async function adjustStock(
 	}
 
 	if (newAvailable <= 0 && previousAvailable > 0) {
-		await fireWebhooks("inventory.out_of_stock", webhookData)
+		await fireWebhooks("inventory.out_of_stock", webhookData, workspace.id)
 	} else if (newAvailable <= threshold && previousAvailable > threshold) {
-		await fireWebhooks("inventory.low_stock", webhookData)
+		await fireWebhooks("inventory.low_stock", webhookData, workspace.id)
 	} else if (newAvailable > threshold && previousAvailable <= threshold) {
-		await fireWebhooks("inventory.restocked", webhookData)
+		await fireWebhooks("inventory.restocked", webhookData, workspace.id)
 	}
 }
 

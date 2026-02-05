@@ -1,7 +1,8 @@
 import { db } from "@jetbeans/db/client"
 import { auditLog } from "@jetbeans/db/schema"
-import { desc, count } from "@jetbeans/db/drizzle"
+import { desc, count, eq } from "@jetbeans/db/drizzle"
 import { ActivityLogClient } from "./activity-log-client"
+import { requireWorkspace } from "@/lib/workspace"
 
 interface PageProps {
 	searchParams: Promise<{
@@ -10,10 +11,14 @@ interface PageProps {
 }
 
 export default async function ActivityLogPage({ searchParams }: PageProps) {
+	const workspace = await requireWorkspace()
 	const params = await searchParams
 	const page = Number(params.page) || 1
 	const pageSize = 30
 	const offset = (page - 1) * pageSize
+
+	// Filter by workspace to ensure proper data isolation
+	const workspaceFilter = eq(auditLog.workspaceId, workspace.id)
 
 	const [entries, [total]] = await Promise.all([
 		db
@@ -28,10 +33,11 @@ export default async function ActivityLogPage({ searchParams }: PageProps) {
 				createdAt: auditLog.createdAt,
 			})
 			.from(auditLog)
+			.where(workspaceFilter)
 			.orderBy(desc(auditLog.createdAt))
 			.limit(pageSize)
 			.offset(offset),
-		db.select({ count: count() }).from(auditLog),
+		db.select({ count: count() }).from(auditLog).where(workspaceFilter),
 	])
 
 	return (

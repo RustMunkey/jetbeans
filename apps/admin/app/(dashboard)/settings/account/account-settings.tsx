@@ -49,8 +49,20 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
+	DialogClose,
 } from "@/components/ui/dialog"
-import { updateProfile } from "./actions"
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { updateProfile, signOutAllSessions, deleteAccount } from "./actions"
 import { themePresets } from "@/components/accent-theme-provider"
 import { useMusicPlayer, type Track } from "@/components/music-player"
 import { upload } from "@vercel/blob/client"
@@ -367,6 +379,12 @@ export function AccountSettings({ user }: { user: User }) {
 
 	const MAX_TRACKS = 50
 
+	// Danger zone state
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+	const [deleteConfirmEmail, setDeleteConfirmEmail] = useState("")
+	const [deleting, setDeleting] = useState(false)
+	const [signingOutAll, setSigningOutAll] = useState(false)
+
 	// DnD sensors
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
@@ -379,16 +397,19 @@ export function AccountSettings({ user }: { user: User }) {
 		})
 	)
 
+	// User-specific theme storage key for multi-tenant isolation
+	const themeStorageKey = `jetbeans-accent-theme-${user.id}`
+
 	useEffect(() => {
 		setMounted(true)
-		// Load saved accent theme from localStorage
-		const savedAccent = localStorage.getItem("jetbeans-accent-theme")
+		// Load saved accent theme from localStorage (user-specific)
+		const savedAccent = localStorage.getItem(themeStorageKey)
 		if (savedAccent) {
 			setAccentTheme(savedAccent)
 		}
 		// Load music tracks
 		getUserAudioTracks().then(setTracks).catch(() => {})
-	}, [])
+	}, [themeStorageKey])
 
 	// Sync tracks with music player
 	useEffect(() => {
@@ -634,6 +655,33 @@ export function AccountSettings({ user }: { user: User }) {
 			toast.error("Failed to update profile")
 		} finally {
 			setSaving(false)
+		}
+	}
+
+	async function handleSignOutAllSessions() {
+		setSigningOutAll(true)
+		try {
+			await signOutAllSessions()
+			toast.success("Signed out of all other sessions")
+		} catch {
+			toast.error("Failed to sign out of other sessions")
+		} finally {
+			setSigningOutAll(false)
+		}
+	}
+
+	async function handleDeleteAccount() {
+		if (deleteConfirmEmail.toLowerCase() !== user.email.toLowerCase()) {
+			toast.error("Email does not match")
+			return
+		}
+		setDeleting(true)
+		try {
+			await deleteAccount(deleteConfirmEmail)
+			// The redirect happens server-side
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Failed to delete account")
+			setDeleting(false)
 		}
 	}
 
@@ -905,7 +953,7 @@ export function AccountSettings({ user }: { user: User }) {
 									type="button"
 									onClick={() => {
 										setAccentTheme(option.id)
-										localStorage.setItem("jetbeans-accent-theme", option.id)
+										localStorage.setItem(themeStorageKey, option.id)
 										window.dispatchEvent(new CustomEvent("accent-theme-change", { detail: option.id }))
 										toast.success(`${option.name} theme applied`)
 									}}
@@ -1015,6 +1063,113 @@ export function AccountSettings({ user }: { user: User }) {
 			</Card>
 
 			<DraftsCard />
+
+			{/* Danger Zone */}
+			<Card className="border-destructive/50">
+				<CardHeader>
+					<CardTitle className="text-destructive">Danger Zone</CardTitle>
+					<CardDescription>
+						Irreversible and destructive actions. Please be careful.
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-4">
+					{/* Sign out all sessions */}
+					<div className="flex items-start justify-between gap-4 p-4 rounded-lg border border-border">
+						<div className="space-y-1">
+							<p className="font-medium">Sign out all other sessions</p>
+							<p className="text-sm text-muted-foreground">
+								This will sign you out of all devices and browsers except this one.
+							</p>
+						</div>
+						<AlertDialog>
+							<AlertDialogTrigger asChild>
+								<Button variant="outline" disabled={signingOutAll}>
+									{signingOutAll ? "Signing out..." : "Sign out all"}
+								</Button>
+							</AlertDialogTrigger>
+							<AlertDialogContent>
+								<AlertDialogHeader>
+									<AlertDialogTitle>Sign out all other sessions?</AlertDialogTitle>
+									<AlertDialogDescription>
+										This will invalidate all your other active sessions. You will remain signed in on this device.
+									</AlertDialogDescription>
+								</AlertDialogHeader>
+								<AlertDialogFooter>
+									<AlertDialogCancel>Cancel</AlertDialogCancel>
+									<AlertDialogAction onClick={handleSignOutAllSessions}>
+										Sign out all
+									</AlertDialogAction>
+								</AlertDialogFooter>
+							</AlertDialogContent>
+						</AlertDialog>
+					</div>
+
+					{/* Delete account */}
+					<div className="flex items-start justify-between gap-4 p-4 rounded-lg border border-destructive/50 bg-destructive/5">
+						<div className="space-y-1">
+							<p className="font-medium text-destructive">Delete account</p>
+							<p className="text-sm text-muted-foreground">
+								Permanently delete your account and all associated data. This action cannot be undone.
+							</p>
+						</div>
+						<Button
+							variant="destructive"
+							onClick={() => setDeleteDialogOpen(true)}
+						>
+							Delete account
+						</Button>
+					</div>
+				</CardContent>
+			</Card>
+
+			{/* Delete Account Dialog */}
+			<Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle className="text-destructive">Delete your account</DialogTitle>
+						<DialogDescription>
+							This action is irreversible. All your data, workspaces you own (that have no other members), and settings will be permanently deleted.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-4 py-4">
+						<div className="rounded-lg bg-destructive/10 p-4 text-sm">
+							<p className="font-medium text-destructive mb-2">This will permanently delete:</p>
+							<ul className="list-disc list-inside space-y-1 text-muted-foreground">
+								<li>Your profile and account settings</li>
+								<li>Workspaces you own (if you're the only member)</li>
+								<li>All your uploaded files and music</li>
+								<li>Your activity history and drafts</li>
+							</ul>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="confirm-email">
+								To confirm, type your email: <span className="font-mono text-muted-foreground">{user.email}</span>
+							</Label>
+							<Input
+								id="confirm-email"
+								value={deleteConfirmEmail}
+								onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+								placeholder="Enter your email"
+								autoComplete="off"
+							/>
+						</div>
+					</div>
+					<DialogFooter>
+						<DialogClose asChild>
+							<Button variant="outline" disabled={deleting}>
+								Cancel
+							</Button>
+						</DialogClose>
+						<Button
+							variant="destructive"
+							onClick={handleDeleteAccount}
+							disabled={deleting || deleteConfirmEmail.toLowerCase() !== user.email.toLowerCase()}
+						>
+							{deleting ? "Deleting..." : "Delete my account"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			{/* Upload Track Dialog */}
 			<Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>

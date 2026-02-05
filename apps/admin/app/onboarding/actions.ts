@@ -230,8 +230,9 @@ export async function skipWorkspaceCreation() {
 			})
 	}
 
-	// Complete onboarding
-	return completeOnboarding()
+	// Go to connect step
+	revalidatePath("/onboarding")
+	redirect("/onboarding/connect")
 }
 
 // Check username availability

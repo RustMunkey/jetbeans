@@ -39,3 +39,5 @@ export * from "./auctions";
 export * from "./workflows";
 export * from "./integrations";
 export * from "./wishlist";
+export * from "./connected-sites";
+export * from "./api-keys";

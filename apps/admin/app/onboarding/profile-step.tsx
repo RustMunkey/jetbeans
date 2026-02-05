@@ -106,15 +106,18 @@ export function ProfileStep({ user }: ProfileStepProps) {
 
 	const debouncedUsername = useDebounce(username, 500)
 
+	// User-specific theme storage key for multi-tenant isolation
+	const themeStorageKey = `jetbeans-accent-theme-${user.id}`
+
 	// Mount and load saved theme, set defaults
 	useEffect(() => {
 		setMounted(true)
-		const savedAccent = localStorage.getItem("jetbeans-accent-theme")
+		const savedAccent = localStorage.getItem(themeStorageKey)
 		if (savedAccent) {
 			setAccentTheme(savedAccent)
 		} else {
-			// Set default accent theme to neutral
-			localStorage.setItem("jetbeans-accent-theme", "neutral")
+			// Set default accent theme to neutral (user-specific)
+			localStorage.setItem(themeStorageKey, "neutral")
 			window.dispatchEvent(new CustomEvent("accent-theme-change", { detail: "neutral" }))
 		}
 		// Set default color mode to light
@@ -122,7 +125,7 @@ export function ProfileStep({ user }: ProfileStepProps) {
 		if (!savedTheme) {
 			setTheme("light")
 		}
-	}, [setTheme])
+	}, [setTheme, themeStorageKey])
 
 	// Focus inputs when editing
 	useEffect(() => {
@@ -252,10 +255,10 @@ export function ProfileStep({ user }: ProfileStepProps) {
 		}
 	}
 
-	// Theme handler
+	// Theme handler (uses user-specific storage key)
 	function handleAccentSelect(themeId: string) {
 		setAccentTheme(themeId)
-		localStorage.setItem("jetbeans-accent-theme", themeId)
+		localStorage.setItem(themeStorageKey, themeId)
 		window.dispatchEvent(new CustomEvent("accent-theme-change", { detail: themeId }))
 	}
 

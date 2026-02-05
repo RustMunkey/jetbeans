@@ -139,7 +139,7 @@ export async function moderateReview(id: string, status: "approved" | "rejected"
 			title: review.title,
 			status: review.status,
 			moderatedAt: review.moderatedAt?.toISOString(),
-		})
+		}, workspace.id)
 	}
 
 	return review
@@ -204,7 +204,7 @@ export async function bulkModerate(ids: string[], status: "approved" | "rejected
 				reviewId,
 				status,
 				bulk: true,
-			})
+			}, workspace.id)
 		}
 	}
 }

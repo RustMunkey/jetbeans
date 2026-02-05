@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createWorkspace, skipWorkspaceCreation, completeOnboarding } from "../actions"
+import { createWorkspace, skipWorkspaceCreation } from "../actions"
 import { Loader2, Store, Users, Building2, Sparkles, ArrowLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -45,8 +45,8 @@ export function WorkspaceStep({ userName, hasExistingWorkspace }: WorkspaceStepP
 			if (result.error) {
 				setError(result.error)
 			} else {
-				// Workspace created, complete onboarding
-				await completeOnboarding()
+				// Workspace created, go to connect step
+				window.location.href = "/onboarding/connect"
 			}
 		})
 	}
@@ -54,8 +54,10 @@ export function WorkspaceStep({ userName, hasExistingWorkspace }: WorkspaceStepP
 	const handleSkip = () => {
 		startTransition(async () => {
 			if (hasExistingWorkspace) {
-				await completeOnboarding()
+				// Has workspace, go to connect step
+				window.location.href = "/onboarding/connect"
 			} else {
+				// Create default workspace, then go to connect step
 				await skipWorkspaceCreation()
 			}
 		})

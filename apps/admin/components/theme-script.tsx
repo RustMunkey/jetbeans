@@ -10,7 +10,21 @@ export function ThemeScript() {
 (function() {
 	try {
 		var presets = ${presetsJson};
-		var savedAccent = localStorage.getItem("jetbeans-accent-theme") || "coffee";
+		// Try to find a user-specific theme key (multi-tenant isolation)
+		// Falls back to legacy key or default if none found
+		var savedAccent = "coffee";
+		for (var i = 0; i < localStorage.length; i++) {
+			var key = localStorage.key(i);
+			if (key && key.startsWith("jetbeans-accent-theme-")) {
+				// Use the first user-specific theme found (will be corrected by AccentThemeProvider)
+				savedAccent = localStorage.getItem(key) || "coffee";
+				break;
+			}
+		}
+		// Fallback to legacy key for backwards compatibility
+		if (savedAccent === "coffee") {
+			savedAccent = localStorage.getItem("jetbeans-accent-theme") || "coffee";
+		}
 		var savedTheme = localStorage.getItem("jetbeans-theme") || "system";
 
 		// Determine if dark mode

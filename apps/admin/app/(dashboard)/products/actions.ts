@@ -198,7 +198,7 @@ export async function createProduct(data: ProductData) {
 		isFeatured: product.isFeatured,
 		categoryId: product.categoryId,
 		createdAt: product.createdAt?.toISOString(),
-	})
+	}, workspace.id)
 
 	// Emit workflow event
 	await emitProductCreated({
@@ -273,7 +273,7 @@ export async function updateProduct(id: string, data: Partial<ProductData>) {
 		isFeatured: product.isFeatured,
 		categoryId: product.categoryId,
 		updatedAt: product.updatedAt?.toISOString(),
-	})
+	}, workspace.id)
 
 	// Emit workflow event
 	await emitProductUpdated({
@@ -311,7 +311,7 @@ export async function deleteProduct(id: string) {
 	await fireWebhooks("product.deleted", {
 		productId: id,
 		name: product?.name,
-	})
+	}, workspace.id)
 }
 
 export async function bulkUpdateProducts(ids: string[], action: "activate" | "deactivate" | "delete") {
@@ -336,7 +336,7 @@ export async function bulkUpdateProducts(ids: string[], action: "activate" | "de
 			await fireWebhooks("product.deleted", {
 				productId,
 				bulk: true,
-			})
+			}, workspace.id)
 		}
 	} else {
 		const isActive = action === "activate"
@@ -359,7 +359,7 @@ export async function bulkUpdateProducts(ids: string[], action: "activate" | "de
 				productId,
 				isActive,
 				bulk: true,
-			})
+			}, workspace.id)
 		}
 	}
 }

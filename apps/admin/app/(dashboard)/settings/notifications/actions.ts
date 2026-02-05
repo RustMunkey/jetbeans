@@ -1,10 +1,11 @@
 "use server"
 
 import { headers } from "next/headers"
-import { eq, desc, and, isNull } from "@jetbeans/db/drizzle"
+import { eq, desc, and, isNull, or } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { notifications, notificationPreferences } from "@jetbeans/db/schema"
 import { auth } from "@/lib/auth"
+import { getActiveWorkspace } from "@/lib/workspace"
 
 async function requireUser() {
 	const session = await auth.api.getSession({ headers: await headers() })
@@ -12,13 +13,18 @@ async function requireUser() {
 	return session.user
 }
 
-// Fetch notifications for current user (excludes dismissed)
+// Fetch notifications for current user in current workspace (excludes dismissed)
 export async function getNotifications(limit = 20, includeRead = false) {
 	const user = await requireUser()
+	const workspace = await getActiveWorkspace()
 
 	const conditions = [
 		eq(notifications.userId, user.id),
 		isNull(notifications.dismissedAt), // Always exclude dismissed
+		// Workspace-scoped: show notifications for current workspace OR platform-wide (null workspace)
+		workspace
+			? or(eq(notifications.workspaceId, workspace.id), isNull(notifications.workspaceId))
+			: isNull(notifications.workspaceId),
 	]
 	if (!includeRead) {
 		conditions.push(isNull(notifications.readAt))
@@ -32,9 +38,10 @@ export async function getNotifications(limit = 20, includeRead = false) {
 		.limit(limit)
 }
 
-// Get unread count (excludes dismissed)
+// Get unread count for current workspace (excludes dismissed)
 export async function getUnreadCount() {
 	const user = await requireUser()
+	const workspace = await getActiveWorkspace()
 
 	const result = await db
 		.select({ id: notifications.id })
@@ -43,7 +50,11 @@ export async function getUnreadCount() {
 			and(
 				eq(notifications.userId, user.id),
 				isNull(notifications.readAt),
-				isNull(notifications.dismissedAt) // Exclude dismissed
+				isNull(notifications.dismissedAt),
+				// Workspace-scoped
+				workspace
+					? or(eq(notifications.workspaceId, workspace.id), isNull(notifications.workspaceId))
+					: isNull(notifications.workspaceId)
 			)
 		)
 
@@ -65,9 +76,10 @@ export async function markNotificationRead(notificationId: string) {
 		)
 }
 
-// Mark all notifications as read
+// Mark all notifications as read (for current workspace)
 export async function markAllNotificationsRead() {
 	const user = await requireUser()
+	const workspace = await getActiveWorkspace()
 
 	await db
 		.update(notifications)
@@ -75,7 +87,11 @@ export async function markAllNotificationsRead() {
 		.where(
 			and(
 				eq(notifications.userId, user.id),
-				isNull(notifications.readAt)
+				isNull(notifications.readAt),
+				// Workspace-scoped
+				workspace
+					? or(eq(notifications.workspaceId, workspace.id), isNull(notifications.workspaceId))
+					: isNull(notifications.workspaceId)
 			)
 		)
 }
@@ -95,14 +111,23 @@ export async function dismissNotification(notificationId: string) {
 		)
 }
 
-// Clear all notifications
+// Clear all notifications (for current workspace)
 export async function clearAllNotifications() {
 	const user = await requireUser()
+	const workspace = await getActiveWorkspace()
 
 	await db
 		.update(notifications)
 		.set({ dismissedAt: new Date() })
-		.where(eq(notifications.userId, user.id))
+		.where(
+			and(
+				eq(notifications.userId, user.id),
+				// Workspace-scoped
+				workspace
+					? or(eq(notifications.workspaceId, workspace.id), isNull(notifications.workspaceId))
+					: isNull(notifications.workspaceId)
+			)
+		)
 }
 
 // Get notification preferences
@@ -180,8 +205,10 @@ export async function updateNotificationPreferences(preferences: {
 }
 
 // Create a notification (utility for other parts of the app)
+// workspaceId is optional - null means platform-wide notification (e.g., friend requests)
 export async function createNotification(data: {
 	userId: string
+	workspaceId?: string | null
 	type: string
 	title: string
 	body?: string
@@ -190,7 +217,15 @@ export async function createNotification(data: {
 }) {
 	const [notification] = await db
 		.insert(notifications)
-		.values(data)
+		.values({
+			userId: data.userId,
+			workspaceId: data.workspaceId ?? null,
+			type: data.type,
+			title: data.title,
+			body: data.body,
+			link: data.link,
+			metadata: data.metadata,
+		})
 		.returning()
 
 	// Broadcast via Pusher for real-time updates
@@ -203,6 +238,7 @@ export async function createNotification(data: {
 			body: notification.body,
 			link: notification.link,
 			metadata: notification.metadata,
+			workspaceId: notification.workspaceId,
 			createdAt: notification.createdAt.toISOString(),
 			readAt: null,
 		})

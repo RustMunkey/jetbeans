@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react"
 import { useTheme } from "next-themes"
 import { themePresets } from "./theme-presets"
+import { useSession } from "@/lib/auth-client"
 
 // Re-export for backwards compatibility with existing imports
 export { themePresets } from "./theme-presets"
@@ -13,6 +14,15 @@ type AccentThemeContextType = {
 }
 
 const AccentThemeContext = createContext<AccentThemeContextType | null>(null)
+
+// Generate user-specific localStorage key for theme isolation
+function getThemeStorageKey(userId: string | undefined): string {
+	if (userId) {
+		return `jetbeans-accent-theme-${userId}`
+	}
+	// Fallback for unauthenticated state (should rarely happen in app)
+	return "jetbeans-accent-theme-anonymous"
+}
 
 export function useAccentTheme() {
 	const context = useContext(AccentThemeContext)
@@ -96,21 +106,27 @@ function applyAccentTheme(themeId: string, isDark: boolean) {
 
 export function AccentThemeProvider({ children }: { children: React.ReactNode }) {
 	const { resolvedTheme } = useTheme()
+	const { data: session } = useSession()
+	const userId = session?.user?.id
 	const [accentTheme, setAccentThemeState] = useState("coffee")
+
+	// Get the user-specific storage key
+	const storageKey = getThemeStorageKey(userId)
 
 	const setAccentTheme = (theme: string) => {
 		setAccentThemeState(theme)
-		localStorage.setItem("jetbeans-accent-theme", theme)
+		localStorage.setItem(storageKey, theme)
 		const isDark = resolvedTheme === "dark"
 		applyAccentTheme(theme, isDark)
 	}
 
+	// Load theme when user ID changes (login/logout) or resolved theme changes
 	useEffect(() => {
-		const savedAccent = localStorage.getItem("jetbeans-accent-theme") || "coffee"
+		const savedAccent = localStorage.getItem(storageKey) || "coffee"
 		setAccentThemeState(savedAccent)
 		const isDark = resolvedTheme === "dark"
 		applyAccentTheme(savedAccent, isDark)
-	}, [resolvedTheme])
+	}, [resolvedTheme, storageKey])
 
 	// Listen for accent theme changes from settings page (same tab)
 	useEffect(() => {
@@ -124,10 +140,11 @@ export function AccentThemeProvider({ children }: { children: React.ReactNode })
 		return () => window.removeEventListener("accent-theme-change", handleAccentChange as EventListener)
 	}, [resolvedTheme])
 
-	// Listen for accent theme changes from other tabs
+	// Listen for accent theme changes from other tabs (for same user)
 	useEffect(() => {
 		const handleStorage = (e: StorageEvent) => {
-			if (e.key === "jetbeans-accent-theme" && e.newValue) {
+			// Only respond to changes for the current user's theme key
+			if (e.key === storageKey && e.newValue) {
 				setAccentThemeState(e.newValue)
 				const isDark = resolvedTheme === "dark"
 				applyAccentTheme(e.newValue, isDark)
@@ -136,7 +153,7 @@ export function AccentThemeProvider({ children }: { children: React.ReactNode })
 
 		window.addEventListener("storage", handleStorage)
 		return () => window.removeEventListener("storage", handleStorage)
-	}, [resolvedTheme])
+	}, [resolvedTheme, storageKey])
 
 	return (
 		<AccentThemeContext.Provider value={{ accentTheme, setAccentTheme }}>
