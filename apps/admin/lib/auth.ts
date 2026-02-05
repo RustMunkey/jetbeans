@@ -8,6 +8,10 @@ import { users, sessions, accounts, verifications, invites, auditLog } from "@je
 export const auth = betterAuth({
 	baseURL: process.env.NEXT_PUBLIC_ADMIN_URL || "http://localhost:3001",
 	secret: process.env.BETTER_AUTH_SECRET,
+	trustedOrigins: [
+		process.env.NEXT_PUBLIC_ADMIN_URL || "http://localhost:3001",
+		"http://localhost:3001",
+	],
 	database: drizzleAdapter(db, {
 		provider: "pg",
 		schema: {
@@ -22,6 +26,10 @@ export const auth = betterAuth({
 			clientId: process.env.GOOGLE_CLIENT_ID!,
 			clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
 			prompt: "select_account",
+		},
+		github: {
+			clientId: process.env.GITHUB_CLIENT_ID!,
+			clientSecret: process.env.GITHUB_CLIENT_SECRET!,
 		},
 	},
 	session: {
@@ -117,6 +125,10 @@ export const auth = betterAuth({
 				},
 			},
 		},
+	},
+	emailAndPassword: {
+		enabled: true,
+		requireEmailVerification: false,
 	},
 	plugins: [nextCookies()],
 });

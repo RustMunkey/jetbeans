@@ -6,16 +6,23 @@ interface DynamicBrandingProps {
 	faviconUrl?: string | null
 	storeName?: string | null
 	tagline?: string | null
+	isAdmin?: boolean
 }
 
-export function DynamicFavicon({ faviconUrl, storeName, tagline }: DynamicBrandingProps) {
+export function DynamicFavicon({ faviconUrl, storeName, tagline, isAdmin = true }: DynamicBrandingProps) {
 	// Update document title
+	// Admin panel: "StoreName Admin"
+	// Storefront: "StoreName • Tagline"
 	useEffect(() => {
 		if (storeName) {
-			const suffix = tagline ? ` • ${tagline}` : ""
-			document.title = `${storeName}${suffix}`
+			if (isAdmin) {
+				document.title = `${storeName} Admin`
+			} else {
+				const suffix = tagline ? ` • ${tagline}` : ""
+				document.title = `${storeName}${suffix}`
+			}
 		}
-	}, [storeName, tagline])
+	}, [storeName, tagline, isAdmin])
 
 	// Update favicon
 	useEffect(() => {

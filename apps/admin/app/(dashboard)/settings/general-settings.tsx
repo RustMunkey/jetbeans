@@ -64,12 +64,21 @@ export function GeneralSettings({ settings }: { settings: Setting[] }) {
 	const [facebook, setFacebook] = useState(getVal(settings, "social_facebook"))
 	const [tiktok, setTiktok] = useState(getVal(settings, "social_tiktok"))
 	const [youtube, setYoutube] = useState(getVal(settings, "social_youtube"))
+	const [pinterest, setPinterest] = useState(getVal(settings, "social_pinterest"))
+	const [linkedin, setLinkedin] = useState(getVal(settings, "social_linkedin"))
+	const [discord, setDiscord] = useState(getVal(settings, "social_discord"))
 
-	// Legal
+	// Legal & Page URLs
 	const [privacyUrl, setPrivacyUrl] = useState(getVal(settings, "legal_privacy_url"))
 	const [termsUrl, setTermsUrl] = useState(getVal(settings, "legal_terms_url"))
 	const [refundUrl, setRefundUrl] = useState(getVal(settings, "legal_refund_url"))
 	const [cookieUrl, setCookieUrl] = useState(getVal(settings, "legal_cookie_url"))
+	const [shippingPolicyUrl, setShippingPolicyUrl] = useState(getVal(settings, "legal_shipping_url"))
+	const [returnsPolicyUrl, setReturnsPolicyUrl] = useState(getVal(settings, "legal_returns_url"))
+	const [accessibilityUrl, setAccessibilityUrl] = useState(getVal(settings, "legal_accessibility_url"))
+	const [aboutUrl, setAboutUrl] = useState(getVal(settings, "page_about_url"))
+	const [contactUrl, setContactUrl] = useState(getVal(settings, "page_contact_url"))
+	const [faqUrl, setFaqUrl] = useState(getVal(settings, "page_faq_url"))
 
 	// Notifications
 	const [notifyNewOrder, setNotifyNewOrder] = useState(getBool(settings, "notify_new_order"))
@@ -277,11 +286,21 @@ export function GeneralSettings({ settings }: { settings: Setting[] }) {
 				{ key: "social_facebook", value: facebook, group: "social" },
 				{ key: "social_tiktok", value: tiktok, group: "social" },
 				{ key: "social_youtube", value: youtube, group: "social" },
+				{ key: "social_pinterest", value: pinterest, group: "social" },
+				{ key: "social_linkedin", value: linkedin, group: "social" },
+				{ key: "social_discord", value: discord, group: "social" },
 				// Legal
 				{ key: "legal_privacy_url", value: privacyUrl, group: "legal" },
 				{ key: "legal_terms_url", value: termsUrl, group: "legal" },
 				{ key: "legal_refund_url", value: refundUrl, group: "legal" },
 				{ key: "legal_cookie_url", value: cookieUrl, group: "legal" },
+				{ key: "legal_shipping_url", value: shippingPolicyUrl, group: "legal" },
+				{ key: "legal_returns_url", value: returnsPolicyUrl, group: "legal" },
+				{ key: "legal_accessibility_url", value: accessibilityUrl, group: "legal" },
+				// Page URLs
+				{ key: "page_about_url", value: aboutUrl, group: "pages" },
+				{ key: "page_contact_url", value: contactUrl, group: "pages" },
+				{ key: "page_faq_url", value: faqUrl, group: "pages" },
 				// Notifications
 				{ key: "notify_new_order", value: String(notifyNewOrder), group: "notifications" },
 				{ key: "notify_low_stock", value: String(notifyLowStock), group: "notifications" },
@@ -603,6 +622,7 @@ export function GeneralSettings({ settings }: { settings: Setting[] }) {
 									<SelectItem value="g">Grams (g)</SelectItem>
 									<SelectItem value="lb">Pounds (lb)</SelectItem>
 									<SelectItem value="oz">Ounces (oz)</SelectItem>
+									<SelectItem value="ct">Carats (ct)</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>
@@ -650,10 +670,10 @@ export function GeneralSettings({ settings }: { settings: Setting[] }) {
 			<Card>
 				<CardHeader>
 					<CardTitle>Social Links</CardTitle>
-					<CardDescription>Your brand social media profiles.</CardDescription>
+					<CardDescription>Your brand social media profiles. Leave blank to hide from site.</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 						<div className="space-y-2">
 							<Label>Instagram</Label>
 							<Input value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="https://instagram.com/..." />
@@ -674,33 +694,81 @@ export function GeneralSettings({ settings }: { settings: Setting[] }) {
 							<Label>YouTube</Label>
 							<Input value={youtube} onChange={(e) => setYoutube(e.target.value)} placeholder="https://youtube.com/..." />
 						</div>
+						<div className="space-y-2">
+							<Label>Pinterest</Label>
+							<Input value={pinterest} onChange={(e) => setPinterest(e.target.value)} placeholder="https://pinterest.com/..." />
+						</div>
+						<div className="space-y-2">
+							<Label>LinkedIn</Label>
+							<Input value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="https://linkedin.com/company/..." />
+						</div>
+						<div className="space-y-2">
+							<Label>Discord</Label>
+							<Input value={discord} onChange={(e) => setDiscord(e.target.value)} placeholder="https://discord.gg/..." />
+						</div>
 					</div>
 				</CardContent>
 			</Card>
 
-			{/* Legal */}
+			{/* Legal & Policy Pages */}
 			<Card>
 				<CardHeader>
-					<CardTitle>Legal</CardTitle>
-					<CardDescription>Links to your policy pages.</CardDescription>
+					<CardTitle>Legal & Policy Pages</CardTitle>
+					<CardDescription>Links to your policy and legal pages. Leave blank to hide from footer.</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 						<div className="space-y-2">
-							<Label>Privacy Policy URL</Label>
+							<Label>Privacy Policy</Label>
 							<Input value={privacyUrl} onChange={(e) => setPrivacyUrl(e.target.value)} placeholder="/privacy" />
 						</div>
 						<div className="space-y-2">
-							<Label>Terms of Service URL</Label>
+							<Label>Terms of Service</Label>
 							<Input value={termsUrl} onChange={(e) => setTermsUrl(e.target.value)} placeholder="/terms" />
 						</div>
 						<div className="space-y-2">
-							<Label>Refund Policy URL</Label>
+							<Label>Refund Policy</Label>
 							<Input value={refundUrl} onChange={(e) => setRefundUrl(e.target.value)} placeholder="/refund-policy" />
 						</div>
 						<div className="space-y-2">
-							<Label>Cookie Policy URL</Label>
+							<Label>Cookie Policy</Label>
 							<Input value={cookieUrl} onChange={(e) => setCookieUrl(e.target.value)} placeholder="/cookies" />
+						</div>
+						<div className="space-y-2">
+							<Label>Shipping Policy</Label>
+							<Input value={shippingPolicyUrl} onChange={(e) => setShippingPolicyUrl(e.target.value)} placeholder="/shipping" />
+						</div>
+						<div className="space-y-2">
+							<Label>Returns Policy</Label>
+							<Input value={returnsPolicyUrl} onChange={(e) => setReturnsPolicyUrl(e.target.value)} placeholder="/returns" />
+						</div>
+						<div className="space-y-2">
+							<Label>Accessibility Statement</Label>
+							<Input value={accessibilityUrl} onChange={(e) => setAccessibilityUrl(e.target.value)} placeholder="/accessibility" />
+						</div>
+					</div>
+				</CardContent>
+			</Card>
+
+			{/* Important Pages */}
+			<Card>
+				<CardHeader>
+					<CardTitle>Important Pages</CardTitle>
+					<CardDescription>Links to key site pages.</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-4">
+					<div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+						<div className="space-y-2">
+							<Label>About Us</Label>
+							<Input value={aboutUrl} onChange={(e) => setAboutUrl(e.target.value)} placeholder="/about" />
+						</div>
+						<div className="space-y-2">
+							<Label>Contact</Label>
+							<Input value={contactUrl} onChange={(e) => setContactUrl(e.target.value)} placeholder="/contact" />
+						</div>
+						<div className="space-y-2">
+							<Label>FAQ</Label>
+							<Input value={faqUrl} onChange={(e) => setFaqUrl(e.target.value)} placeholder="/faq" />
 						</div>
 					</div>
 				</CardContent>
