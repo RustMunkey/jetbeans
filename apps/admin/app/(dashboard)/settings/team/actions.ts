@@ -1,7 +1,7 @@
 "use server"
 
 import { nanoid } from "nanoid"
-import { eq, and, isNull } from "@jetbeans/db/drizzle"
+import { eq, and, isNull, count, inArray } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { users, workspaceInvites, workspaceMembers } from "@jetbeans/db/schema"
 import { logAudit } from "@/lib/audit"
@@ -17,22 +17,36 @@ async function requireTeamPermission() {
 	return workspace
 }
 
-export async function getTeamMembers() {
+export async function getTeamMembers(params?: { page?: number; pageSize?: number }) {
 	const workspace = await requireWorkspace()
-	// Get users who are members of this workspace
-	return db
-		.select({
-			id: users.id,
-			name: users.name,
-			email: users.email,
-			image: users.image,
-			role: workspaceMembers.role,
-			joinedAt: workspaceMembers.joinedAt,
-		})
-		.from(workspaceMembers)
-		.innerJoin(users, eq(users.id, workspaceMembers.userId))
-		.where(eq(workspaceMembers.workspaceId, workspace.id))
-		.orderBy(workspaceMembers.role, users.name)
+	const { page = 1, pageSize = 25 } = params ?? {}
+	const offset = (page - 1) * pageSize
+
+	const whereClause = eq(workspaceMembers.workspaceId, workspace.id)
+
+	const [items, [countResult]] = await Promise.all([
+		db
+			.select({
+				id: users.id,
+				name: users.name,
+				email: users.email,
+				image: users.image,
+				role: workspaceMembers.role,
+				joinedAt: workspaceMembers.joinedAt,
+			})
+			.from(workspaceMembers)
+			.innerJoin(users, eq(users.id, workspaceMembers.userId))
+			.where(whereClause)
+			.orderBy(workspaceMembers.role, users.name)
+			.limit(pageSize)
+			.offset(offset),
+		db
+			.select({ count: count() })
+			.from(workspaceMembers)
+			.where(whereClause),
+	])
+
+	return { items, totalCount: countResult.count }
 }
 
 export async function getPendingInvites() {
@@ -209,5 +223,40 @@ export async function removeMember(userId: string) {
 		targetType: "member",
 		targetId: userId,
 		targetLabel: member.users?.name ?? member.users?.email,
+	})
+}
+
+export async function bulkRemoveMembers(userIds: string[]) {
+	const workspace = await requireTeamPermission()
+
+	// Don't allow removing owners
+	const owners = await db
+		.select({ userId: workspaceMembers.userId })
+		.from(workspaceMembers)
+		.where(and(
+			eq(workspaceMembers.workspaceId, workspace.id),
+			eq(workspaceMembers.role, "owner"),
+			inArray(workspaceMembers.userId, userIds),
+		))
+
+	const ownerIds = new Set(owners.map((o) => o.userId))
+	const safeIds = userIds.filter((id) => !ownerIds.has(id))
+
+	if (safeIds.length === 0) {
+		throw new Error("Cannot remove workspace owners")
+	}
+
+	await db
+		.delete(workspaceMembers)
+		.where(and(
+			eq(workspaceMembers.workspaceId, workspace.id),
+			inArray(workspaceMembers.userId, safeIds),
+		))
+
+	await logAudit({
+		action: "member.bulk_removed",
+		targetType: "member",
+		targetId: safeIds.join(","),
+		targetLabel: `${safeIds.length} members`,
 	})
 }

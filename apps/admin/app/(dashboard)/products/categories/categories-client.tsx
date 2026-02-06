@@ -42,9 +42,11 @@ interface Category {
 
 interface CategoriesClientProps {
 	categories: Category[]
+	totalCount: number
+	currentPage: number
 }
 
-export function CategoriesClient({ categories }: CategoriesClientProps) {
+export function CategoriesClient({ categories, totalCount, currentPage }: CategoriesClientProps) {
 	const router = useRouter()
 	const [dialogOpen, setDialogOpen] = useState(false)
 	const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -244,7 +246,9 @@ export function CategoriesClient({ categories }: CategoriesClientProps) {
 				columns={columns}
 				data={filteredCategories}
 				searchPlaceholder="Search categories..."
-				totalCount={filteredCategories.length}
+				totalCount={totalCount}
+				currentPage={currentPage}
+				pageSize={25}
 				selectable
 				selectedIds={selectedIds}
 				onSelectionChange={setSelectedIds}

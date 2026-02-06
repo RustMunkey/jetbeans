@@ -1,10 +1,14 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { DataTable, type Column } from "@/components/data-table"
 import { StatusBadge } from "@/components/status-badge"
+import { Button } from "@/components/ui/button"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { formatCurrency, formatDate } from "@/lib/format"
+import { bulkDeleteLabels } from "../actions"
 
 interface LabelItem {
 	id: string
@@ -31,6 +35,23 @@ const statuses = ["pending", "printed", "shipped", "delivered"]
 
 export function LabelsClient({ labels, totalCount, currentPage, currentStatus }: LabelsClientProps) {
 	const router = useRouter()
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+	const [loading, setLoading] = useState(false)
+
+	const handleBulkDelete = async () => {
+		if (!selectedIds.length) return
+		setLoading(true)
+		try {
+			await bulkDeleteLabels(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} label(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const columns: Column<LabelItem>[] = [
 		{
@@ -82,11 +103,19 @@ export function LabelsClient({ labels, totalCount, currentPage, currentStatus }:
 			searchPlaceholder="Search labels..."
 			totalCount={totalCount}
 			currentPage={currentPage}
-			pageSize={30}
+			pageSize={25}
 			getId={(row) => row.id}
 			onRowClick={(row) => router.push(`/shipping/labels/${row.id}`)}
 			emptyMessage="No shipping labels"
 			emptyDescription="Labels will appear here when created for orders."
+			selectable
+			selectedIds={selectedIds}
+			onSelectionChange={setSelectedIds}
+			bulkActions={
+				<Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={loading}>
+					Delete ({selectedIds.length})
+				</Button>
+			}
 			filters={
 				<Select
 					value={currentStatus ?? "all"}

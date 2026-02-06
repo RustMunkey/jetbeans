@@ -33,7 +33,7 @@ interface GetOrdersParams {
 
 export async function getOrders(params: GetOrdersParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, status, search } = params
+	const { page = 1, pageSize = 25, status, search } = params
 	const offset = (page - 1) * pageSize
 
 	// Always filter by workspace
@@ -78,7 +78,7 @@ interface GetOrdersByStatusParams {
 
 export async function getOrdersByStatus(params: GetOrdersByStatusParams) {
 	const workspace = await requireWorkspace()
-	const { statuses, page = 1, pageSize = 30 } = params
+	const { statuses, page = 1, pageSize = 25 } = params
 	const offset = (page - 1) * pageSize
 
 	const where = and(eq(orders.workspaceId, workspace.id), inArray(orders.status, statuses))
@@ -540,6 +540,16 @@ export async function clearOrderActivity(orderId: string) {
 	await db
 		.delete(auditLog)
 		.where(and(eq(auditLog.targetType, "order"), eq(auditLog.targetId, orderId)))
+}
+
+export async function bulkDeleteReturns(ids: string[]) {
+	const workspace = await requireOrdersPermission()
+	await db.delete(orders).where(and(inArray(orders.id, ids), eq(orders.workspaceId, workspace.id)))
+}
+
+export async function bulkDeleteOrders(ids: string[]) {
+	const workspace = await requireOrdersPermission()
+	await db.delete(orders).where(and(inArray(orders.id, ids), eq(orders.workspaceId, workspace.id)))
 }
 
 export async function bulkUpdateOrderStatus(ids: string[], status: string) {

@@ -9,7 +9,7 @@ interface PageProps {
 
 export default async function MarketingPage({ searchParams }: PageProps) {
 	const { page } = await discountsParamsCache.parse(searchParams)
-	const { items, totalCount } = await getDiscounts({ page, pageSize: 30 })
+	const { items, totalCount } = await getDiscounts({ page, pageSize: 25 })
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 pt-0">

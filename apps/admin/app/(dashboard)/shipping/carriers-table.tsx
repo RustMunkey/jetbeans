@@ -17,7 +17,7 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { DataTable, type Column } from "@/components/data-table"
 import { formatDate } from "@/lib/format"
-import { createCarrier, deleteCarrier, updateCarrier } from "./actions"
+import { createCarrier, deleteCarrier, updateCarrier, bulkDeleteCarriers } from "./actions"
 
 interface Carrier {
 	id: string
@@ -43,6 +43,22 @@ export function CarriersTable({ carriers, totalCount, currentPage }: CarriersTab
 	const [code, setCode] = useState("")
 	const [trackingUrl, setTrackingUrl] = useState("")
 	const [loading, setLoading] = useState(false)
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+	const handleBulkDelete = async () => {
+		if (selectedIds.length === 0) return
+		setLoading(true)
+		try {
+			await bulkDeleteCarriers(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} carrier(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete carriers")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const columns: Column<Carrier>[] = [
 		{
@@ -114,7 +130,11 @@ export function CarriersTable({ carriers, totalCount, currentPage }: CarriersTab
 				emptyDescription="Add a shipping carrier to get started."
 				totalCount={totalCount}
 				currentPage={currentPage}
-				pageSize={30}
+				pageSize={25}
+				selectable
+				selectedIds={selectedIds}
+				onSelectionChange={setSelectedIds}
+				bulkActions={<Button size="sm" variant="destructive" disabled={loading} onClick={() => handleBulkDelete()}>Delete</Button>}
 				filters={
 					<>
 						<Select value={statusFilter} onValueChange={setStatusFilter}>

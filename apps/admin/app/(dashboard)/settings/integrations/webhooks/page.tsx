@@ -32,7 +32,7 @@ export default async function WebhooksPage() {
 	const [incomingWebhooks, outgoingWebhooks, deliveryLogs] = await Promise.all([
 		getIncomingWebhooks(),
 		getOutgoingWebhooks(),
-		getDeliveryLogs({ pageSize: 50 }),
+		getDeliveryLogs({ pageSize: 25 }),
 	])
 
 	return (

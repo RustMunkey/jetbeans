@@ -2,7 +2,7 @@
 
 import { db } from "@jetbeans/db/client"
 import * as schema from "@jetbeans/db/schema"
-import { eq, desc, sql, ilike, and, or, isNull, isNotNull, count } from "@jetbeans/db/drizzle"
+import { eq, desc, sql, ilike, and, or, isNull, isNotNull, count, inArray } from "@jetbeans/db/drizzle"
 import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 
 async function requireMarketingPermission() {
@@ -23,7 +23,7 @@ interface GetDiscountsParams {
 
 export async function getDiscounts(params: GetDiscountsParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, status } = params
+	const { page = 1, pageSize = 25, status } = params
 	const offset = (page - 1) * pageSize
 
 	// Always filter by workspace
@@ -130,6 +130,11 @@ export async function deleteDiscount(id: string) {
 	await db.delete(schema.discounts).where(and(eq(schema.discounts.id, id), eq(schema.discounts.workspaceId, workspace.id)))
 }
 
+export async function bulkDeleteDiscounts(ids: string[]) {
+	const workspace = await requireMarketingPermission()
+	await db.delete(schema.discounts).where(and(inArray(schema.discounts.id, ids), eq(schema.discounts.workspaceId, workspace.id)))
+}
+
 export async function toggleDiscount(id: string, isActive: boolean) {
 	const workspace = await requireMarketingPermission()
 	await db.update(schema.discounts).set({ isActive }).where(and(eq(schema.discounts.id, id), eq(schema.discounts.workspaceId, workspace.id)))
@@ -144,7 +149,7 @@ interface GetCampaignsParams {
 
 export async function getCampaigns(params: GetCampaignsParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, status } = params
+	const { page = 1, pageSize = 25, status } = params
 	const offset = (page - 1) * pageSize
 
 	// Always filter by workspace
@@ -221,6 +226,11 @@ export async function deleteCampaign(id: string) {
 	await db.delete(schema.campaigns).where(and(eq(schema.campaigns.id, id), eq(schema.campaigns.workspaceId, workspace.id)))
 }
 
+export async function bulkDeleteCampaigns(ids: string[]) {
+	const workspace = await requireMarketingPermission()
+	await db.delete(schema.campaigns).where(and(inArray(schema.campaigns.id, ids), eq(schema.campaigns.workspaceId, workspace.id)))
+}
+
 // --- REFERRALS ---
 interface GetReferralsParams {
 	page?: number
@@ -229,7 +239,7 @@ interface GetReferralsParams {
 
 export async function getReferrals(params: GetReferralsParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30 } = params
+	const { page = 1, pageSize = 25 } = params
 	const offset = (page - 1) * pageSize
 
 	const where = eq(schema.referrals.workspaceId, workspace.id)
@@ -269,7 +279,7 @@ interface GetReferralCodesParams {
 
 export async function getReferralCodes(params: GetReferralCodesParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30 } = params
+	const { page = 1, pageSize = 25 } = params
 	const offset = (page - 1) * pageSize
 
 	const where = eq(schema.referralCodes.workspaceId, workspace.id)
@@ -297,21 +307,54 @@ export async function getReferralCodes(params: GetReferralCodesParams = {}) {
 	return { items, totalCount: total.count }
 }
 
+export async function bulkDeleteReferrals(ids: string[]) {
+	const workspace = await requireMarketingPermission()
+	await db.delete(schema.referrals).where(and(inArray(schema.referrals.id, ids), eq(schema.referrals.workspaceId, workspace.id)))
+}
+
+export async function bulkDeleteReferralCodes(ids: string[]) {
+	const workspace = await requireMarketingPermission()
+	await db.delete(schema.referralCodes).where(and(inArray(schema.referralCodes.id, ids), eq(schema.referralCodes.workspaceId, workspace.id)))
+}
+
 // --- SEO ---
-export async function getProductsSeo() {
+export async function getProductsSeo(params?: { page?: number; pageSize?: number }) {
 	const workspace = await requireWorkspace()
-	return db
-		.select({
-			id: schema.products.id,
-			name: schema.products.name,
-			slug: schema.products.slug,
-			metaTitle: schema.products.metaTitle,
-			metaDescription: schema.products.metaDescription,
-			isActive: schema.products.isActive,
-		})
-		.from(schema.products)
-		.where(eq(schema.products.workspaceId, workspace.id))
-		.orderBy(schema.products.name)
+	const { page = 1, pageSize = 25 } = params ?? {}
+	const offset = (page - 1) * pageSize
+
+	const whereClause = eq(schema.products.workspaceId, workspace.id)
+
+	const [items, [countResult]] = await Promise.all([
+		db
+			.select({
+				id: schema.products.id,
+				name: schema.products.name,
+				slug: schema.products.slug,
+				metaTitle: schema.products.metaTitle,
+				metaDescription: schema.products.metaDescription,
+				isActive: schema.products.isActive,
+			})
+			.from(schema.products)
+			.where(whereClause)
+			.orderBy(schema.products.name)
+			.limit(pageSize)
+			.offset(offset),
+		db
+			.select({ count: count() })
+			.from(schema.products)
+			.where(whereClause),
+	])
+
+	return { items, totalCount: countResult.count }
+}
+
+export async function bulkClearProductSeo(ids: string[]) {
+	const workspace = await requireMarketingPermission()
+	await db
+		.update(schema.products)
+		.set({ metaTitle: null, metaDescription: null })
+		.where(and(inArray(schema.products.id, ids), eq(schema.products.workspaceId, workspace.id)))
 }
 
 export async function updateProductSeo(id: string, data: { metaTitle: string | null; metaDescription: string | null }) {

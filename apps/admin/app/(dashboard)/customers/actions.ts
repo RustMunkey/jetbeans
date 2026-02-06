@@ -14,6 +14,12 @@ async function requireCustomersPermission() {
 	return workspace
 }
 
+export async function bulkDeleteCustomers(ids: string[]) {
+	const workspace = await requireCustomersPermission()
+	// Delete orders for these customers in this workspace, then remove user references
+	await db.delete(orders).where(and(inArray(orders.userId, ids), eq(orders.workspaceId, workspace.id)))
+}
+
 interface GetCustomersParams {
 	page?: number
 	pageSize?: number
@@ -23,7 +29,7 @@ interface GetCustomersParams {
 
 export async function getCustomers(params: GetCustomersParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, search, segment } = params
+	const { page = 1, pageSize = 25, search, segment } = params
 	const offset = (page - 1) * pageSize
 
 	// Get customers who have placed orders in this workspace

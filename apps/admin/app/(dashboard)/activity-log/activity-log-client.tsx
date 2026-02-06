@@ -1,10 +1,14 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { DataTable, type Column } from "@/components/data-table"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { toast } from "sonner"
 import { formatDate } from "@/lib/format"
+import { bulkDeleteActivityLogs } from "./actions"
 
 interface AuditEntry {
 	id: string
@@ -52,7 +56,25 @@ export function ActivityLogClient({ entries, totalCount, currentPage }: {
 	totalCount: number
 	currentPage: number
 }) {
+	const router = useRouter()
 	const [categoryFilter, setCategoryFilter] = useState("all")
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+	const [loading, setLoading] = useState(false)
+
+	const handleBulkDelete = async () => {
+		if (!selectedIds.length) return
+		setLoading(true)
+		try {
+			await bulkDeleteActivityLogs(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} log(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const columns: Column<AuditEntry>[] = [
 		{
@@ -108,10 +130,18 @@ export function ActivityLogClient({ entries, totalCount, currentPage }: {
 			searchPlaceholder="Search activity..."
 			totalCount={totalCount}
 			currentPage={currentPage}
-			pageSize={30}
+			pageSize={25}
 			getId={(row) => row.id}
 			emptyMessage="No activity yet"
 			emptyDescription="Actions like sign-ins, invites, and changes will appear here."
+			selectable
+			selectedIds={selectedIds}
+			onSelectionChange={setSelectedIds}
+			bulkActions={
+				<Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={loading}>
+					Delete ({selectedIds.length})
+				</Button>
+			}
 			filters={
 				<Select value={categoryFilter} onValueChange={setCategoryFilter}>
 					<SelectTrigger className="h-9 w-full sm:w-40">

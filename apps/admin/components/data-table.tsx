@@ -49,8 +49,8 @@ export function DataTable<T>({
 	searchPlaceholder = "Search...",
 	searchKey = "search",
 	totalCount,
-	pageSize = 30,
-	currentPage = 1,
+	pageSize = 25,
+	currentPage,
 	onPageChange,
 	onRowClick,
 	selectable = false,
@@ -67,6 +67,16 @@ export function DataTable<T>({
 	const searchParams = useSearchParams()
 	const [search, setSearch] = React.useState("")
 
+	// Internal page state for tables that don't manage pagination externally
+	const [internalPage, setInternalPage] = React.useState(1)
+
+	// Server-side pagination: totalCount is provided, data is already the current page
+	const isServerPaginated = totalCount !== undefined
+
+	// Effective page: use controlled prop if provided, URL param, or internal state
+	const urlPage = searchParams.get("page")
+	const effectivePage = currentPage ?? (urlPage ? parseInt(urlPage, 10) : internalPage)
+
 	const filteredData = React.useMemo(() => {
 		if (!search.trim()) return data
 		const term = search.toLowerCase()
@@ -79,24 +89,46 @@ export function DataTable<T>({
 		})
 	}, [data, search])
 
-	const total = totalCount ?? data.length
+	// For client-side pagination: slice data to current page
+	// For server-side pagination: data is already the right page
+	const total = isServerPaginated ? totalCount : filteredData.length
 	const totalPages = Math.ceil(total / pageSize)
+
+	const displayData = React.useMemo(() => {
+		if (isServerPaginated) {
+			// Server already sent only the current page's data
+			return filteredData
+		}
+		// Client-side pagination: slice to current page
+		const start = (effectivePage - 1) * pageSize
+		return filteredData.slice(start, start + pageSize)
+	}, [filteredData, isServerPaginated, effectivePage, pageSize])
+
+	// Reset to page 1 when search changes (client-side only)
+	React.useEffect(() => {
+		if (!isServerPaginated) {
+			setInternalPage(1)
+		}
+	}, [search, isServerPaginated])
 
 	const handlePageChange = React.useCallback(
 		(page: number) => {
 			if (onPageChange) {
 				onPageChange(page)
-			} else {
-				// Fallback to router for backward compatibility
+			} else if (isServerPaginated) {
+				// Server-side pagination without explicit handler: update URL
 				const params = new URLSearchParams(searchParams.toString())
 				params.set("page", String(page))
 				router.push(`${pathname}?${params.toString()}`, { scroll: true })
+			} else {
+				// Client-side pagination: update internal state
+				setInternalPage(page)
 			}
 		},
-		[onPageChange, router, pathname, searchParams]
+		[onPageChange, isServerPaginated, router, pathname, searchParams]
 	)
 
-	const allSelected = filteredData.length > 0 && getId && selectedIds.length === filteredData.length
+	const allSelected = displayData.length > 0 && getId && selectedIds.length === displayData.length
 	const someSelected = selectedIds.length > 0 && !allSelected
 
 	const toggleAll = () => {
@@ -104,7 +136,7 @@ export function DataTable<T>({
 		if (allSelected) {
 			onSelectionChange([])
 		} else {
-			onSelectionChange(filteredData.map(getId))
+			onSelectionChange(displayData.map(getId))
 		}
 	}
 
@@ -117,8 +149,22 @@ export function DataTable<T>({
 		}
 	}
 
+	// Range of items being shown
+	const startItem = isServerPaginated
+		? (effectivePage - 1) * pageSize + 1
+		: (effectivePage - 1) * pageSize + 1
+	const endItem = Math.min(startItem + pageSize - 1, total)
+
 	return (
 		<div className="space-y-3">
+			{selectedIds.length > 0 && bulkActions && (
+				<div className="flex items-center justify-end gap-2">
+					<span className="text-sm text-muted-foreground">
+						{selectedIds.length} selected
+					</span>
+					{bulkActions}
+				</div>
+			)}
 			<div className="flex flex-col sm:flex-row sm:items-center gap-3">
 				<div className="sm:flex-1">
 					<Input
@@ -128,31 +174,15 @@ export function DataTable<T>({
 						className="h-9"
 					/>
 				</div>
-				<div className="hidden sm:flex items-center gap-2 shrink-0">
-					{filters}
-					{selectedIds.length > 0 && bulkActions && (
-						<div className="flex items-center gap-2">
-							<span className="text-sm text-muted-foreground">
-								{selectedIds.length} selected
-							</span>
-							{bulkActions}
-						</div>
-					)}
-				</div>
+				{filters && (
+					<div className="hidden sm:flex items-center gap-2 shrink-0">
+						{filters}
+					</div>
+				)}
 			</div>
-			{(filters || (selectedIds.length > 0 && bulkActions)) && (
+			{filters && (
 				<div className="flex flex-wrap items-center gap-2 w-full sm:hidden">
 					{filters}
-					{selectedIds.length > 0 && bulkActions && (
-						<div className="flex items-center gap-2 w-full">
-							<span className="text-sm text-muted-foreground whitespace-nowrap">
-								{selectedIds.length} selected
-							</span>
-							<div className="flex gap-2 flex-1">
-								{bulkActions}
-							</div>
-						</div>
-					)}
 				</div>
 			)}
 
@@ -176,7 +206,7 @@ export function DataTable<T>({
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{filteredData.length === 0 ? (
+						{displayData.length === 0 ? (
 							<TableRow>
 								<TableCell
 									colSpan={columns.length + (selectable ? 1 : 0)}
@@ -191,7 +221,7 @@ export function DataTable<T>({
 								</TableCell>
 							</TableRow>
 						) : (
-							filteredData.map((row, i) => {
+							displayData.map((row, i) => {
 								const id = getId?.(row) ?? String(i)
 								return (
 									<TableRow
@@ -227,28 +257,29 @@ export function DataTable<T>({
 				</Table>
 			</div>
 
+			{/* Pagination - always show when there are multiple pages */}
 			{totalPages > 1 && (
 				<div className="flex items-center justify-between">
 					<p className="text-sm text-muted-foreground">
-						{total} total result{total !== 1 ? "s" : ""}
+						Showing {startItem}–{endItem} of {total}
 					</p>
 					<div className="flex items-center gap-2">
 						<Button
 							variant="outline"
 							size="sm"
-							disabled={currentPage <= 1}
-							onClick={() => handlePageChange(currentPage - 1)}
+							disabled={effectivePage <= 1}
+							onClick={() => handlePageChange(effectivePage - 1)}
 						>
 							Previous
 						</Button>
 						<span className="text-sm text-muted-foreground">
-							Page {currentPage} of {totalPages}
+							Page {effectivePage} of {totalPages}
 						</span>
 						<Button
 							variant="outline"
 							size="sm"
-							disabled={currentPage >= totalPages}
-							onClick={() => handlePageChange(currentPage + 1)}
+							disabled={effectivePage >= totalPages}
+							onClick={() => handlePageChange(effectivePage + 1)}
 						>
 							Next
 						</Button>

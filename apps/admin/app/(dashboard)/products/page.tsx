@@ -11,7 +11,7 @@ export default async function ProductsPage({ searchParams }: PageProps) {
 	const { page, search, category, status } = await productsParamsCache.parse(searchParams)
 	const { items, totalCount } = await getProducts({
 		page,
-		pageSize: 30,
+		pageSize: 25,
 		search: search || undefined,
 		category: category === "all" ? undefined : category,
 		status: status === "all" ? undefined : status,

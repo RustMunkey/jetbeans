@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { DataTable, type Column } from "@/components/data-table"
-import { createZone } from "../actions"
+import { createZone, bulkDeleteZones } from "../actions"
 
 interface Zone {
 	id: string
@@ -42,6 +42,22 @@ export function ZonesClient({ zones, totalCount, currentPage }: ZonesClientProps
 	const [countries, setCountries] = useState("")
 	const [regions, setRegions] = useState("")
 	const [loading, setLoading] = useState(false)
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+	const handleBulkDelete = async () => {
+		if (!selectedIds.length) return
+		setLoading(true)
+		try {
+			await bulkDeleteZones(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} zone(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const columns: Column<Zone>[] = [
 		{
@@ -132,6 +148,14 @@ export function ZonesClient({ zones, totalCount, currentPage }: ZonesClientProps
 				emptyDescription="Create zones to configure regional shipping rates."
 				totalCount={totalCount}
 				currentPage={currentPage}
+				selectable
+				selectedIds={selectedIds}
+				onSelectionChange={setSelectedIds}
+				bulkActions={
+					<Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={loading}>
+						Delete ({selectedIds.length})
+					</Button>
+				}
 				filters={
 					<>
 						<Select value={statusFilter} onValueChange={setStatusFilter}>

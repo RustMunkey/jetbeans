@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/select"
 import { DataTable, Column } from "@/components/data-table"
 import { formatDistanceToNow, format } from "date-fns"
+import { toast } from "sonner"
+import { bulkDeleteRuns } from "../actions"
 
 type WorkflowRunItem = {
 	id: string
@@ -33,6 +35,7 @@ type WorkflowRunItem = {
 interface RunsTableProps {
 	runs: WorkflowRunItem[]
 	totalCount: number
+	currentPage: number
 }
 
 function getStatusBadge(status: string) {
@@ -52,9 +55,26 @@ function getStatusBadge(status: string) {
 	}
 }
 
-export function RunsTable({ runs, totalCount }: RunsTableProps) {
+export function RunsTable({ runs, totalCount, currentPage }: RunsTableProps) {
 	const router = useRouter()
 	const [statusFilter, setStatusFilter] = React.useState("all")
+	const [loading, setLoading] = React.useState(false)
+	const [selectedIds, setSelectedIds] = React.useState<string[]>([])
+
+	const handleBulkDelete = async () => {
+		if (selectedIds.length === 0) return
+		setLoading(true)
+		try {
+			await bulkDeleteRuns(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} run(s)`)
+		} catch (err: any) {
+			toast.error(err.message || "Failed to delete runs")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const columns: Column<WorkflowRunItem>[] = [
 		{
@@ -145,6 +165,13 @@ export function RunsTable({ runs, totalCount }: RunsTableProps) {
 			columns={columns}
 			data={filteredRuns}
 			totalCount={totalCount}
+			currentPage={currentPage}
+			pageSize={25}
+			getId={(row) => row.id}
+			selectable
+			selectedIds={selectedIds}
+			onSelectionChange={setSelectedIds}
+			bulkActions={<Button size="sm" variant="destructive" disabled={loading} onClick={() => handleBulkDelete()}>Delete</Button>}
 			emptyMessage="No workflow runs yet. Activate a workflow to see executions here."
 			filters={
 				<Select value={statusFilter} onValueChange={setStatusFilter}>

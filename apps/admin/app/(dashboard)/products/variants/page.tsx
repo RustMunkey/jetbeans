@@ -13,7 +13,7 @@ interface PageProps {
 export default async function VariantsPage({ searchParams }: PageProps) {
 	const params = await searchParams
 	const page = Number(params.page) || 1
-	const pageSize = 30
+	const pageSize = 25
 	const offset = (page - 1) * pageSize
 	const filter = params.filter
 

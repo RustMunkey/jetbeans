@@ -16,7 +16,7 @@ import {
 	DialogFooter,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { adjustStock, updateThreshold } from "./actions"
+import { adjustStock, updateThreshold, bulkDeleteInventory } from "./actions"
 import { useLiveInventory, type LiveInventoryItem } from "@/hooks/use-live-inventory"
 import { useInventoryParams } from "@/hooks/use-table-params"
 import { cn } from "@/lib/utils"
@@ -62,6 +62,21 @@ export function InventoryTable({ items: initialItems, totalCount }: InventoryTab
 	const [reason, setReason] = useState("")
 	const [newThreshold, setNewThreshold] = useState("")
 	const [loading, setLoading] = useState(false)
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+	const handleBulkDelete = async () => {
+		setLoading(true)
+		try {
+			await bulkDeleteInventory(selectedIds)
+			toast.success(`Deleted ${selectedIds.length} inventory record(s)`)
+			setSelectedIds([])
+			router.refresh()
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const columns: Column<InventoryItem>[] = [
 		{
@@ -198,9 +213,13 @@ export function InventoryTable({ items: initialItems, totalCount }: InventoryTab
 				searchPlaceholder="Search products, SKUs..."
 				totalCount={totalCount}
 				currentPage={params.page}
-				pageSize={30}
+				pageSize={25}
 				onPageChange={(page) => setParams({ page })}
+				selectable
+				selectedIds={selectedIds}
+				onSelectionChange={setSelectedIds}
 				getId={(row) => row.id}
+				bulkActions={<Button size="sm" variant="destructive" disabled={loading} onClick={() => handleBulkDelete()}>Delete</Button>}
 				onRowClick={(row) => {
 					setSelectedItem(row)
 					setNewQuantity(String(row.quantity))

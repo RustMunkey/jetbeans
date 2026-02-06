@@ -40,11 +40,11 @@ export function useTeamPresence() {
 			})
 		}
 
-		channel.bind("client-status-change", handleStatusChange)
+		channel.bind("status-change", handleStatusChange)
 		channel.bind("pusher:member_removed", handleMemberRemoved)
 
 		return () => {
-			channel.unbind("client-status-change", handleStatusChange)
+			channel.unbind("status-change", handleStatusChange)
 			channel.unbind("pusher:member_removed", handleMemberRemoved)
 		}
 	}, [pusher, isConnected])

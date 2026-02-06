@@ -128,7 +128,7 @@ export function FulfillmentClient({ orders, totalCount, currentPage }: Fulfillme
 			emptyDescription="Confirmed and processing orders will appear here."
 			totalCount={totalCount}
 			currentPage={currentPage}
-			pageSize={30}
+			pageSize={25}
 			filters={
 				<Select value={statusFilter} onValueChange={setStatusFilter}>
 					<SelectTrigger className="h-9 w-full sm:w-[160px]">

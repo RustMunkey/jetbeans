@@ -15,7 +15,7 @@ export default async function TemplateDetailPage({ params }: PageProps) {
 
 	// Fetch sent log for existing templates
 	const sentData = !isNew && template
-		? await getSentMessages({ templateId: template.id, pageSize: 50 })
+		? await getSentMessages({ templateId: template.id, pageSize: 25 })
 		: { items: [], totalCount: 0 }
 
 	return (

@@ -12,18 +12,18 @@ export function ThemeScript() {
 		var presets = ${presetsJson};
 		// Try to find a user-specific theme key (multi-tenant isolation)
 		// Falls back to legacy key or default if none found
-		var savedAccent = "coffee";
+		var savedAccent = "neutral";
 		for (var i = 0; i < localStorage.length; i++) {
 			var key = localStorage.key(i);
 			if (key && key.startsWith("jetbeans-accent-theme-")) {
 				// Use the first user-specific theme found (will be corrected by AccentThemeProvider)
-				savedAccent = localStorage.getItem(key) || "coffee";
+				savedAccent = localStorage.getItem(key) || "neutral";
 				break;
 			}
 		}
 		// Fallback to legacy key for backwards compatibility
-		if (savedAccent === "coffee") {
-			savedAccent = localStorage.getItem("jetbeans-accent-theme") || "coffee";
+		if (savedAccent === "neutral") {
+			savedAccent = localStorage.getItem("jetbeans-accent-theme") || "neutral";
 		}
 		var savedTheme = localStorage.getItem("jetbeans-theme") || "system";
 

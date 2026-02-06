@@ -1,10 +1,14 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { DataTable, type Column } from "@/components/data-table"
 import { StatusBadge } from "@/components/status-badge"
+import { Button } from "@/components/ui/button"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { formatDate } from "@/lib/format"
+import { bulkDeleteTrackingEvents } from "../actions"
 
 interface TrackingItem {
 	id: string
@@ -30,6 +34,23 @@ const statuses = ["pending", "in_transit", "out_for_delivery", "delivered", "exc
 
 export function TrackingClient({ items, totalCount, currentPage, currentStatus }: TrackingClientProps) {
 	const router = useRouter()
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+	const [loading, setLoading] = useState(false)
+
+	const handleBulkDelete = async () => {
+		if (!selectedIds.length) return
+		setLoading(true)
+		try {
+			await bulkDeleteTrackingEvents(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} tracking event(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const columns: Column<TrackingItem>[] = [
 		{
@@ -83,8 +104,16 @@ export function TrackingClient({ items, totalCount, currentPage, currentStatus }
 			searchPlaceholder="Search tracking..."
 			totalCount={totalCount}
 			currentPage={currentPage}
-			pageSize={30}
+			pageSize={25}
 			getId={(row) => row.id}
+			selectable
+			selectedIds={selectedIds}
+			onSelectionChange={setSelectedIds}
+			bulkActions={
+				<Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={loading}>
+					Delete ({selectedIds.length})
+				</Button>
+			}
 			emptyMessage="No shipments tracked"
 			emptyDescription="Tracking info will appear here for shipped orders."
 			filters={

@@ -168,7 +168,6 @@ async function seed() {
 		{ name: "David Kim", email: "david.kim@example.com" },
 		{ name: "Rachel Foster", email: "rachel.foster@example.com" },
 		{ name: "Tyler Brooks", email: "tyler.brooks@example.com" },
-		{ name: "Aisha Patel", email: "aisha.patel@example.com" },
 		{ name: "Chris Newman", email: "chris.newman@example.com" },
 	]
 

@@ -152,7 +152,7 @@ export function WebhooksClient({
 			searchPlaceholder="Search events..."
 			totalCount={totalCount}
 			currentPage={currentPage}
-			pageSize={50}
+			pageSize={25}
 			onRowClick={(row) => router.push(`/developers/webhooks/${row.id}`)}
 			emptyMessage="No webhook events"
 			emptyDescription={

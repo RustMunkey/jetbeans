@@ -1,10 +1,14 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { DataTable, type Column } from "@/components/data-table"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { formatDate } from "@/lib/format"
+import { bulkDeleteInventoryLogs } from "../actions"
 
 interface LogItem {
 	id: string
@@ -24,7 +28,25 @@ export function ActivityClient({ items, totalCount, currentPage }: {
 	totalCount: number
 	currentPage: number
 }) {
+	const router = useRouter()
 	const [reasonFilter, setReasonFilter] = useState("all")
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+	const [loading, setLoading] = useState(false)
+
+	const handleBulkDelete = async () => {
+		if (!selectedIds.length) return
+		setLoading(true)
+		try {
+			await bulkDeleteInventoryLogs(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} log(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete")
+		} finally {
+			setLoading(false)
+		}
+	}
 	const columns: Column<LogItem>[] = [
 		{
 			key: "product",
@@ -103,8 +125,16 @@ export function ActivityClient({ items, totalCount, currentPage }: {
 			searchPlaceholder="Search activity..."
 			totalCount={totalCount}
 			currentPage={currentPage}
-			pageSize={30}
+			pageSize={25}
 			getId={(row) => row.id}
+			selectable
+			selectedIds={selectedIds}
+			onSelectionChange={setSelectedIds}
+			bulkActions={
+				<Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={loading}>
+					Delete ({selectedIds.length})
+				</Button>
+			}
 			emptyMessage="No inventory activity"
 			emptyDescription="Stock changes will be logged here."
 			filters={

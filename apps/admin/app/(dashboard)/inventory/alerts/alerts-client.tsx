@@ -16,7 +16,7 @@ import {
 	DialogFooter,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { adjustStock } from "../actions"
+import { adjustStock, bulkDeleteAlerts } from "../actions"
 
 interface AlertItem {
 	id: string
@@ -51,6 +51,22 @@ export function AlertsClient({ items, totalCount, currentPage }: AlertsClientPro
 	const [newQuantity, setNewQuantity] = useState("")
 	const [reason, setReason] = useState("")
 	const [loading, setLoading] = useState(false)
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+	const handleBulkDelete = async () => {
+		if (!selectedIds.length) return
+		setLoading(true)
+		try {
+			await bulkDeleteAlerts(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} alert(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const columns: Column<AlertItem>[] = [
 		{
@@ -152,9 +168,17 @@ export function AlertsClient({ items, totalCount, currentPage }: AlertsClientPro
 				data={filtered}
 				totalCount={totalCount}
 				currentPage={currentPage}
-				pageSize={30}
+				pageSize={25}
 				searchPlaceholder="Search alerts..."
 				getId={(row) => row.id}
+				selectable
+				selectedIds={selectedIds}
+				onSelectionChange={setSelectedIds}
+				bulkActions={
+					<Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={loading}>
+						Delete ({selectedIds.length})
+					</Button>
+				}
 				onRowClick={(row) => {
 					setSelectedItem(row)
 					setNewQuantity(String(row.quantity))

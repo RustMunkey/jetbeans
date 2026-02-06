@@ -14,8 +14,8 @@ export default async function ReferralsPage({ searchParams }: PageProps) {
 	const codesPage = Number(params.codesPage) || 1
 
 	const [referralsData, codesData] = await Promise.all([
-		getReferrals({ page: referralsPage, pageSize: 30 }),
-		getReferralCodes({ page: codesPage, pageSize: 30 }),
+		getReferrals({ page: referralsPage, pageSize: 25 }),
+		getReferralCodes({ page: codesPage, pageSize: 25 }),
 	])
 
 	return (

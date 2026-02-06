@@ -24,7 +24,7 @@ import {
 	SelectItem,
 } from "@/components/ui/select"
 import { formatDate } from "@/lib/format"
-import { createCampaign } from "../actions"
+import { createCampaign, bulkDeleteCampaigns } from "../actions"
 
 interface Campaign {
 	id: string
@@ -75,6 +75,21 @@ export function CampaignsTable({ campaigns, totalCount, currentPage }: Campaigns
 	const [audience, setAudience] = useState("all")
 	const [discountCode, setDiscountCode] = useState("")
 	const [loading, setLoading] = useState(false)
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+	const handleBulkDelete = async () => {
+		setLoading(true)
+		try {
+			await bulkDeleteCampaigns(selectedIds)
+			toast.success(`Deleted ${selectedIds.length} campaign(s)`)
+			setSelectedIds([])
+			router.refresh()
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const filtered = statusFilter === "all"
 		? campaigns
@@ -181,7 +196,11 @@ export function CampaignsTable({ campaigns, totalCount, currentPage }: Campaigns
 				columns={columns}
 				data={filtered}
 				searchPlaceholder="Search campaigns..."
+				selectable
+				selectedIds={selectedIds}
+				onSelectionChange={setSelectedIds}
 				getId={(row) => row.id}
+				bulkActions={<Button size="sm" variant="destructive" disabled={loading} onClick={() => handleBulkDelete()}>Delete</Button>}
 				onRowClick={(row) => router.push(`/marketing/campaigns/${row.id}`)}
 				emptyMessage="No campaigns"
 				emptyDescription="Create a campaign to engage your customers."

@@ -7,30 +7,11 @@ import {
 	Check,
 	X,
 	Pencil,
-	ChevronLeft,
-	ChevronRight,
 	Package,
 	Mail,
-	AlertCircle,
 	ExternalLink,
-	Shield,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card"
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table"
 import {
 	Dialog,
 	DialogContent,
@@ -41,20 +22,22 @@ import {
 } from "@/components/ui/dialog"
 import {
 	Select,
-	SelectContent,
-	SelectItem,
 	SelectTrigger,
 	SelectValue,
+	SelectContent,
+	SelectItem,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
+import { DataTable, type Column } from "@/components/data-table"
 import {
 	approveTracking,
 	rejectTracking,
 	updateTrackingOrder,
 	addTrustedSender,
+	bulkRejectPendingTracking,
 } from "../../actions"
 
 interface PendingTrackingItem {
@@ -96,9 +79,9 @@ export function PendingTrackingClient({
 	const [editDialogOpen, setEditDialogOpen] = useState(false)
 	const [selectedItem, setSelectedItem] = useState<PendingTrackingItem | null>(null)
 	const [selectedOrderId, setSelectedOrderId] = useState<string>("")
-
-	const pageSize = 30
-	const totalPages = Math.ceil(totalCount / pageSize)
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+	const [loading, setLoading] = useState(false)
+	const [sourceFilter, setSourceFilter] = useState("all")
 
 	const handleApprove = async (id: string, senderEmail?: string) => {
 		startTransition(async () => {
@@ -106,7 +89,6 @@ export function PendingTrackingClient({
 			if (result.success) {
 				toast.success("Tracking approved and order updated")
 
-				// Optionally trust the sender
 				if (senderEmail) {
 					const trustSender = window.confirm(
 						`Do you want to auto-approve future emails from ${senderEmail}?`
@@ -161,18 +143,56 @@ export function PendingTrackingClient({
 		})
 	}
 
-	const handlePageChange = (page: number) => {
-		router.push(`/shipping/tracking/pending?page=${page}`)
+	const handleApproveAllMatched = async () => {
+		const matched = items.filter((i) => i.order)
+		if (!matched.length) {
+			toast.error("No items with matched orders to approve")
+			return
+		}
+		if (!confirm(`Approve ${matched.length} tracking item(s) with matched orders?`)) return
+		setLoading(true)
+		try {
+			for (const item of matched) {
+				await approveTracking(item.id)
+			}
+			router.refresh()
+			toast.success(`Approved ${matched.length} tracking item(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to approve")
+		} finally {
+			setLoading(false)
+		}
+	}
+
+	const filteredItems = sourceFilter === "all"
+		? items
+		: items.filter((i) => (i.source || "manual") === sourceFilter)
+
+	const handleBulkReject = async () => {
+		if (!confirm(`Are you sure you want to reject ${selectedIds.length} tracking item(s)? They will be deleted.`)) {
+			return
+		}
+		setLoading(true)
+		try {
+			await bulkRejectPendingTracking(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Rejected ${selectedIds.length} tracking item(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to reject tracking items")
+		} finally {
+			setLoading(false)
+		}
 	}
 
 	const getConfidenceBadge = (confidence: string | undefined) => {
 		switch (confidence) {
 			case "high":
-				return <Badge variant="default" className="bg-green-500">High Confidence</Badge>
+				return <Badge variant="default" className="bg-green-500">High</Badge>
 			case "medium":
-				return <Badge variant="secondary">Medium Confidence</Badge>
+				return <Badge variant="secondary">Medium</Badge>
 			case "low":
-				return <Badge variant="outline" className="border-yellow-500 text-yellow-600">Low Confidence</Badge>
+				return <Badge variant="outline" className="border-yellow-500 text-yellow-600">Low</Badge>
 			default:
 				return <Badge variant="outline">Unknown</Badge>
 		}
@@ -189,178 +209,152 @@ export function PendingTrackingClient({
 		}
 	}
 
-	if (items.length === 0) {
-		return (
-			<Card>
-				<CardHeader>
-					<CardTitle className="flex items-center gap-2">
-						<Shield className="h-5 w-5" />
-						Pending Review
-					</CardTitle>
-					<CardDescription>
-						Tracking numbers that need manual review before being associated with orders
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<div className="flex flex-col items-center justify-center py-12 text-center">
-						<Check className="h-12 w-12 text-green-500 mb-4" />
-						<h3 className="text-lg font-semibold">All caught up!</h3>
-						<p className="text-muted-foreground">
-							No tracking numbers pending review
-						</p>
+	const columns: Column<PendingTrackingItem>[] = [
+		{
+			key: "source",
+			header: "Source",
+			cell: (row) => (
+				<div className="flex items-center gap-2">
+					{getSourceIcon(row.source)}
+					<div className="flex flex-col">
+						<span className="text-sm capitalize">{row.source || "manual"}</span>
+						{row.sourceDetails?.sender && (
+							<span className="text-xs text-muted-foreground truncate max-w-[150px]">
+								{row.sourceDetails.sender}
+							</span>
+						)}
 					</div>
-				</CardContent>
-			</Card>
-		)
-	}
+				</div>
+			),
+		},
+		{
+			key: "trackingNumber",
+			header: "Tracking Number",
+			cell: (row) => (
+				<code className="text-sm bg-muted px-2 py-1 rounded">
+					{row.trackingNumber}
+				</code>
+			),
+		},
+		{
+			key: "carrier",
+			header: "Carrier",
+			cell: (row) => (
+				<span className="text-sm">
+					{row.carrier?.name || <span className="text-muted-foreground">Unknown</span>}
+				</span>
+			),
+		},
+		{
+			key: "order",
+			header: "Matched Order",
+			cell: (row) =>
+				row.order ? (
+					<div className="flex flex-col">
+						<span className="font-medium">{row.order.orderNumber}</span>
+						<span className="text-xs text-muted-foreground">
+							{row.order.customerName}
+						</span>
+					</div>
+				) : (
+					<Badge variant="outline" className="border-red-500 text-red-600">
+						No Match
+					</Badge>
+				),
+		},
+		{
+			key: "confidence",
+			header: "Confidence",
+			cell: (row) => getConfidenceBadge(row.sourceDetails?.confidence),
+		},
+		{
+			key: "createdAt",
+			header: "Received",
+			cell: (row) => (
+				<span className="text-sm text-muted-foreground">
+					{formatDistanceToNow(new Date(row.createdAt), { addSuffix: true })}
+				</span>
+			),
+		},
+		{
+			key: "actions",
+			header: "Actions",
+			className: "text-right",
+			cell: (row) => (
+				<div className="flex items-center justify-end gap-2">
+					<Button
+						variant="ghost"
+						size="icon"
+						onClick={() => handleEdit(row)}
+						disabled={isPending}
+						title="Edit order association"
+					>
+						<Pencil className="h-4 w-4" />
+					</Button>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="text-green-600 hover:text-green-700 hover:bg-green-50"
+						onClick={() => handleApprove(row.id, row.sourceDetails?.sender)}
+						disabled={isPending || !row.order}
+						title={row.order ? "Approve" : "Assign order first"}
+					>
+						<Check className="h-4 w-4" />
+					</Button>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="text-red-600 hover:text-red-700 hover:bg-red-50"
+						onClick={() => handleReject(row.id)}
+						disabled={isPending}
+						title="Reject"
+					>
+						<X className="h-4 w-4" />
+					</Button>
+				</div>
+			),
+		},
+	]
 
 	return (
 		<>
-			<Card>
-				<CardHeader>
-					<div className="flex items-center justify-between">
-						<div>
-							<CardTitle className="flex items-center gap-2">
-								<AlertCircle className="h-5 w-5 text-yellow-500" />
-								Pending Review ({totalCount})
-							</CardTitle>
-							<CardDescription>
-								Review and approve tracking numbers before they're associated with orders
-							</CardDescription>
-						</div>
-					</div>
-				</CardHeader>
-				<CardContent>
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>Source</TableHead>
-								<TableHead>Tracking Number</TableHead>
-								<TableHead>Carrier</TableHead>
-								<TableHead>Matched Order</TableHead>
-								<TableHead>Confidence</TableHead>
-								<TableHead>Received</TableHead>
-								<TableHead className="text-right">Actions</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{items.map((item) => (
-								<TableRow key={item.id}>
-									<TableCell>
-										<div className="flex items-center gap-2">
-											{getSourceIcon(item.source)}
-											<div className="flex flex-col">
-												<span className="text-sm capitalize">{item.source || "manual"}</span>
-												{item.sourceDetails?.sender && (
-													<span className="text-xs text-muted-foreground truncate max-w-[150px]">
-														{item.sourceDetails.sender}
-													</span>
-												)}
-											</div>
-										</div>
-									</TableCell>
-									<TableCell>
-										<code className="text-sm bg-muted px-2 py-1 rounded">
-											{item.trackingNumber}
-										</code>
-									</TableCell>
-									<TableCell>
-										{item.carrier?.name || (
-											<span className="text-muted-foreground">Unknown</span>
-										)}
-									</TableCell>
-									<TableCell>
-										{item.order ? (
-											<div className="flex flex-col">
-												<span className="font-medium">{item.order.orderNumber}</span>
-												<span className="text-xs text-muted-foreground">
-													{item.order.customerName}
-												</span>
-											</div>
-										) : (
-											<Badge variant="outline" className="border-red-500 text-red-600">
-												No Match
-											</Badge>
-										)}
-									</TableCell>
-									<TableCell>
-										{getConfidenceBadge(item.sourceDetails?.confidence)}
-									</TableCell>
-									<TableCell>
-										<span className="text-sm text-muted-foreground">
-											{formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
-										</span>
-									</TableCell>
-									<TableCell className="text-right">
-										<div className="flex items-center justify-end gap-2">
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => handleEdit(item)}
-												disabled={isPending}
-												title="Edit order association"
-											>
-												<Pencil className="h-4 w-4" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon"
-												className="text-green-600 hover:text-green-700 hover:bg-green-50"
-												onClick={() => handleApprove(item.id, item.sourceDetails?.sender)}
-												disabled={isPending || !item.order}
-												title={item.order ? "Approve" : "Assign order first"}
-											>
-												<Check className="h-4 w-4" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon"
-												className="text-red-600 hover:text-red-700 hover:bg-red-50"
-												onClick={() => handleReject(item.id)}
-												disabled={isPending}
-												title="Reject"
-											>
-												<X className="h-4 w-4" />
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-
-					{/* Pagination */}
-					{totalPages > 1 && (
-						<div className="flex items-center justify-between mt-4">
-							<p className="text-sm text-muted-foreground">
-								Showing {(currentPage - 1) * pageSize + 1} to{" "}
-								{Math.min(currentPage * pageSize, totalCount)} of {totalCount}
-							</p>
-							<div className="flex items-center gap-2">
-								<Button
-									variant="outline"
-									size="icon"
-									onClick={() => handlePageChange(currentPage - 1)}
-									disabled={currentPage <= 1}
-								>
-									<ChevronLeft className="h-4 w-4" />
-								</Button>
-								<span className="text-sm">
-									Page {currentPage} of {totalPages}
-								</span>
-								<Button
-									variant="outline"
-									size="icon"
-									onClick={() => handlePageChange(currentPage + 1)}
-									disabled={currentPage >= totalPages}
-								>
-									<ChevronRight className="h-4 w-4" />
-								</Button>
-							</div>
-						</div>
-					)}
-				</CardContent>
-			</Card>
+			<DataTable
+				columns={columns}
+				data={filteredItems}
+				searchPlaceholder="Search pending tracking..."
+				totalCount={totalCount}
+				currentPage={currentPage}
+				pageSize={25}
+				selectable
+				selectedIds={selectedIds}
+				onSelectionChange={setSelectedIds}
+				getId={(row) => row.id}
+				bulkActions={
+					<Button size="sm" variant="destructive" disabled={loading} onClick={handleBulkReject}>
+						Reject ({selectedIds.length})
+					</Button>
+				}
+				filters={
+					<>
+						<Select value={sourceFilter} onValueChange={setSourceFilter}>
+							<SelectTrigger className="h-9 w-full sm:w-[150px]">
+								<SelectValue placeholder="All Sources" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Sources</SelectItem>
+								<SelectItem value="email">Email</SelectItem>
+								<SelectItem value="api">API</SelectItem>
+								<SelectItem value="manual">Manual</SelectItem>
+							</SelectContent>
+						</Select>
+						<Button size="sm" variant="outline" className="h-9" onClick={handleApproveAllMatched} disabled={loading || isPending}>
+							Approve All Matched
+						</Button>
+					</>
+				}
+				emptyMessage="All caught up!"
+				emptyDescription="No tracking numbers pending review."
+			/>
 
 			{/* Edit Dialog */}
 			<Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>

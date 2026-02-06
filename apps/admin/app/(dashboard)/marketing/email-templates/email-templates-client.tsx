@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Delete02Icon, PencilEdit02Icon } from "@hugeicons/core-free-icons"
-import { toggleTemplate, deleteEmailTemplate } from "./actions"
+import { toggleTemplate, deleteEmailTemplate, bulkDeleteEmailTemplates } from "./actions"
 
 type EmailTemplate = {
 	id: string
@@ -75,6 +75,25 @@ export function EmailTemplatesClient({
 	const router = useRouter()
 	const [tab, setTab] = useState<"templates" | "sent">("templates")
 	const [templates, setTemplates] = useState(initial)
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+	const [loading, setLoading] = useState(false)
+
+	const handleBulkDelete = async () => {
+		if (!selectedIds.length) return
+		const count = selectedIds.length
+		setLoading(true)
+		try {
+			await bulkDeleteEmailTemplates(selectedIds)
+			const deletedIds = [...selectedIds]
+			setSelectedIds([])
+			setTemplates((prev) => prev.filter((t) => !deletedIds.includes(t.id)))
+			toast.success(`Deleted ${count} template(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	async function handleToggle(id: string, current: boolean) {
 		await toggleTemplate(id, !current)
@@ -188,6 +207,15 @@ export function EmailTemplatesClient({
 					onRowClick={(row) => router.push(`/marketing/email-templates/${row.id}`)}
 					totalCount={templatesTotalCount}
 					currentPage={templatesCurrentPage}
+					getId={(row) => row.id}
+					selectable
+					selectedIds={selectedIds}
+					onSelectionChange={setSelectedIds}
+					bulkActions={
+						<Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={loading}>
+							Delete ({selectedIds.length})
+						</Button>
+					}
 					filters={
 						<Button
 							size="sm"

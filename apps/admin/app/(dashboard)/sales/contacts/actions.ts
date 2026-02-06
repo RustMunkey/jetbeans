@@ -16,7 +16,7 @@ interface GetContactsParams {
 
 export async function getContacts(params: GetContactsParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, search, status } = params
+	const { page = 1, pageSize = 25, search, status } = params
 	const offset = (page - 1) * pageSize
 
 	const conditions = [eq(crmContacts.workspaceId, workspace.id)]
@@ -116,7 +116,7 @@ interface GetCompaniesParams {
 
 export async function getCompanies(params: GetCompaniesParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, search, industry } = params
+	const { page = 1, pageSize = 25, search, industry } = params
 	const offset = (page - 1) * pageSize
 
 	const conditions = [eq(crmCompanies.workspaceId, workspace.id)]

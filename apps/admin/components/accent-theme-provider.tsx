@@ -28,7 +28,7 @@ export function useAccentTheme() {
 	const context = useContext(AccentThemeContext)
 	// Return default values if used outside provider (e.g., during SSR)
 	if (!context) {
-		return { accentTheme: "coffee", setAccentTheme: () => {} }
+		return { accentTheme: "neutral", setAccentTheme: () => {} }
 	}
 	return context
 }
@@ -108,7 +108,7 @@ export function AccentThemeProvider({ children }: { children: React.ReactNode })
 	const { resolvedTheme } = useTheme()
 	const { data: session } = useSession()
 	const userId = session?.user?.id
-	const [accentTheme, setAccentThemeState] = useState("coffee")
+	const [accentTheme, setAccentThemeState] = useState("neutral")
 
 	// Get the user-specific storage key
 	const storageKey = getThemeStorageKey(userId)
@@ -122,7 +122,7 @@ export function AccentThemeProvider({ children }: { children: React.ReactNode })
 
 	// Load theme when user ID changes (login/logout) or resolved theme changes
 	useEffect(() => {
-		const savedAccent = localStorage.getItem(storageKey) || "coffee"
+		const savedAccent = localStorage.getItem(storageKey) || "neutral"
 		setAccentThemeState(savedAccent)
 		const isDark = resolvedTheme === "dark"
 		applyAccentTheme(savedAccent, isDark)

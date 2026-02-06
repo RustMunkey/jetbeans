@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DataTable, type Column } from "@/components/data-table"
@@ -11,7 +12,9 @@ import {
 	SelectContent,
 	SelectItem,
 } from "@/components/ui/select"
+import { toast } from "sonner"
 import { formatCurrency, formatDate } from "@/lib/format"
+import { bulkDeleteReferrals, bulkDeleteReferralCodes } from "../actions"
 
 interface Referral {
 	id: string
@@ -63,8 +66,42 @@ export function ReferralsClient({
 	codesTotalCount,
 	codesCurrentPage,
 }: ReferralsClientProps) {
+	const router = useRouter()
 	const [tab, setTab] = useState<"referrals" | "codes">("referrals")
 	const [statusFilter, setStatusFilter] = useState("all")
+	const [selectedReferralIds, setSelectedReferralIds] = useState<string[]>([])
+	const [selectedCodeIds, setSelectedCodeIds] = useState<string[]>([])
+	const [loading, setLoading] = useState(false)
+
+	const handleBulkDeleteReferrals = async () => {
+		if (!selectedReferralIds.length) return
+		setLoading(true)
+		try {
+			await bulkDeleteReferrals(selectedReferralIds)
+			setSelectedReferralIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedReferralIds.length} referral(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete")
+		} finally {
+			setLoading(false)
+		}
+	}
+
+	const handleBulkDeleteCodes = async () => {
+		if (!selectedCodeIds.length) return
+		setLoading(true)
+		try {
+			await bulkDeleteReferralCodes(selectedCodeIds)
+			setSelectedCodeIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedCodeIds.length} code(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const filteredReferrals = statusFilter === "all"
 		? referrals
@@ -170,11 +207,19 @@ export function ReferralsClient({
 					data={filteredReferrals}
 					totalCount={referralsTotalCount}
 					currentPage={referralsCurrentPage}
-					pageSize={30}
+					pageSize={25}
 					searchPlaceholder="Search referrals..."
 					getId={(row) => row.id}
 					emptyMessage="No referrals"
 					emptyDescription="Referrals will appear when customers share their codes."
+					selectable
+					selectedIds={selectedReferralIds}
+					onSelectionChange={setSelectedReferralIds}
+					bulkActions={
+						<Button size="sm" variant="destructive" onClick={handleBulkDeleteReferrals} disabled={loading}>
+							Delete ({selectedReferralIds.length})
+						</Button>
+					}
 					filters={
 						<>
 							<Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -188,7 +233,7 @@ export function ReferralsClient({
 									<SelectItem value="rewarded">Rewarded</SelectItem>
 								</SelectContent>
 							</Select>
-							<Button size="sm" className="h-9 hidden sm:flex" onClick={() => setTab("referrals")}>Referrals</Button>
+							<Button size="sm" variant="outline" className="h-9 hidden sm:flex" onClick={() => setTab("referrals")}>Referrals</Button>
 							<Button size="sm" variant="outline" className="h-9 hidden sm:flex" onClick={() => setTab("codes")}>Codes</Button>
 						</>
 					}
@@ -199,15 +244,23 @@ export function ReferralsClient({
 					data={codes}
 					totalCount={codesTotalCount}
 					currentPage={codesCurrentPage}
-					pageSize={30}
+					pageSize={25}
 					searchPlaceholder="Search codes..."
 					getId={(row) => row.id}
 					emptyMessage="No referral codes"
 					emptyDescription="Referral codes are generated for customers."
+					selectable
+					selectedIds={selectedCodeIds}
+					onSelectionChange={setSelectedCodeIds}
+					bulkActions={
+						<Button size="sm" variant="destructive" onClick={handleBulkDeleteCodes} disabled={loading}>
+							Delete ({selectedCodeIds.length})
+						</Button>
+					}
 					filters={
 						<>
 							<Button size="sm" variant="outline" className="h-9 hidden sm:flex" onClick={() => setTab("referrals")}>Referrals</Button>
-							<Button size="sm" className="h-9 hidden sm:flex" onClick={() => setTab("codes")}>Codes</Button>
+							<Button size="sm" variant="outline" className="h-9 hidden sm:flex" onClick={() => setTab("codes")}>Codes</Button>
 						</>
 					}
 				/>

@@ -116,7 +116,7 @@ export function ReviewsTable({ reviews, totalCount }: ReviewsTableProps) {
 			data={reviews}
 			totalCount={totalCount}
 			currentPage={params.page}
-			pageSize={30}
+			pageSize={25}
 			onPageChange={(page) => setParams({ page })}
 			selectable
 			selectedIds={selectedIds}

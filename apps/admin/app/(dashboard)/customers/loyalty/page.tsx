@@ -1,11 +1,20 @@
 import { getLoyaltyConfig, getTopPointHolders, getRecentTransactions } from "./actions"
 import { LoyaltyClient } from "./loyalty-client"
 
-export default async function LoyaltyPage() {
-	const [config, holders, transactions] = await Promise.all([
+interface PageProps {
+	searchParams: Promise<{ page?: string; txPage?: string }>
+}
+
+export default async function LoyaltyPage({ searchParams }: PageProps) {
+	const params = await searchParams
+	const holdersPage = Number(params.page) || 1
+	const txPage = Number(params.txPage) || 1
+	const pageSize = 25
+
+	const [config, holdersData, transactionsData] = await Promise.all([
 		getLoyaltyConfig(),
-		getTopPointHolders(),
-		getRecentTransactions(),
+		getTopPointHolders({ page: holdersPage, pageSize }),
+		getRecentTransactions({ page: txPage, pageSize }),
 	])
 
 	return (
@@ -15,8 +24,12 @@ export default async function LoyaltyPage() {
 			</p>
 			<LoyaltyClient
 				config={config}
-				holders={holders}
-				transactions={transactions}
+				holders={holdersData.items}
+				holdersTotalCount={holdersData.totalCount}
+				holdersCurrentPage={holdersPage}
+				transactions={transactionsData.items}
+				transactionsTotalCount={transactionsData.totalCount}
+				transactionsCurrentPage={txPage}
 			/>
 		</div>
 	)

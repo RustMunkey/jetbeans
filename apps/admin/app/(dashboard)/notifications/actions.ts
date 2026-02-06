@@ -22,7 +22,7 @@ interface GetEmailTemplatesParams {
 
 export async function getEmailTemplates(params: GetEmailTemplatesParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30 } = params
+	const { page = 1, pageSize = 25 } = params
 	const offset = (page - 1) * pageSize
 
 	const where = eq(schema.emailTemplates.workspaceId, workspace.id)
@@ -110,7 +110,7 @@ interface GetMessagesParams {
 
 export async function getMessages(params: GetMessagesParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30 } = params
+	const { page = 1, pageSize = 25 } = params
 	const offset = (page - 1) * pageSize
 
 	const where = eq(schema.messages.workspaceId, workspace.id)

@@ -1,6 +1,9 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
 import { DataTable, type Column } from "@/components/data-table"
 import { StatusBadge } from "@/components/status-badge"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
@@ -8,6 +11,7 @@ import { formatCurrency, formatDate } from "@/lib/format"
 import { useLiveOrders, type LiveOrder } from "@/hooks/use-live-orders"
 import { useOrdersParams } from "@/hooks/use-table-params"
 import { cn } from "@/lib/utils"
+import { bulkDeleteOrders } from "./actions"
 
 interface Order {
 	id: string
@@ -35,6 +39,22 @@ export function OrdersTable({ orders: initialOrders, totalCount }: OrdersTablePr
 	const router = useRouter()
 	const [params, setParams] = useOrdersParams()
 	const { orders } = useLiveOrders({ initialOrders: initialOrders as LiveOrder[] })
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+	const [loading, setLoading] = useState(false)
+
+	const handleBulkDelete = async () => {
+		setLoading(true)
+		try {
+			await bulkDeleteOrders(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} order(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete orders")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const columns: Column<Order>[] = [
 		{
@@ -87,10 +107,14 @@ export function OrdersTable({ orders: initialOrders, totalCount }: OrdersTablePr
 			searchPlaceholder="Search orders..."
 			totalCount={totalCount}
 			currentPage={params.page}
-			pageSize={30}
+			pageSize={25}
 			onPageChange={(page) => setParams({ page })}
+			selectable
+			selectedIds={selectedIds}
+			onSelectionChange={setSelectedIds}
 			getId={(row) => row.id}
 			onRowClick={(row) => router.push(`/orders/${row.id}`)}
+			bulkActions={<Button size="sm" variant="destructive" disabled={loading} onClick={() => handleBulkDelete()}>Delete</Button>}
 			emptyMessage="No orders yet"
 			emptyDescription="Orders will appear here when customers make purchases."
 			filters={

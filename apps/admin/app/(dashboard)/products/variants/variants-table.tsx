@@ -110,7 +110,7 @@ export function VariantsTable({ variants, totalCount, currentPage, currentFilter
 			data={variants}
 			totalCount={totalCount}
 			currentPage={currentPage}
-			pageSize={30}
+			pageSize={25}
 			searchPlaceholder="Search variants..."
 			selectable
 			selectedIds={selectedIds}

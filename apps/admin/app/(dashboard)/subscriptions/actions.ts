@@ -1,6 +1,6 @@
 "use server"
 
-import { eq, and, desc, count } from "@jetbeans/db/drizzle"
+import { eq, and, desc, count, inArray } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { subscriptions, subscriptionItems, users, productVariants, products } from "@jetbeans/db/schema"
 import { logAudit } from "@/lib/audit"
@@ -18,6 +18,11 @@ async function requireSubscriptionsPermission() {
 	return workspace
 }
 
+export async function bulkDeleteSubscriptions(ids: string[]) {
+	const workspace = await requireSubscriptionsPermission()
+	await db.delete(subscriptions).where(and(inArray(subscriptions.id, ids), eq(subscriptions.workspaceId, workspace.id)))
+}
+
 interface GetSubscriptionsParams {
 	page?: number
 	pageSize?: number
@@ -26,7 +31,7 @@ interface GetSubscriptionsParams {
 
 export async function getSubscriptions(params: GetSubscriptionsParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, status } = params
+	const { page = 1, pageSize = 25, status } = params
 	const offset = (page - 1) * pageSize
 
 	// Always filter by workspace

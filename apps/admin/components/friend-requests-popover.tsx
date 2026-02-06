@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { UserIcon, Tick01Icon, Cancel01Icon } from "@hugeicons/core-free-icons"
+import { AddTeamIcon, Tick01Icon, Cancel01Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -117,7 +117,7 @@ export function FriendRequestsPopover() {
           className="relative size-8"
           title="Friends & Discover"
         >
-          <HugeiconsIcon icon={UserIcon} size={16} />
+          <HugeiconsIcon icon={AddTeamIcon} size={16} />
           {count > 0 && (
             <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-primary text-[9px] font-medium text-primary-foreground">
               {count}

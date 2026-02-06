@@ -2,8 +2,15 @@ import { Suspense } from "react"
 import { getWorkflowRuns } from "../actions"
 import { RunsTable } from "./runs-table"
 
-export default async function HistoryPage() {
-	const { items, totalCount } = await getWorkflowRuns()
+interface PageProps {
+	searchParams: Promise<{ page?: string }>
+}
+
+export default async function HistoryPage({ searchParams }: PageProps) {
+	const params = await searchParams
+	const page = Number(params.page) || 1
+	const pageSize = 25
+	const { items, totalCount } = await getWorkflowRuns({ page, pageSize })
 
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 pt-0">
@@ -14,7 +21,7 @@ export default async function HistoryPage() {
 			</div>
 
 			<Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded-lg" />}>
-				<RunsTable runs={items} totalCount={totalCount} />
+				<RunsTable runs={items} totalCount={totalCount} currentPage={page} />
 			</Suspense>
 		</div>
 	)

@@ -21,7 +21,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
-import { createGiftCard } from "./actions"
+import { createGiftCard, bulkDeleteGiftCards } from "./actions"
 import { formatCurrency, formatDate } from "@/lib/format"
 
 interface GiftCard {
@@ -50,6 +50,23 @@ export function GiftCardsClient({ cards, totalCount, currentPage }: GiftCardsCli
 	const [issuedTo, setIssuedTo] = useState("")
 	const [expiresAt, setExpiresAt] = useState("")
 	const [saving, setSaving] = useState(false)
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+	const [loading, setLoading] = useState(false)
+
+	const handleBulkDelete = async () => {
+		if (!selectedIds.length) return
+		setLoading(true)
+		try {
+			await bulkDeleteGiftCards(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} gift card(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	async function handleCreate() {
 		if (!balance || parseFloat(balance) <= 0) {
@@ -131,7 +148,15 @@ export function GiftCardsClient({ cards, totalCount, currentPage }: GiftCardsCli
 				emptyDescription="Create gift cards to issue to customers."
 				totalCount={totalCount}
 				currentPage={currentPage}
-				pageSize={30}
+				pageSize={25}
+				selectable
+				selectedIds={selectedIds}
+				onSelectionChange={setSelectedIds}
+				bulkActions={
+					<Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={loading}>
+						Delete ({selectedIds.length})
+					</Button>
+				}
 				filters={
 					<>
 						<Select value={statusFilter} onValueChange={setStatusFilter}>

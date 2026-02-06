@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { DataTable, Column } from "@/components/data-table"
-import { createInvite, revokeInvite, removeMember, updateMemberRole } from "./actions"
+import { createInvite, revokeInvite, removeMember, updateMemberRole, bulkRemoveMembers } from "./actions"
+import { toast } from "sonner"
 
 type Member = {
   id: string
@@ -46,10 +47,14 @@ function formatDate(date: Date) {
 
 export function TeamClient({
   members,
+  membersTotalCount,
+  membersCurrentPage,
   pendingInvites,
   isOwner,
 }: {
   members: Member[]
+  membersTotalCount: number
+  membersCurrentPage: number
   pendingInvites: Invite[]
   isOwner: boolean
 }) {
@@ -60,6 +65,7 @@ export function TeamClient({
   const [inviteError, setInviteError] = React.useState("")
   const [loading, setLoading] = React.useState(false)
   const [roleFilter, setRoleFilter] = React.useState("all")
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([])
 
   const handleInvite = async () => {
     if (!inviteEmail) return
@@ -85,6 +91,21 @@ export function TeamClient({
   const handleRemove = async (userId: string) => {
     await removeMember(userId)
     router.refresh()
+  }
+
+  const handleBulkRemove = async () => {
+    if (selectedIds.length === 0) return
+    setLoading(true)
+    try {
+      await bulkRemoveMembers(selectedIds)
+      setSelectedIds([])
+      router.refresh()
+      toast.success(`Removed ${selectedIds.length} member(s)`)
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to remove members")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const memberColumns: Column<Member>[] = [
@@ -223,7 +244,20 @@ export function TeamClient({
         columns={memberColumns}
         data={filteredMembers}
         searchPlaceholder="Search members..."
+        totalCount={membersTotalCount}
+        currentPage={membersCurrentPage}
+        pageSize={25}
         getId={(row) => row.id}
+        selectable
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        bulkActions={
+          isOwner ? (
+            <Button size="sm" variant="destructive" disabled={loading} onClick={handleBulkRemove}>
+              Remove ({selectedIds.length})
+            </Button>
+          ) : undefined
+        }
         emptyMessage="No team members yet"
         filters={
           <>

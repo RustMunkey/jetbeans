@@ -21,7 +21,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
-import { createSegment, deleteSegment } from "./actions"
+import { createSegment, deleteSegment, bulkDeleteSegments } from "./actions"
 
 interface Segment {
 	id: string
@@ -59,6 +59,23 @@ export function SegmentsClient({ segments, totalCount, currentPage }: SegmentsCl
 	const [type, setType] = useState("manual")
 	const [color, setColor] = useState("gray")
 	const [saving, setSaving] = useState(false)
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+	const [loading, setLoading] = useState(false)
+
+	const handleBulkDelete = async () => {
+		if (!selectedIds.length) return
+		setLoading(true)
+		try {
+			await bulkDeleteSegments(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} segment(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	async function handleCreate() {
 		if (!name.trim()) {
@@ -163,6 +180,14 @@ export function SegmentsClient({ segments, totalCount, currentPage }: SegmentsCl
 				emptyDescription="Create segments to organize customers into groups."
 				totalCount={totalCount}
 				currentPage={currentPage}
+				selectable
+				selectedIds={selectedIds}
+				onSelectionChange={setSelectedIds}
+				bulkActions={
+					<Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={loading}>
+						Delete ({selectedIds.length})
+					</Button>
+				}
 				filters={
 					<Button size="sm" className="h-9 hidden sm:flex" onClick={() => setOpen(true)}>Create Segment</Button>
 				}

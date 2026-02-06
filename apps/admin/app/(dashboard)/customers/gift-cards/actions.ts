@@ -1,6 +1,6 @@
 "use server"
 
-import { eq, desc, count, and } from "@jetbeans/db/drizzle"
+import { eq, desc, count, and, inArray } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { giftCards, giftCardTransactions, users } from "@jetbeans/db/schema"
 import { logAudit } from "@/lib/audit"
@@ -32,7 +32,7 @@ interface GetGiftCardsParams {
 
 export async function getGiftCards(params: GetGiftCardsParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30 } = params
+	const { page = 1, pageSize = 25 } = params
 	const offset = (page - 1) * pageSize
 
 	const where = eq(giftCards.workspaceId, workspace.id)
@@ -146,6 +146,11 @@ export async function createGiftCard(data: CreateGiftCardData) {
 	})
 
 	return card
+}
+
+export async function bulkDeleteGiftCards(ids: string[]) {
+	const workspace = await requireGiftCardsPermission()
+	await db.delete(giftCards).where(and(inArray(giftCards.id, ids), eq(giftCards.workspaceId, workspace.id)))
 }
 
 export async function deactivateGiftCard(id: string) {

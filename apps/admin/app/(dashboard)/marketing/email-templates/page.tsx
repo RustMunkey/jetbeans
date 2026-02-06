@@ -17,8 +17,8 @@ export default async function EmailTemplatesPage({ searchParams }: PageProps) {
 	await seedCoreTemplates()
 
 	const [templatesData, sentData] = await Promise.all([
-		getEmailTemplates({ page: templatesPage, pageSize: 30 }),
-		getSentMessages({ page: sentPage, pageSize: 30 }),
+		getEmailTemplates({ page: templatesPage, pageSize: 25 }),
+		getSentMessages({ page: sentPage, pageSize: 25 }),
 	])
 
 	return (

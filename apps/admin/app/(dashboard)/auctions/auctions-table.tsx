@@ -33,7 +33,8 @@ import {
 } from "@/components/ui/alert-dialog"
 import { DataTable, Column } from "@/components/data-table"
 import { formatDistanceToNow, format } from "date-fns"
-import { cancelAuction, deleteAuction, endAuction, publishAuction } from "./actions"
+import { cancelAuction, deleteAuction, endAuction, publishAuction, bulkDeleteAuctions } from "./actions"
+import { toast } from "sonner"
 import { usePusher } from "@/components/pusher-provider"
 
 type AuctionItem = {
@@ -110,6 +111,22 @@ export function AuctionsTable({ auctions: initialAuctions, totalCount, view }: A
 	const [cancelId, setCancelId] = React.useState<string | null>(null)
 	const [endId, setEndId] = React.useState<string | null>(null)
 	const [loading, setLoading] = React.useState(false)
+	const [selectedIds, setSelectedIds] = React.useState<string[]>([])
+
+	const handleBulkDelete = async () => {
+		if (selectedIds.length === 0) return
+		setLoading(true)
+		try {
+			await bulkDeleteAuctions(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} auction(s)`)
+		} catch (err: any) {
+			toast.error(err.message || "Failed to delete auctions")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	// Real-time updates
 	React.useEffect(() => {
@@ -333,6 +350,10 @@ export function AuctionsTable({ auctions: initialAuctions, totalCount, view }: A
 				searchPlaceholder="Search auctions..."
 				getId={(row) => row.id}
 				onRowClick={(auction) => router.push(`/auctions/${auction.id}`)}
+				selectable
+				selectedIds={selectedIds}
+				onSelectionChange={setSelectedIds}
+				bulkActions={<Button size="sm" variant="destructive" disabled={loading} onClick={() => handleBulkDelete()}>Delete</Button>}
 				emptyMessage={
 					view === "active"
 						? "No active auctions. Create one to get started."

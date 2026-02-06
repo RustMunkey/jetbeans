@@ -14,7 +14,7 @@ export default async function ActivityLogPage({ searchParams }: PageProps) {
 	const workspace = await requireWorkspace()
 	const params = await searchParams
 	const page = Number(params.page) || 1
-	const pageSize = 30
+	const pageSize = 25
 	const offset = (page - 1) * pageSize
 
 	// Filter by workspace to ensure proper data isolation

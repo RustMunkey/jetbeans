@@ -1,8 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { DataTable, type Column } from "@/components/data-table"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
 	Select,
 	SelectContent,
@@ -11,6 +14,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select"
 import { formatDate } from "@/lib/format"
+import { bulkDeleteCalls } from "./actions"
 
 interface Call {
 	id: string
@@ -57,7 +61,25 @@ function getStatusBadge(status: string) {
 }
 
 export function CallsTable({ calls, totalCount }: CallsTableProps) {
+	const router = useRouter()
 	const [statusFilter, setStatusFilter] = useState("all")
+	const [loading, setLoading] = useState(false)
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+	const handleBulkDelete = async () => {
+		if (selectedIds.length === 0) return
+		setLoading(true)
+		try {
+			await bulkDeleteCalls(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} call(s)`)
+		} catch (err: any) {
+			toast.error(err.message || "Failed to delete calls")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const filtered = statusFilter === "all"
 		? calls
@@ -108,6 +130,10 @@ export function CallsTable({ calls, totalCount }: CallsTableProps) {
 			totalCount={totalCount}
 			searchPlaceholder="Search calls..."
 			getId={(row) => row.id}
+			selectable
+			selectedIds={selectedIds}
+			onSelectionChange={setSelectedIds}
+			bulkActions={<Button size="sm" variant="destructive" disabled={loading} onClick={() => handleBulkDelete()}>Delete</Button>}
 			emptyMessage="No calls yet"
 			emptyDescription="Your call history will appear here."
 			filters={

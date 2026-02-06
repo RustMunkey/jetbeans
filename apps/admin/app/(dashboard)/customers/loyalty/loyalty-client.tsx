@@ -21,7 +21,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
-import { updateLoyaltyConfig, adjustPoints } from "./actions"
+import { updateLoyaltyConfig, adjustPoints, bulkDeleteLoyaltyHolders, bulkDeleteLoyaltyTransactions } from "./actions"
 import { formatDate } from "@/lib/format"
 
 interface LoyaltyConfig {
@@ -56,10 +56,14 @@ interface Transaction {
 interface LoyaltyClientProps {
 	config: LoyaltyConfig | null
 	holders: Holder[]
+	holdersTotalCount: number
+	holdersCurrentPage: number
 	transactions: Transaction[]
+	transactionsTotalCount: number
+	transactionsCurrentPage: number
 }
 
-export function LoyaltyClient({ config, holders, transactions }: LoyaltyClientProps) {
+export function LoyaltyClient({ config, holders, holdersTotalCount, holdersCurrentPage, transactions, transactionsTotalCount, transactionsCurrentPage }: LoyaltyClientProps) {
 	const router = useRouter()
 	const [view, setView] = useState("holders")
 
@@ -75,6 +79,11 @@ export function LoyaltyClient({ config, holders, transactions }: LoyaltyClientPr
 	const [adjustUserId, setAdjustUserId] = useState("")
 	const [adjustAmount, setAdjustAmount] = useState("")
 	const [adjustReason, setAdjustReason] = useState("")
+
+	// Selection state
+	const [selectedHolderIds, setSelectedHolderIds] = useState<string[]>([])
+	const [selectedTransactionIds, setSelectedTransactionIds] = useState<string[]>([])
+	const [loading, setLoading] = useState(false)
 
 	async function handleSaveConfig() {
 		setSaving(true)
@@ -110,6 +119,36 @@ export function LoyaltyClient({ config, holders, transactions }: LoyaltyClientPr
 			router.refresh()
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : "Failed to adjust points")
+		}
+	}
+
+	async function handleBulkDeleteHolders() {
+		if (selectedHolderIds.length === 0) return
+		setLoading(true)
+		try {
+			await bulkDeleteLoyaltyHolders(selectedHolderIds)
+			setSelectedHolderIds([])
+			router.refresh()
+			toast.success(`Removed ${selectedHolderIds.length} holder(s)`)
+		} catch {
+			toast.error("Failed to remove holders")
+		} finally {
+			setLoading(false)
+		}
+	}
+
+	async function handleBulkDeleteTransactions() {
+		if (selectedTransactionIds.length === 0) return
+		setLoading(true)
+		try {
+			await bulkDeleteLoyaltyTransactions(selectedTransactionIds)
+			setSelectedTransactionIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedTransactionIds.length} transaction(s)`)
+		} catch {
+			toast.error("Failed to delete transactions")
+		} finally {
+			setLoading(false)
 		}
 	}
 
@@ -214,7 +253,18 @@ export function LoyaltyClient({ config, holders, transactions }: LoyaltyClientPr
 					columns={holderColumns}
 					data={holders}
 					searchPlaceholder="Search holders..."
+					totalCount={holdersTotalCount}
+					currentPage={holdersCurrentPage}
+					pageSize={25}
 					getId={(row) => row.userId}
+					selectable
+					selectedIds={selectedHolderIds}
+					onSelectionChange={setSelectedHolderIds}
+					bulkActions={
+						<Button size="sm" variant="destructive" disabled={loading} onClick={handleBulkDeleteHolders}>
+							Remove ({selectedHolderIds.length})
+						</Button>
+					}
 					emptyMessage="No loyalty members yet"
 					emptyDescription="Customers earn points when they make purchases."
 					filters={
@@ -237,7 +287,18 @@ export function LoyaltyClient({ config, holders, transactions }: LoyaltyClientPr
 					columns={transactionColumns}
 					data={transactions}
 					searchPlaceholder="Search transactions..."
+					totalCount={transactionsTotalCount}
+					currentPage={transactionsCurrentPage}
+					pageSize={25}
 					getId={(row) => row.id}
+					selectable
+					selectedIds={selectedTransactionIds}
+					onSelectionChange={setSelectedTransactionIds}
+					bulkActions={
+						<Button size="sm" variant="destructive" disabled={loading} onClick={handleBulkDeleteTransactions}>
+							Delete ({selectedTransactionIds.length})
+						</Button>
+					}
 					emptyMessage="No transactions yet"
 					emptyDescription="Points transactions will appear here."
 					filters={

@@ -18,6 +18,8 @@ import {
 	removeFriend,
 } from "./actions"
 import { usePusher } from "@/components/pusher-provider"
+import { useTeamPresence } from "@/hooks/use-team-presence"
+import { StatusDot } from "@/components/presence/status-indicator"
 
 interface User {
 	id: string
@@ -50,6 +52,7 @@ export function DiscoverClient({
 }: DiscoverClientProps) {
 	const router = useRouter()
 	const { pusher } = usePusher()
+	const { getStatus } = useTeamPresence()
 
 	// State
 	const [tab, setTab] = useState<"users" | "friends">("users")
@@ -219,10 +222,13 @@ export function DiscoverClient({
 									key={user.id}
 									className="flex items-center gap-3 px-4 py-2.5 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
 								>
-									<Avatar className="size-8">
-										{user.image && <AvatarImage src={user.image} alt={user.name} />}
-										<AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-									</Avatar>
+									<div className="relative overflow-visible">
+										<Avatar className="size-8">
+											{user.image && <AvatarImage src={user.image} alt={user.name} />}
+											<AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+										</Avatar>
+										<StatusDot status={getStatus(user.id)} size="sm" />
+									</div>
 									<div className="flex-1 min-w-0">
 										<div className="flex items-center gap-2">
 											<span className="text-sm font-medium">{user.name}</span>
@@ -292,10 +298,13 @@ export function DiscoverClient({
 									key={req.requesterId}
 									className="flex items-center gap-3 px-4 py-2.5 rounded-lg border bg-card"
 								>
-									<Avatar className="size-8">
-										{req.requesterImage && <AvatarImage src={req.requesterImage} alt={req.requesterName} />}
-										<AvatarFallback>{getInitials(req.requesterName)}</AvatarFallback>
-									</Avatar>
+									<div className="relative overflow-visible">
+										<Avatar className="size-8">
+											{req.requesterImage && <AvatarImage src={req.requesterImage} alt={req.requesterName} />}
+											<AvatarFallback>{getInitials(req.requesterName)}</AvatarFallback>
+										</Avatar>
+										<StatusDot status={getStatus(req.requesterId)} size="sm" />
+									</div>
 									<div className="flex-1 min-w-0">
 										<p className="text-sm font-medium">{req.requesterName}</p>
 										{req.requesterUsername && (
@@ -348,10 +357,13 @@ export function DiscoverClient({
 									key={friend.id}
 									className="flex items-center gap-3 px-4 py-2.5 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
 								>
-									<Avatar className="size-8">
-										{friend.image && <AvatarImage src={friend.image} alt={friend.name} />}
-										<AvatarFallback>{getInitials(friend.name)}</AvatarFallback>
-									</Avatar>
+									<div className="relative overflow-visible">
+										<Avatar className="size-8">
+											{friend.image && <AvatarImage src={friend.image} alt={friend.name} />}
+											<AvatarFallback>{getInitials(friend.name)}</AvatarFallback>
+										</Avatar>
+										<StatusDot status={getStatus(friend.id)} size="sm" />
+									</div>
 									<div className="flex-1 min-w-0">
 										<p className="text-sm font-medium">{friend.name}</p>
 										{friend.username && (

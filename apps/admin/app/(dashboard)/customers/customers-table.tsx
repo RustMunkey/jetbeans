@@ -1,12 +1,16 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
 import { DataTable, type Column } from "@/components/data-table"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { formatCurrency, formatDate } from "@/lib/format"
 import { useLiveCustomers, type LiveCustomer } from "@/hooks/use-live-customers"
 import { useCustomersParams } from "@/hooks/use-table-params"
 import { useQueryState, parseAsStringLiteral } from "nuqs"
+import { bulkDeleteCustomers } from "./actions"
 
 interface CustomersTableProps {
 	customers: LiveCustomer[]
@@ -21,6 +25,22 @@ export function CustomersTable({ customers: initialCustomers, totalCount }: Cust
 		parseAsStringLiteral(["all", "active", "inactive"] as const).withDefault("all")
 	)
 	const { customers } = useLiveCustomers({ initialCustomers })
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+	const [loading, setLoading] = useState(false)
+
+	const handleBulkDelete = async () => {
+		setLoading(true)
+		try {
+			await bulkDeleteCustomers(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} customer(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete customers")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const columns: Column<LiveCustomer>[] = [
 		{
@@ -83,10 +103,14 @@ export function CustomersTable({ customers: initialCustomers, totalCount }: Cust
 			searchPlaceholder="Search customers..."
 			totalCount={totalCount}
 			currentPage={params.page}
-			pageSize={30}
+			pageSize={25}
 			onPageChange={(page) => setParams({ page })}
+			selectable
+			selectedIds={selectedIds}
+			onSelectionChange={setSelectedIds}
 			getId={(row) => row.id}
 			onRowClick={(row) => router.push(`/customers/${row.id}`)}
+			bulkActions={<Button size="sm" variant="destructive" disabled={loading} onClick={() => handleBulkDelete()}>Delete</Button>}
 			emptyMessage="No customers yet"
 			emptyDescription="Customers will appear here when they create accounts."
 			filters={

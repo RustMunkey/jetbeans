@@ -1,11 +1,14 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { toast } from "sonner"
 import { DataTable, type Column } from "@/components/data-table"
 import { StatusBadge } from "@/components/status-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { bulkDeleteBlogPosts } from "./actions"
 
 type BlogPost = {
 	id: string
@@ -27,6 +30,22 @@ interface BlogPostsTableProps {
 export function BlogPostsTable({ posts, totalCount, currentPage, currentStatus }: BlogPostsTableProps) {
 	const router = useRouter()
 	const searchParams = useSearchParams()
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+	const [loading, setLoading] = useState(false)
+
+	const handleBulkDelete = async () => {
+		setLoading(true)
+		try {
+			await bulkDeleteBlogPosts(selectedIds)
+			toast.success(`Deleted ${selectedIds.length} post(s)`)
+			setSelectedIds([])
+			router.refresh()
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	function handleFilterChange(status: string) {
 		const params = new URLSearchParams(searchParams.toString())
@@ -83,6 +102,11 @@ export function BlogPostsTable({ posts, totalCount, currentPage, currentStatus }
 			columns={columns}
 			searchKey="title"
 			searchPlaceholder="Search posts..."
+			selectable
+			selectedIds={selectedIds}
+			onSelectionChange={setSelectedIds}
+			getId={(row) => row.id}
+			bulkActions={<Button size="sm" variant="destructive" disabled={loading} onClick={() => handleBulkDelete()}>Delete</Button>}
 			onRowClick={(row) => router.push(`/content/${row.id}`)}
 			totalCount={totalCount}
 			currentPage={currentPage}

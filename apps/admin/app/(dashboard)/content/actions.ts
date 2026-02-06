@@ -2,7 +2,7 @@
 
 import { db } from "@jetbeans/db/client"
 import * as schema from "@jetbeans/db/schema"
-import { eq, desc, and, ilike, count } from "@jetbeans/db/drizzle"
+import { eq, desc, and, ilike, count, inArray } from "@jetbeans/db/drizzle"
 import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 
 async function requireContentPermission() {
@@ -23,7 +23,7 @@ interface GetBlogPostsParams {
 
 export async function getBlogPosts(params: GetBlogPostsParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, status } = params
+	const { page = 1, pageSize = 25, status } = params
 	const offset = (page - 1) * pageSize
 
 	const conditions = [eq(schema.blogPosts.workspaceId, workspace.id)]
@@ -116,6 +116,11 @@ export async function deleteBlogPost(id: string) {
 	await db.delete(schema.blogPosts).where(and(eq(schema.blogPosts.id, id), eq(schema.blogPosts.workspaceId, workspace.id)))
 }
 
+export async function bulkDeleteBlogPosts(ids: string[]) {
+	const workspace = await requireContentPermission()
+	await db.delete(schema.blogPosts).where(and(inArray(schema.blogPosts.id, ids), eq(schema.blogPosts.workspaceId, workspace.id)))
+}
+
 // --- SITE PAGES ---
 interface GetSitePagesParams {
 	page?: number
@@ -124,7 +129,7 @@ interface GetSitePagesParams {
 
 export async function getSitePages(params: GetSitePagesParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30 } = params
+	const { page = 1, pageSize = 25 } = params
 	const offset = (page - 1) * pageSize
 
 	const where = eq(schema.sitePages.workspaceId, workspace.id)
@@ -196,6 +201,11 @@ export async function updateSitePage(id: string, data: {
 export async function deleteSitePage(id: string) {
 	const workspace = await requireContentPermission()
 	await db.delete(schema.sitePages).where(and(eq(schema.sitePages.id, id), eq(schema.sitePages.workspaceId, workspace.id)))
+}
+
+export async function bulkDeleteSitePages(ids: string[]) {
+	const workspace = await requireContentPermission()
+	await db.delete(schema.sitePages).where(and(inArray(schema.sitePages.id, ids), eq(schema.sitePages.workspaceId, workspace.id)))
 }
 
 // --- SITE CONTENT ---

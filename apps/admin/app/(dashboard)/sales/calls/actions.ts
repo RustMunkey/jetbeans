@@ -5,9 +5,20 @@ import { db } from "@jetbeans/db/client"
 import { calls, callParticipants, workspaceMembers, users } from "@jetbeans/db/schema"
 import { requireWorkspace } from "@/lib/workspace"
 
+export async function bulkDeleteCalls(ids: string[]) {
+	const workspace = await requireWorkspace()
+	const members = await db
+		.select({ userId: workspaceMembers.userId })
+		.from(workspaceMembers)
+		.where(eq(workspaceMembers.workspaceId, workspace.id))
+	const memberIds = members.map((m) => m.userId)
+	if (memberIds.length === 0) return
+	await db.delete(calls).where(and(inArray(calls.id, ids), inArray(calls.initiatorId, memberIds)))
+}
+
 export async function getCalls(params: { page?: number; pageSize?: number; status?: string } = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, status } = params
+	const { page = 1, pageSize = 25, status } = params
 	const offset = (page - 1) * pageSize
 
 	// Get workspace member user IDs

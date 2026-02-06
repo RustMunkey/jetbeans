@@ -16,7 +16,7 @@ export default async function CategoryDetailPage({ params }: PageProps) {
 		notFound()
 	}
 
-	const categories = await getAllCategories()
+	const { items: categories } = await getAllCategories()
 
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 pt-0">

@@ -14,7 +14,7 @@ interface GetTasksParams {
 
 export async function getTasks(params: GetTasksParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, status, priority } = params
+	const { page = 1, pageSize = 25, status, priority } = params
 	const offset = (page - 1) * pageSize
 
 	const conditions = [eq(crmTasks.workspaceId, workspace.id)]

@@ -23,7 +23,7 @@ import {
 	SelectContent,
 	SelectItem,
 } from "@/components/ui/select"
-import { updateProductSeo } from "../actions"
+import { updateProductSeo, bulkClearProductSeo } from "../actions"
 
 interface ProductSeo {
 	id: string
@@ -42,7 +42,7 @@ function getSeoScore(product: ProductSeo): { label: string; color: string } {
 	return { label: "Missing", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" }
 }
 
-export function SeoClient({ products }: { products: ProductSeo[] }) {
+export function SeoClient({ products, totalCount, currentPage }: { products: ProductSeo[]; totalCount: number; currentPage: number }) {
 	const router = useRouter()
 	const [statusFilter, setStatusFilter] = useState("all")
 	const [editOpen, setEditOpen] = useState(false)
@@ -50,6 +50,7 @@ export function SeoClient({ products }: { products: ProductSeo[] }) {
 	const [metaTitle, setMetaTitle] = useState("")
 	const [metaDescription, setMetaDescription] = useState("")
 	const [loading, setLoading] = useState(false)
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
 
 	const filtered = statusFilter === "all"
 		? products
@@ -57,6 +58,21 @@ export function SeoClient({ products }: { products: ProductSeo[] }) {
 			const score = getSeoScore(p)
 			return score.label.toLowerCase() === statusFilter
 		})
+
+	const handleBulkDelete = async () => {
+		if (selectedIds.length === 0) return
+		setLoading(true)
+		try {
+			await bulkClearProductSeo(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Cleared SEO data for ${selectedIds.length} product(s)`)
+		} catch {
+			toast.error("Failed to clear SEO data")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const columns: Column<ProductSeo>[] = [
 		{
@@ -159,7 +175,18 @@ export function SeoClient({ products }: { products: ProductSeo[] }) {
 				columns={columns}
 				data={filtered}
 				searchPlaceholder="Search products..."
+				totalCount={totalCount}
+				currentPage={currentPage}
+				pageSize={25}
 				getId={(row) => row.id}
+				selectable
+				selectedIds={selectedIds}
+				onSelectionChange={setSelectedIds}
+				bulkActions={
+					<Button size="sm" variant="destructive" disabled={loading} onClick={handleBulkDelete}>
+						Clear SEO ({selectedIds.length})
+					</Button>
+				}
 				emptyMessage="No products"
 				emptyDescription="Products will appear here for SEO management."
 				filters={

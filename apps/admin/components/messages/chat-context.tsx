@@ -77,6 +77,22 @@ function clearStaleRecents() {
 	} catch {}
 }
 
+// Clear recent conversations referencing users that no longer exist
+function clearStaleRecentUsers(validIds: Set<string>) {
+	if (typeof window === "undefined") return
+	try {
+		const stored = localStorage.getItem(RECENT_CONVOS_KEY)
+		if (!stored) return
+		const recents = JSON.parse(stored)
+		const filtered = recents.filter((r: { type: string; id: string }) =>
+			r.type !== "dm" || validIds.has(r.id)
+		)
+		if (filtered.length !== recents.length) {
+			localStorage.setItem(RECENT_CONVOS_KEY, JSON.stringify(filtered))
+		}
+	} catch {}
+}
+
 type ViewMode = "chat" | "inbox" | "friends"
 
 type ChatContextType = {
@@ -179,6 +195,20 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 		if (data.friends) setFriends(data.friends)
 		if (data.inboxEmails) setInboxEmails(data.inboxEmails)
 		setIsInitialized(true)
+
+		// Clear stale active DM if the partner no longer exists in friends/team
+		const friendIds = new Set((data.friends || []).map(f => f.id))
+		const memberIds = new Set(data.teamMembers.map(m => m.id))
+		const validUserIds = new Set([...friendIds, ...memberIds])
+		const saved = loadChatState()
+		if (saved?.type === "dm" && saved.id) {
+			if (!validUserIds.has(saved.id)) {
+				setActiveState({ type: "dm", id: "", label: "" })
+				try { localStorage.removeItem(CHAT_STATE_KEY) } catch {}
+			}
+		}
+		// Also clean up recent conversations referencing deleted users
+		clearStaleRecentUsers(validUserIds)
 	}, [])
 
 	return (

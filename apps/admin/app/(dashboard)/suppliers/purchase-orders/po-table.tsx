@@ -1,10 +1,14 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
 import { DataTable, type Column } from "@/components/data-table"
 import { StatusBadge } from "@/components/status-badge"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { formatCurrency, formatDate } from "@/lib/format"
+import { bulkDeletePurchaseOrders } from "../actions"
 
 interface PurchaseOrder {
 	id: string
@@ -29,6 +33,22 @@ const statuses = ["draft", "submitted", "confirmed", "shipped", "received", "can
 
 export function POTable({ orders, totalCount, currentPage, currentStatus }: POTableProps) {
 	const router = useRouter()
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+	const [loading, setLoading] = useState(false)
+
+	const handleBulkDelete = async () => {
+		setLoading(true)
+		try {
+			await bulkDeletePurchaseOrders(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} purchase order(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete purchase orders")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const columns: Column<PurchaseOrder>[] = [
 		{
@@ -76,9 +96,13 @@ export function POTable({ orders, totalCount, currentPage, currentStatus }: POTa
 			searchPlaceholder="Search purchase orders..."
 			totalCount={totalCount}
 			currentPage={currentPage}
-			pageSize={30}
+			pageSize={25}
+			selectable
+			selectedIds={selectedIds}
+			onSelectionChange={setSelectedIds}
 			getId={(row) => row.id}
 			onRowClick={(row) => router.push(`/suppliers/purchase-orders/${row.id}`)}
+			bulkActions={<Button size="sm" variant="destructive" disabled={loading} onClick={() => handleBulkDelete()}>Delete</Button>}
 			emptyMessage="No purchase orders"
 			emptyDescription="Create a purchase order to restock from suppliers."
 			filters={

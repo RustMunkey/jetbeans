@@ -10,7 +10,7 @@ interface PageProps {
 export default async function PausedSubscriptionsPage({ searchParams }: PageProps) {
 	const { page } = await subscriptionsParamsCache.parse(searchParams)
 
-	const { items, totalCount } = await getSubscriptions({ page, pageSize: 30, status: "paused" })
+	const { items, totalCount } = await getSubscriptions({ page, pageSize: 25, status: "paused" })
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 p-4 pt-0">

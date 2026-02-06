@@ -11,7 +11,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
 	const { page, search } = await customersParamsCache.parse(searchParams)
 	const { items, totalCount } = await getCustomers({
 		page,
-		pageSize: 30,
+		pageSize: 25,
 		search: search || undefined,
 	})
 

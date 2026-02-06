@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { DataTable, Column } from "@/components/data-table"
 import { formatDistanceToNow } from "date-fns"
-import { deleteWorkflow, duplicateWorkflow, toggleWorkflow } from "./actions"
+import { deleteWorkflow, duplicateWorkflow, toggleWorkflow, bulkDeleteWorkflows } from "./actions"
 import { TRIGGER_CATEGORIES } from "./constants"
 import type { Workflow } from "@jetbeans/db/schema"
 import { toast } from "sonner"
@@ -42,6 +42,7 @@ import { toast } from "sonner"
 interface WorkflowsTableProps {
 	workflows: Workflow[]
 	totalCount: number
+	currentPage: number
 }
 
 function getTriggerLabel(trigger: string): string {
@@ -61,11 +62,27 @@ function getTriggerCategory(trigger: string): string {
 	return "Unknown"
 }
 
-export function WorkflowsTable({ workflows: initialWorkflows, totalCount }: WorkflowsTableProps) {
+export function WorkflowsTable({ workflows: initialWorkflows, totalCount, currentPage }: WorkflowsTableProps) {
 	const router = useRouter()
 	const [workflows, setWorkflows] = React.useState(initialWorkflows)
 	const [deleteId, setDeleteId] = React.useState<string | null>(null)
 	const [loading, setLoading] = React.useState(false)
+	const [selectedIds, setSelectedIds] = React.useState<string[]>([])
+
+	const handleBulkDelete = async () => {
+		if (selectedIds.length === 0) return
+		setLoading(true)
+		try {
+			await bulkDeleteWorkflows(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} workflow(s)`)
+		} catch (err: any) {
+			toast.error(err.message || "Failed to delete workflows")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	React.useEffect(() => {
 		setWorkflows(initialWorkflows)
@@ -215,8 +232,15 @@ export function WorkflowsTable({ workflows: initialWorkflows, totalCount }: Work
 				columns={columns}
 				data={workflows}
 				totalCount={totalCount}
+				currentPage={currentPage}
+				pageSize={25}
 				searchPlaceholder="Search workflows..."
+				getId={(row) => row.id}
 				onRowClick={(workflow) => router.push(`/automation/${workflow.id}`)}
+				selectable
+				selectedIds={selectedIds}
+				onSelectionChange={setSelectedIds}
+				bulkActions={<Button size="sm" variant="destructive" disabled={loading} onClick={() => handleBulkDelete()}>Delete</Button>}
 				emptyMessage="No workflows yet. Create one to automate your business."
 				filters={
 					<Button size="sm" className="h-9 hidden sm:flex" onClick={() => router.push("/automation/new")}>

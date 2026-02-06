@@ -1,6 +1,6 @@
 "use server"
 
-import { eq, and } from "@jetbeans/db/drizzle"
+import { eq, and, count } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { categories } from "@jetbeans/db/schema"
 import { logAudit } from "@/lib/audit"
@@ -16,13 +16,28 @@ async function requireCategoriesPermission() {
 	return workspace
 }
 
-export async function getAllCategories() {
+export async function getAllCategories(params?: { page?: number; pageSize?: number }) {
 	const workspace = await requireWorkspace()
-	return db
-		.select()
-		.from(categories)
-		.where(eq(categories.workspaceId, workspace.id))
-		.orderBy(categories.sortOrder)
+	const { page = 1, pageSize = 25 } = params ?? {}
+	const offset = (page - 1) * pageSize
+
+	const whereClause = eq(categories.workspaceId, workspace.id)
+
+	const [items, [countResult]] = await Promise.all([
+		db
+			.select()
+			.from(categories)
+			.where(whereClause)
+			.orderBy(categories.sortOrder)
+			.limit(pageSize)
+			.offset(offset),
+		db
+			.select({ count: count() })
+			.from(categories)
+			.where(whereClause),
+	])
+
+	return { items, totalCount: countResult.count }
 }
 
 export async function getCategory(id: string) {

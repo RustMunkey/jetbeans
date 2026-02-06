@@ -2,7 +2,7 @@
 
 import { db } from "@jetbeans/db/client"
 import * as schema from "@jetbeans/db/schema"
-import { eq, desc, count, and } from "@jetbeans/db/drizzle"
+import { eq, desc, count, and, inArray } from "@jetbeans/db/drizzle"
 import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 
 async function requireEmailPermission() {
@@ -18,7 +18,7 @@ async function requireEmailPermission() {
 
 export async function getEmailTemplates(params: { page?: number; pageSize?: number } = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30 } = params
+	const { page = 1, pageSize = 25 } = params
 	const offset = (page - 1) * pageSize
 
 	const where = eq(schema.emailTemplates.workspaceId, workspace.id)
@@ -96,6 +96,11 @@ export async function toggleTemplate(id: string, isActive: boolean) {
 export async function deleteEmailTemplate(id: string) {
 	const workspace = await requireEmailPermission()
 	await db.delete(schema.emailTemplates).where(and(eq(schema.emailTemplates.id, id), eq(schema.emailTemplates.workspaceId, workspace.id)))
+}
+
+export async function bulkDeleteEmailTemplates(ids: string[]) {
+	const workspace = await requireEmailPermission()
+	await db.delete(schema.emailTemplates).where(and(inArray(schema.emailTemplates.id, ids), eq(schema.emailTemplates.workspaceId, workspace.id)))
 }
 
 // --- CORE TEMPLATES (seed) ---
@@ -214,7 +219,7 @@ export async function seedCoreTemplates() {
 
 export async function getSentMessages(params: { page?: number; pageSize?: number; templateId?: string } = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, templateId } = params
+	const { page = 1, pageSize = 25, templateId } = params
 	const offset = (page - 1) * pageSize
 
 	const conditions = [eq(schema.messages.workspaceId, workspace.id)]

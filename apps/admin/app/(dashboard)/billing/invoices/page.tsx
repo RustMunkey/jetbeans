@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DataTable, Column } from "@/components/data-table"
@@ -11,6 +12,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select"
+import { toast } from "sonner"
 
 type Invoice = {
 	id: string
@@ -36,12 +38,30 @@ function getStatusBadge(status: Invoice["status"]) {
 }
 
 export default function InvoicesPage() {
+	const router = useRouter()
 	const [statusFilter, setStatusFilter] = React.useState("all")
+	const [selectedIds, setSelectedIds] = React.useState<string[]>([])
+	const [loading, setLoading] = React.useState(false)
 
 	// Placeholder — will be fetched from Polar
 	const invoices: Invoice[] = []
 
 	const filtered = statusFilter === "all" ? invoices : invoices.filter((i) => i.status === statusFilter)
+
+	const handleBulkDelete = async () => {
+		if (selectedIds.length === 0) return
+		setLoading(true)
+		try {
+			// TODO: Implement bulk delete when invoices are fetched from Polar
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} invoice(s)`)
+		} catch {
+			toast.error("Failed to delete invoices")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const columns: Column<Invoice>[] = [
 		{
@@ -94,6 +114,15 @@ export default function InvoicesPage() {
 				columns={columns}
 				data={filtered}
 				totalCount={filtered.length}
+				getId={(row) => row.id}
+				selectable
+				selectedIds={selectedIds}
+				onSelectionChange={setSelectedIds}
+				bulkActions={
+					<Button size="sm" variant="destructive" disabled={loading} onClick={handleBulkDelete}>
+						Delete ({selectedIds.length})
+					</Button>
+				}
 				emptyMessage="No invoices yet. Invoices will appear here when you upgrade your plan."
 				filters={
 					<Select value={statusFilter} onValueChange={setStatusFilter}>

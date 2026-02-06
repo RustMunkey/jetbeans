@@ -1,6 +1,6 @@
 "use server"
 
-import { eq, count, and } from "@jetbeans/db/drizzle"
+import { eq, count, and, inArray } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { customerSegments, customerSegmentMembers, users } from "@jetbeans/db/schema"
 import { logAudit } from "@/lib/audit"
@@ -22,7 +22,7 @@ interface GetSegmentsParams {
 
 export async function getSegments(params: GetSegmentsParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30 } = params
+	const { page = 1, pageSize = 25 } = params
 	const offset = (page - 1) * pageSize
 
 	const where = eq(customerSegments.workspaceId, workspace.id)
@@ -150,6 +150,11 @@ export async function deleteSegment(id: string) {
 		targetType: "segment",
 		targetId: id,
 	})
+}
+
+export async function bulkDeleteSegments(ids: string[]) {
+	const workspace = await requireSegmentsPermission()
+	await db.delete(customerSegments).where(and(inArray(customerSegments.id, ids), eq(customerSegments.workspaceId, workspace.id)))
 }
 
 export async function addSegmentMember(segmentId: string, userId: string) {

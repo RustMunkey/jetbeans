@@ -11,7 +11,7 @@ export default async function PendingReviewsPage({ searchParams }: PageProps) {
 	const { page } = await reviewsParamsCache.parse(searchParams)
 	const { items, totalCount } = await getReviews({
 		page,
-		pageSize: 30,
+		pageSize: 25,
 		status: "pending",
 	})
 

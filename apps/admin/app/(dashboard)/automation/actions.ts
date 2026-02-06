@@ -1,6 +1,6 @@
 "use server"
 
-import { eq, and, desc, count, sql, asc } from "@jetbeans/db/drizzle"
+import { eq, and, desc, count, sql, asc, inArray } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { workflows, workflowRuns, workflowRunSteps } from "@jetbeans/db/schema"
 import type { Workflow, NewWorkflow, WorkflowRun, WorkflowTrigger, WorkflowAction } from "@jetbeans/db/schema"
@@ -29,7 +29,7 @@ export async function getWorkflows(params?: {
 	isActive?: boolean
 }) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, trigger, isActive } = params ?? {}
+	const { page = 1, pageSize = 25, trigger, isActive } = params ?? {}
 	const offset = (page - 1) * pageSize
 
 	const conditions = [eq(workflows.workspaceId, workspace.id)]
@@ -85,7 +85,7 @@ export async function getWorkflowRuns(params?: {
 	status?: "pending" | "running" | "completed" | "failed" | "cancelled"
 }) {
 	const workspace = await requireWorkspace()
-	const { workflowId, page = 1, pageSize = 30, status } = params ?? {}
+	const { workflowId, page = 1, pageSize = 25, status } = params ?? {}
 	const offset = (page - 1) * pageSize
 
 	const conditions = [eq(workflowRuns.workspaceId, workspace.id)]
@@ -250,6 +250,16 @@ export async function deleteWorkflow(id: string) {
 	}
 
 	return workflow
+}
+
+export async function bulkDeleteWorkflows(ids: string[]) {
+	const workspace = await requireAutomationPermission()
+	await db.delete(workflows).where(and(inArray(workflows.id, ids), eq(workflows.workspaceId, workspace.id)))
+}
+
+export async function bulkDeleteRuns(ids: string[]) {
+	const workspace = await requireAutomationPermission()
+	await db.delete(workflowRuns).where(and(inArray(workflowRuns.id, ids), eq(workflowRuns.workspaceId, workspace.id)))
 }
 
 export async function duplicateWorkflow(id: string) {

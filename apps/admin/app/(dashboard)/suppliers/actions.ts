@@ -1,6 +1,6 @@
 "use server"
 
-import { eq, desc, count, and } from "@jetbeans/db/drizzle"
+import { eq, desc, count, and, inArray } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import {
 	suppliers,
@@ -30,7 +30,7 @@ interface GetSuppliersParams {
 
 export async function getSuppliers(params: GetSuppliersParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30 } = params
+	const { page = 1, pageSize = 25 } = params
 	const offset = (page - 1) * pageSize
 
 	const where = eq(suppliers.workspaceId, workspace.id)
@@ -118,6 +118,11 @@ export async function deleteSupplier(id: string) {
 	})
 }
 
+export async function bulkDeleteSuppliers(ids: string[]) {
+	const workspace = await requireSuppliersPermission()
+	await db.delete(suppliers).where(and(inArray(suppliers.id, ids), eq(suppliers.workspaceId, workspace.id)))
+}
+
 // --- PURCHASE ORDERS ---
 
 interface GetPurchaseOrdersParams {
@@ -128,7 +133,7 @@ interface GetPurchaseOrdersParams {
 
 export async function getPurchaseOrders(params: GetPurchaseOrdersParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, status } = params
+	const { page = 1, pageSize = 25, status } = params
 	const offset = (page - 1) * pageSize
 
 	// Filter by workspace through suppliers
@@ -303,4 +308,18 @@ export async function deletePurchaseOrder(id: string) {
 		targetType: "purchase_order",
 		targetId: id,
 	})
+}
+
+export async function bulkDeletePurchaseOrders(ids: string[]) {
+	const workspace = await requireSuppliersPermission()
+	// Only delete POs whose supplier belongs to this workspace
+	const workspacePOs = await db
+		.select({ id: purchaseOrders.id })
+		.from(purchaseOrders)
+		.innerJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
+		.where(and(inArray(purchaseOrders.id, ids), eq(suppliers.workspaceId, workspace.id)))
+	const validIds = workspacePOs.map((po) => po.id)
+	if (validIds.length > 0) {
+		await db.delete(purchaseOrders).where(inArray(purchaseOrders.id, validIds))
+	}
 }

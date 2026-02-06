@@ -13,7 +13,7 @@ export default async function FulfillmentPage({ searchParams }: PageProps) {
 	const { items, totalCount } = await getOrdersByStatus({
 		statuses: ["confirmed", "processing", "packed"],
 		page,
-		pageSize: 30,
+		pageSize: 25,
 	})
 
 	return (

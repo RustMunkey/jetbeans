@@ -3,7 +3,7 @@
 import { useQueryStates, parseAsInteger, parseAsString, parseAsStringLiteral } from "nuqs"
 
 // Shared options for shallow routing (no server request, instant updates)
-const shallowOptions = { shallow: true, history: "push" as const }
+const shallowOptions = { shallow: false, history: "push" as const }
 
 // Orders table params
 export function useOrdersParams() {

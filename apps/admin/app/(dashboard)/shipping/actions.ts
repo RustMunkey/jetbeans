@@ -1,6 +1,6 @@
 "use server"
 
-import { eq, and, desc, count, sql } from "@jetbeans/db/drizzle"
+import { eq, and, desc, count, sql, inArray } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import {
 	shippingCarriers,
@@ -35,7 +35,7 @@ interface GetCarriersParams {
 
 export async function getCarriers(params: GetCarriersParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30 } = params
+	const { page = 1, pageSize = 25 } = params
 	const offset = (page - 1) * pageSize
 
 	const where = eq(shippingCarriers.workspaceId, workspace.id)
@@ -117,6 +117,11 @@ export async function deleteCarrier(id: string) {
 		targetType: "carrier",
 		targetId: id,
 	})
+}
+
+export async function bulkDeleteCarriers(ids: string[]) {
+	const workspace = await requireShippingPermission()
+	await db.delete(shippingCarriers).where(and(inArray(shippingCarriers.id, ids), eq(shippingCarriers.workspaceId, workspace.id)))
 }
 
 // --- RATES ---
@@ -214,7 +219,7 @@ interface GetZonesParams {
 
 export async function getZones(params: GetZonesParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30 } = params
+	const { page = 1, pageSize = 25 } = params
 	const offset = (page - 1) * pageSize
 
 	const where = eq(shippingZones.workspaceId, workspace.id)
@@ -307,6 +312,11 @@ export async function deleteZone(id: string) {
 	})
 }
 
+export async function bulkDeleteZones(ids: string[]) {
+	const workspace = await requireShippingPermission()
+	await db.delete(shippingZones).where(and(inArray(shippingZones.id, ids), eq(shippingZones.workspaceId, workspace.id)))
+}
+
 export async function addZoneRate(data: { zoneId: string; carrierId: string; rateId: string; priceOverride?: string }) {
 	const workspace = await requireShippingPermission()
 
@@ -368,7 +378,7 @@ interface GetLabelsParams {
 
 export async function getLabels(params: GetLabelsParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, status } = params
+	const { page = 1, pageSize = 25, status } = params
 	const offset = (page - 1) * pageSize
 
 	// Filter by workspace through orders
@@ -463,6 +473,19 @@ export async function updateLabelStatus(id: string, status: string) {
 	})
 }
 
+export async function bulkDeleteLabels(ids: string[]) {
+	const workspace = await requireShippingPermission()
+	const items = await db
+		.select({ id: shippingLabels.id })
+		.from(shippingLabels)
+		.innerJoin(orders, eq(shippingLabels.orderId, orders.id))
+		.where(and(inArray(shippingLabels.id, ids), eq(orders.workspaceId, workspace.id)))
+	const validIds = items.map((i) => i.id)
+	if (validIds.length > 0) {
+		await db.delete(shippingLabels).where(inArray(shippingLabels.id, validIds))
+	}
+}
+
 // --- TRACKING ---
 
 interface GetTrackingParams {
@@ -473,7 +496,7 @@ interface GetTrackingParams {
 
 export async function getTracking(params: GetTrackingParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, status } = params
+	const { page = 1, pageSize = 25, status } = params
 	const offset = (page - 1) * pageSize
 
 	// Filter by workspace through orders
@@ -575,6 +598,19 @@ export async function getTrackingByOrderId(orderId: string) {
 	return item ?? null
 }
 
+export async function bulkDeleteTrackingEvents(ids: string[]) {
+	const workspace = await requireShippingPermission()
+	const items = await db
+		.select({ id: shipmentTracking.id })
+		.from(shipmentTracking)
+		.innerJoin(orders, eq(shipmentTracking.orderId, orders.id))
+		.where(and(inArray(shipmentTracking.id, ids), eq(orders.workspaceId, workspace.id)))
+	const validIds = items.map((i) => i.id)
+	if (validIds.length > 0) {
+		await db.delete(shipmentTracking).where(inArray(shipmentTracking.id, validIds))
+	}
+}
+
 // --- REVIEW QUEUE ---
 
 interface GetPendingTrackingParams {
@@ -584,7 +620,7 @@ interface GetPendingTrackingParams {
 
 export async function getPendingTracking(params: GetPendingTrackingParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30 } = params
+	const { page = 1, pageSize = 25 } = params
 	const offset = (page - 1) * pageSize
 
 	// Filter by workspace - tracking with orders in this workspace OR tracking without orders but with carriers in this workspace
@@ -805,6 +841,19 @@ export async function updateTrackingOrder(id: string, orderId: string) {
 		return { success: true }
 	} catch (error) {
 		return { success: false, error: error instanceof Error ? error.message : "Failed to update tracking" }
+	}
+}
+
+export async function bulkRejectPendingTracking(ids: string[]) {
+	const workspace = await requireShippingPermission()
+	const items = await db
+		.select({ id: shipmentTracking.id })
+		.from(shipmentTracking)
+		.innerJoin(orders, eq(shipmentTracking.orderId, orders.id))
+		.where(and(inArray(shipmentTracking.id, ids), eq(orders.workspaceId, workspace.id)))
+	const validIds = items.map((i) => i.id)
+	if (validIds.length > 0) {
+		await db.delete(shipmentTracking).where(inArray(shipmentTracking.id, validIds))
 	}
 }
 

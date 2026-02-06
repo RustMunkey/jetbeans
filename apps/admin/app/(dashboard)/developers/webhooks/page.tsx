@@ -14,7 +14,7 @@ interface PageProps {
 export default async function WebhooksPage({ searchParams }: PageProps) {
 	const params = await searchParams
 	const page = Number(params.page) || 1
-	const pageSize = 50
+	const pageSize = 25
 	const offset = (page - 1) * pageSize
 
 	// Build filters

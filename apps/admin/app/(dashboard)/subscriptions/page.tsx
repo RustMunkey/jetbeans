@@ -12,7 +12,7 @@ export default async function SubscriptionsPage({ searchParams }: PageProps) {
 
 	const { items, totalCount } = await getSubscriptions({
 		page,
-		pageSize: 30,
+		pageSize: 25,
 		status: status === "all" ? undefined : status,
 	})
 

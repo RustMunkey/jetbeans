@@ -16,7 +16,7 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { DataTable, type Column } from "@/components/data-table"
 import { formatDate } from "@/lib/format"
-import { createSupplier } from "./actions"
+import { createSupplier, bulkDeleteSuppliers } from "./actions"
 
 interface Supplier {
 	id: string
@@ -45,6 +45,21 @@ export function SuppliersTable({ suppliers, totalCount, currentPage }: Suppliers
 	const [country, setCountry] = useState("")
 	const [leadTime, setLeadTime] = useState("")
 	const [loading, setLoading] = useState(false)
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+	const handleBulkDelete = async () => {
+		setLoading(true)
+		try {
+			await bulkDeleteSuppliers(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} supplier(s)`)
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete suppliers")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const columns: Column<Supplier>[] = [
 		{
@@ -120,13 +135,17 @@ export function SuppliersTable({ suppliers, totalCount, currentPage }: Suppliers
 				columns={columns}
 				data={countryFilter === "all" ? suppliers : suppliers.filter((s) => s.country === countryFilter)}
 				searchPlaceholder="Search suppliers..."
+				selectable
+				selectedIds={selectedIds}
+				onSelectionChange={setSelectedIds}
 				getId={(row) => row.id}
 				onRowClick={(row) => router.push(`/suppliers/${row.id}`)}
+				bulkActions={<Button size="sm" variant="destructive" disabled={loading} onClick={() => handleBulkDelete()}>Delete</Button>}
 				emptyMessage="No suppliers"
 				emptyDescription="Add a supplier to manage your product sourcing."
 				totalCount={totalCount}
 				currentPage={currentPage}
-				pageSize={30}
+				pageSize={25}
 				filters={
 					<>
 						<Select value={countryFilter} onValueChange={setCountryFilter}>

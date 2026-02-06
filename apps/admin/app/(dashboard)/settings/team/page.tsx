@@ -3,18 +3,29 @@ import { auth } from "@/lib/auth"
 import { getTeamMembers, getPendingInvites } from "./actions"
 import { TeamClient } from "./team-client"
 
-export default async function TeamPage() {
+interface PageProps {
+  searchParams: Promise<{ page?: string }>
+}
+
+export default async function TeamPage({ searchParams }: PageProps) {
+  const params = await searchParams
+  const page = Number(params.page) || 1
+  const pageSize = 25
+
   const session = await auth.api.getSession({
     headers: await headers(),
   })
 
-  const members = await getTeamMembers()
-  const pendingInvites = await getPendingInvites()
+  const [membersData, pendingInvites] = await Promise.all([
+    getTeamMembers({ page, pageSize }),
+    getPendingInvites(),
+  ])
+
   const OWNER_WHITELIST = [
     "wilson.asher00@gmail.com",
     "reeseroberge10@gmail.com",
   ]
-  const currentMember = members.find((m) => m.id === session?.user.id)
+  const currentMember = membersData.items.find((m) => m.id === session?.user.id)
   const isOwner = currentMember?.role === "owner" && OWNER_WHITELIST.includes(currentMember.email)
 
   return (
@@ -23,7 +34,9 @@ export default async function TeamPage() {
         Manage who has access to the admin panel.
       </p>
       <TeamClient
-        members={members}
+        members={membersData.items}
+        membersTotalCount={membersData.totalCount}
+        membersCurrentPage={page}
         pendingInvites={pendingInvites}
         isOwner={isOwner}
       />

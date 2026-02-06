@@ -13,7 +13,7 @@ export default async function ReturnsPage({ searchParams }: PageProps) {
 	const { items, totalCount } = await getOrdersByStatus({
 		statuses: ["refunded", "partially_refunded", "returned"],
 		page,
-		pageSize: 30,
+		pageSize: 25,
 	})
 
 	return (

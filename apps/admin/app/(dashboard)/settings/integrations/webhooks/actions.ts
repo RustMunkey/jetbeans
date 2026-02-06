@@ -199,7 +199,7 @@ interface GetDeliveryLogsParams {
 export async function getDeliveryLogs(params: GetDeliveryLogsParams = {}) {
 	const workspace = await requireWebhooksPermission()
 
-	const { page = 1, pageSize = 30, endpointId, status } = params
+	const { page = 1, pageSize = 25, endpointId, status } = params
 	const offset = (page - 1) * pageSize
 
 	// Filter by workspace through endpoints
@@ -337,7 +337,7 @@ export async function getWebhookEvents(params: GetWebhookEventsParams = {}) {
 	// For now, only allow owners to view them
 	await requireWebhooksPermission()
 
-	const { page = 1, pageSize = 30, provider, status } = params
+	const { page = 1, pageSize = 25, provider, status } = params
 	const offset = (page - 1) * pageSize
 
 	const conditions = []

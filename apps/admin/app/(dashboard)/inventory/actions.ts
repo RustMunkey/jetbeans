@@ -1,6 +1,6 @@
 "use server"
 
-import { eq, and, desc, sql, count, lte, ilike, or } from "@jetbeans/db/drizzle"
+import { eq, and, desc, sql, count, lte, ilike, or, inArray } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { inventory, inventoryLogs, products, productVariants } from "@jetbeans/db/schema"
 import { logAudit } from "@/lib/audit"
@@ -27,7 +27,7 @@ interface GetInventoryParams {
 
 export async function getInventory(params: GetInventoryParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, search, filter } = params
+	const { page = 1, pageSize = 25, search, filter } = params
 	const offset = (page - 1) * pageSize
 
 	// Always filter by workspace through products
@@ -88,7 +88,7 @@ export async function getInventory(params: GetInventoryParams = {}) {
 
 export async function getAlerts(params: { page?: number; pageSize?: number } = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30 } = params
+	const { page = 1, pageSize = 25 } = params
 	const offset = (page - 1) * pageSize
 
 	const whereCondition = and(
@@ -130,7 +130,7 @@ export async function getAlerts(params: { page?: number; pageSize?: number } = {
 
 export async function getInventoryLogs(params: { page?: number; pageSize?: number } = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30 } = params
+	const { page = 1, pageSize = 25 } = params
 	const offset = (page - 1) * pageSize
 
 	const whereCondition = eq(products.workspaceId, workspace.id)
@@ -270,6 +270,49 @@ export async function adjustStock(
 		await fireWebhooks("inventory.low_stock", webhookData, workspace.id)
 	} else if (newAvailable > threshold && previousAvailable <= threshold) {
 		await fireWebhooks("inventory.restocked", webhookData, workspace.id)
+	}
+}
+
+export async function bulkDeleteInventory(ids: string[]) {
+	const workspace = await requireInventoryPermission()
+	// Get the variant IDs through product workspace verification
+	const items = await db
+		.select({ id: inventory.id })
+		.from(inventory)
+		.innerJoin(productVariants, eq(inventory.variantId, productVariants.id))
+		.innerJoin(products, eq(productVariants.productId, products.id))
+		.where(and(inArray(inventory.id, ids), eq(products.workspaceId, workspace.id)))
+	const validIds = items.map((i) => i.id)
+	if (validIds.length > 0) {
+		await db.delete(inventory).where(inArray(inventory.id, validIds))
+	}
+}
+
+export async function bulkDeleteAlerts(ids: string[]) {
+	const workspace = await requireInventoryPermission()
+	const items = await db
+		.select({ id: inventory.id })
+		.from(inventory)
+		.innerJoin(productVariants, eq(inventory.variantId, productVariants.id))
+		.innerJoin(products, eq(productVariants.productId, products.id))
+		.where(and(inArray(inventory.id, ids), eq(products.workspaceId, workspace.id)))
+	const validIds = items.map((i) => i.id)
+	if (validIds.length > 0) {
+		await db.delete(inventory).where(inArray(inventory.id, validIds))
+	}
+}
+
+export async function bulkDeleteInventoryLogs(ids: string[]) {
+	const workspace = await requireInventoryPermission()
+	const items = await db
+		.select({ id: inventoryLogs.id })
+		.from(inventoryLogs)
+		.innerJoin(productVariants, eq(inventoryLogs.variantId, productVariants.id))
+		.innerJoin(products, eq(productVariants.productId, products.id))
+		.where(and(inArray(inventoryLogs.id, ids), eq(products.workspaceId, workspace.id)))
+	const validIds = items.map((i) => i.id)
+	if (validIds.length > 0) {
+		await db.delete(inventoryLogs).where(inArray(inventoryLogs.id, validIds))
 	}
 }
 

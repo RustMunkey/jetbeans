@@ -24,7 +24,7 @@ interface GetReviewsParams {
 
 export async function getReviews(params: GetReviewsParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, status } = params
+	const { page = 1, pageSize = 25, status } = params
 	const offset = (page - 1) * pageSize
 
 	// Filter reviews by workspace through products

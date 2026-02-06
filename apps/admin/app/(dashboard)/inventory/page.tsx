@@ -13,7 +13,7 @@ export default async function InventoryPage({ searchParams }: PageProps) {
 	const filter = stock === "all" ? undefined : stock === "low_stock" ? "low" : stock === "out_of_stock" ? "out" : undefined
 	const { items, totalCount } = await getInventory({
 		page,
-		pageSize: 30,
+		pageSize: 25,
 		search: search || undefined,
 		filter,
 	})

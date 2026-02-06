@@ -25,7 +25,7 @@ import {
 import { formatCurrency, formatDate } from "@/lib/format"
 import { usePaginationParams } from "@/hooks/use-table-params"
 import { useQueryState, parseAsStringLiteral } from "nuqs"
-import { createDiscount, toggleDiscount } from "./actions"
+import { createDiscount, toggleDiscount, bulkDeleteDiscounts } from "./actions"
 
 interface Discount {
 	id: string
@@ -65,6 +65,21 @@ export function DiscountsTable({ discounts, totalCount }: DiscountsTableProps) {
 	const [maxUses, setMaxUses] = useState("")
 	const [expiresAt, setExpiresAt] = useState("")
 	const [loading, setLoading] = useState(false)
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+	const handleBulkDelete = async () => {
+		setLoading(true)
+		try {
+			await bulkDeleteDiscounts(selectedIds)
+			toast.success(`Deleted ${selectedIds.length} discount(s)`)
+			setSelectedIds([])
+			router.refresh()
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	function getStatus(d: Discount): string {
 		if (!d.isActive) return "inactive"
@@ -205,7 +220,11 @@ export function DiscountsTable({ discounts, totalCount }: DiscountsTableProps) {
 				columns={columns}
 				data={filtered}
 				searchPlaceholder="Search discounts..."
+				selectable
+				selectedIds={selectedIds}
+				onSelectionChange={setSelectedIds}
 				getId={(row) => row.id}
+				bulkActions={<Button size="sm" variant="destructive" disabled={loading} onClick={() => handleBulkDelete()}>Delete</Button>}
 				onRowClick={(row) => router.push(`/marketing/${row.id}`)}
 				emptyMessage="No discounts"
 				emptyDescription="Create a discount code to offer promotions."

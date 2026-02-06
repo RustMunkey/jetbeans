@@ -258,7 +258,7 @@ export function InboxTab({
 					searchPlaceholder="Search emails..."
 					totalCount={filteredEmails.length}
 					currentPage={1}
-					pageSize={30}
+					pageSize={25}
 					getId={(row) => row.id}
 					onRowClick={(row) => handleSelectEmail(row.id)}
 					emptyMessage="No emails yet"

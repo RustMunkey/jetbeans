@@ -1,6 +1,6 @@
 "use server"
 
-import { eq, and, desc, count, sql, gte, lte, or, asc } from "@jetbeans/db/drizzle"
+import { eq, and, desc, count, sql, gte, lte, or, asc, inArray } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
 import { auctions, bids, auctionWatchers, users, products } from "@jetbeans/db/schema"
 import type { Auction, NewAuction, Bid } from "@jetbeans/db/schema"
@@ -39,7 +39,7 @@ interface GetAuctionsParams {
 
 export async function getAuctions(params: GetAuctionsParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, status, search } = params
+	const { page = 1, pageSize = 25, status, search } = params
 	const offset = (page - 1) * pageSize
 
 	const conditions = [eq(auctions.workspaceId, workspace.id)]
@@ -91,7 +91,7 @@ export async function getDraftAuctions(params: Omit<GetAuctionsParams, "status">
 
 export async function getClosedAuctions(params: GetAuctionsParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, search } = params
+	const { page = 1, pageSize = 25, search } = params
 	const offset = (page - 1) * pageSize
 
 	const conditions = [
@@ -966,4 +966,9 @@ export async function deleteAuction(id: string) {
 	})
 
 	return { success: true }
+}
+
+export async function bulkDeleteAuctions(ids: string[]) {
+	const workspace = await requireAuctionsPermission()
+	await db.delete(auctions).where(and(inArray(auctions.id, ids), eq(auctions.workspaceId, workspace.id)))
 }

@@ -1,10 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { DataTable, type Column } from "@/components/data-table"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
-import { deleteSitePage } from "../actions"
+import { deleteSitePage, bulkDeleteSitePages } from "../actions"
 
 type SitePage = {
 	id: string
@@ -22,6 +24,22 @@ interface PagesTableProps {
 
 export function PagesTable({ pages, totalCount, currentPage }: PagesTableProps) {
 	const router = useRouter()
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+	const [loading, setLoading] = useState(false)
+
+	const handleBulkDelete = async () => {
+		setLoading(true)
+		try {
+			await bulkDeleteSitePages(selectedIds)
+			toast.success(`Deleted ${selectedIds.length} page(s)`)
+			setSelectedIds([])
+			router.refresh()
+		} catch (e: any) {
+			toast.error(e.message || "Failed to delete")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	const columns: Column<SitePage>[] = [
 		{
@@ -52,6 +70,11 @@ export function PagesTable({ pages, totalCount, currentPage }: PagesTableProps) 
 			columns={columns}
 			searchKey="title"
 			searchPlaceholder="Search pages..."
+			selectable
+			selectedIds={selectedIds}
+			onSelectionChange={setSelectedIds}
+			getId={(row) => row.id}
+			bulkActions={<Button size="sm" variant="destructive" disabled={loading} onClick={() => handleBulkDelete()}>Delete</Button>}
 			onRowClick={(row) => router.push(`/content/pages/${row.id}`)}
 			totalCount={totalCount}
 			currentPage={currentPage}

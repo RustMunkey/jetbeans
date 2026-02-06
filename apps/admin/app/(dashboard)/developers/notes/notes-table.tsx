@@ -20,7 +20,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RichTextEditor, RichTextDisplay } from "@/components/rich-text-editor"
-import { getDeveloperNotes, createDeveloperNote, updateDeveloperNote, deleteDeveloperNote } from "./actions"
+import { getDeveloperNotes, createDeveloperNote, updateDeveloperNote, deleteDeveloperNote, bulkDeleteNotes } from "./actions"
 import { useDraft, type Draft } from "@/lib/use-draft"
 import { DraftIndicator, DraftStatus } from "@/components/drafts-manager"
 
@@ -83,9 +83,13 @@ function getInitials(name: string | null) {
 export function NotesTable({
 	notes: initialNotes,
 	users,
+	totalCount,
+	currentPage,
 }: {
 	notes: DeveloperNote[]
 	users: TeamMember[]
+	totalCount: number
+	currentPage: number
 }) {
 	useBreadcrumbOverride("developers", "Developers")
 	useBreadcrumbOverride("notes", "Notes & Bugs")
@@ -106,6 +110,23 @@ export function NotesTable({
 		assignedTo: "__unassigned__",
 	})
 	const [saving, setSaving] = useState(false)
+	const [loading, setLoading] = useState(false)
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+	const handleBulkDelete = async () => {
+		if (selectedIds.length === 0) return
+		setLoading(true)
+		try {
+			await bulkDeleteNotes(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`Deleted ${selectedIds.length} note(s)`)
+		} catch {
+			toast.error("Failed to delete notes")
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	// Draft support
 	type NoteFormData = typeof formData
@@ -145,11 +166,11 @@ export function NotesTable({
 	async function handleFilterChange(status: string, type: string) {
 		setStatusFilter(status)
 		setTypeFilter(type)
-		const filtered = await getDeveloperNotes({
+		const { items } = await getDeveloperNotes({
 			status: status !== "all" ? status : undefined,
 			type: type !== "all" ? type : undefined,
 		})
-		setNotes(filtered)
+		setNotes(items)
 	}
 
 	function openCreateDialog() {
@@ -217,7 +238,7 @@ export function NotesTable({
 			}
 			setDialogOpen(false)
 			// Refresh the list
-			const refreshed = await getDeveloperNotes({
+			const { items: refreshed } = await getDeveloperNotes({
 				status: statusFilter !== "all" ? statusFilter : undefined,
 				type: typeFilter !== "all" ? typeFilter : undefined,
 			})
@@ -354,6 +375,14 @@ export function NotesTable({
 				columns={columns}
 				searchKey="title"
 				searchPlaceholder="Search notes..."
+				totalCount={totalCount}
+				currentPage={currentPage}
+				pageSize={25}
+				getId={(row) => row.id}
+				selectable
+				selectedIds={selectedIds}
+				onSelectionChange={setSelectedIds}
+				bulkActions={<Button size="sm" variant="destructive" disabled={loading} onClick={() => handleBulkDelete()}>Delete</Button>}
 				filters={
 					<>
 						<Select value={typeFilter} onValueChange={(v) => handleFilterChange(statusFilter, v)}>

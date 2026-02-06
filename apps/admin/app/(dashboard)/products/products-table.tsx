@@ -132,7 +132,7 @@ export function ProductsTable({
 			searchPlaceholder="Search products..."
 			totalCount={totalCount}
 			currentPage={params.page}
-			pageSize={30}
+			pageSize={25}
 			onPageChange={(page) => setParams({ page })}
 			selectable
 			selectedIds={selectedIds}

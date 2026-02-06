@@ -30,7 +30,7 @@ interface GetProductsParams {
 
 export async function getProducts(params: GetProductsParams = {}) {
 	const workspace = await requireWorkspace()
-	const { page = 1, pageSize = 30, search, category, status } = params
+	const { page = 1, pageSize = 25, search, category, status } = params
 	const offset = (page - 1) * pageSize
 
 	// Always filter by workspace

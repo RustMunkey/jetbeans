@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Search01Icon,
-  Add01Icon,
+  AddSquareIcon,
   Store01Icon,
   DashboardSquare01Icon,
   InboxIcon,
@@ -62,7 +62,7 @@ export function HeaderToolbar({ storefrontUrl, initialMaintenanceMode }: { store
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="size-8">
-              <HugeiconsIcon icon={Add01Icon} size={16} />
+              <HugeiconsIcon icon={AddSquareIcon} size={16} />
               <span className="sr-only">Quick create</span>
             </Button>
           </DropdownMenuTrigger>
