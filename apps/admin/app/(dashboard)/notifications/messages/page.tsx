@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
 import { getTeamMessages, getTeamMembers, getInboxEmails } from "./actions"
+import { getFriends, getConversations } from "@/app/(dashboard)/discover/actions"
 import { MessagesClient } from "./messages-client"
 
 // Disable caching for this page - always fetch fresh messages
@@ -17,10 +18,12 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
 
 	const params = await searchParams
 
-	const [messages, teamMembers, inboxEmails] = await Promise.all([
+	const [messages, teamMembers, inboxEmails, friends, dmConversations] = await Promise.all([
 		getTeamMessages(session.user.id),
 		getTeamMembers(),
 		getInboxEmails(),
+		getFriends(),
+		getConversations(),
 	])
 
 	return (
@@ -29,6 +32,8 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
 				messages={messages.map((m) => ({
 					...m,
 					senderName: m.senderName || "Unknown",
+					contentType: m.contentType as "text" | "markdown" | "call" | undefined,
+					callData: m.callData ?? undefined,
 					attachments: m.attachments || undefined,
 					createdAt: m.createdAt.toISOString(),
 					readAt: m.readAt?.toISOString() || null,
@@ -42,6 +47,8 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
 				}))}
 				inboxEmails={inboxEmails}
 				selectedEmailId={params.email}
+				friends={friends}
+				dmConversations={dmConversations}
 			/>
 		</div>
 	)

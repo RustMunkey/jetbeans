@@ -9,6 +9,14 @@ export type MessageAttachment = {
 	duration?: number
 }
 
+export type CallMessageData = {
+	callId: string
+	callType: "voice" | "video"
+	callStatus: "initiated" | "accepted" | "declined" | "missed" | "ended"
+	durationSeconds?: number
+	participantIds: string[]
+}
+
 export type TeamMessage = {
 	id: string
 	senderId: string | null // null for webhook-originated messages
@@ -16,6 +24,8 @@ export type TeamMessage = {
 	senderImage: string | null
 	channel: string
 	body: string | null
+	contentType?: "text" | "markdown" | "call"
+	callData?: CallMessageData | null
 	attachments?: MessageAttachment[] | null
 	createdAt: string
 	readAt: string | null
@@ -34,7 +44,7 @@ export type Conversation = {
 	label: string
 }
 
-export const CHANNELS = ["general", "urgent", "orders", "inventory"] as const
+export const CHANNELS = ["general"] as const
 export type Channel = (typeof CHANNELS)[number]
 
 export type InboxEmailReply = {

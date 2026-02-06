@@ -31,7 +31,7 @@ async function getLiveKit() {
 
 export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 	const [room, setRoom] = useState<Room | null>(null)
-	const [connectionState, setConnectionState] = useState<number>(0) // Disconnected = 0
+	const [connectionState, setConnectionState] = useState<string>("disconnected")
 	const [participants, setParticipants] = useState<Participant[]>([])
 	const [dominantSpeaker, setDominantSpeaker] = useState<string | null>(null)
 	const [localAudioEnabled, setLocalAudioEnabled] = useState(true)
@@ -120,11 +120,19 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 			setRoom(newRoom)
 
 			const handleConnectionStateChanged = (state: ConnectionState) => {
-				setConnectionState(state as unknown as number)
+				console.log("[LiveKit] Connection state changed:", state)
+				setConnectionState(state as string)
 			}
 
-			const handleParticipantConnected = () => updateParticipants(newRoom!)
-			const handleParticipantDisconnected = () => updateParticipants(newRoom!)
+			const handleParticipantConnected = (participant: { identity: string; sid: string }) => {
+				console.log("[LiveKit] Participant connected:", participant.identity, "SID:", participant.sid)
+				console.log("[LiveKit] Total remote participants now:", newRoom!.remoteParticipants.size)
+				updateParticipants(newRoom!)
+			}
+			const handleParticipantDisconnected = (participant: { identity: string; sid: string }) => {
+				console.log("[LiveKit] Participant disconnected:", participant.identity)
+				updateParticipants(newRoom!)
+			}
 			const handleTrackSubscribed = () => updateParticipants(newRoom!)
 			const handleTrackUnsubscribed = () => updateParticipants(newRoom!)
 			const syncLocalState = () => {
@@ -159,9 +167,29 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 			newRoom.on(lk.RoomEvent.ActiveSpeakersChanged, handleActiveSpeakersChanged)
 
 			try {
-				console.log("[LiveKit] Connecting to room:", wsUrl)
-				await newRoom.connect(wsUrl!, token!)
-				console.log("[LiveKit] Connected successfully")
+				console.log("[LiveKit] Connecting to room...")
+				console.log("[LiveKit] URL:", wsUrl)
+				console.log("[LiveKit] Token length:", token?.length)
+
+				// Add connection timeout
+				const connectPromise = newRoom.connect(wsUrl!, token!)
+				const timeoutPromise = new Promise<never>((_, reject) =>
+					setTimeout(() => reject(new Error("Connection timeout after 15 seconds")), 15000)
+				)
+
+				await Promise.race([connectPromise, timeoutPromise])
+
+				console.log("[LiveKit] Connected successfully!")
+				console.log("[LiveKit] Room name:", newRoom.name)
+				console.log("[LiveKit] Room state:", newRoom.state)
+				console.log("[LiveKit] Local participant:", newRoom.localParticipant.identity)
+				console.log("[LiveKit] Local participant SID:", newRoom.localParticipant.sid)
+				console.log("[LiveKit] Remote participants:", newRoom.remoteParticipants.size)
+				// Log remote participant details if any
+				newRoom.remoteParticipants.forEach((p) => {
+					console.log("[LiveKit] Remote participant:", p.identity, "SID:", p.sid)
+				})
+
 				// Enable camera and mic based on intended state (user may have toggled before connect)
 				const local = newRoom.localParticipant
 				await local.setCameraEnabled(intendedVideoRef.current)
@@ -172,8 +200,14 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 				updateParticipants(newRoom)
 			} catch (err) {
 				console.error("[LiveKit] Failed to connect to room:", err)
+				console.error("[LiveKit] Error details:", {
+					wsUrl,
+					tokenLength: token?.length,
+					errorMessage: err instanceof Error ? err.message : String(err),
+					errorStack: err instanceof Error ? err.stack : undefined,
+				})
 				// Signal connection error
-				setConnectionState(-1)
+				setConnectionState("failed")
 			}
 		}
 

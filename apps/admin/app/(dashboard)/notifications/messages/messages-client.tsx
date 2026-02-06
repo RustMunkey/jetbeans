@@ -11,6 +11,30 @@ import type { TeamMessage, TeamMember, InboxEmail } from "./types"
 
 const PREVIOUS_PATH_KEY = "jetbeans_messages_previous_path"
 
+type Friend = {
+	id: string
+	name: string | null
+	username: string | null
+	image: string | null
+	bio: string | null
+}
+
+type DMConversation = {
+	id: string
+	participant1Id: string
+	participant2Id: string
+	lastMessageAt: Date | null
+	lastMessagePreview: string | null
+	createdAt: Date
+	otherUser: {
+		id: string
+		name: string | null
+		username: string | null
+		image: string | null
+	} | null
+	unreadCount: number
+}
+
 export function MessagesClient({
 	messages,
 	userId,
@@ -19,6 +43,8 @@ export function MessagesClient({
 	teamMembers,
 	inboxEmails,
 	selectedEmailId,
+	friends,
+	dmConversations,
 }: {
 	messages: TeamMessage[]
 	userId: string
@@ -27,6 +53,8 @@ export function MessagesClient({
 	teamMembers: TeamMember[]
 	inboxEmails: InboxEmail[]
 	selectedEmailId?: string
+	friends: Friend[]
+	dmConversations: DMConversation[]
 }) {
 	const { setMode, setPreviousPath } = useSidebarMode()
 	const { initialize, viewMode, setViewMode } = useChat()
@@ -88,6 +116,8 @@ export function MessagesClient({
 				userName={userName}
 				userImage={userImage}
 				onTabChange={handleTabChange}
+				initialFriends={friends}
+				initialConversations={dmConversations}
 			/>
 		)
 	}

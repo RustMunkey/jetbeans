@@ -7,8 +7,8 @@ import { ParticipantGrid } from "./participant-grid"
 import { Button } from "@/components/ui/button"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Minimize02Icon, Maximize02Icon } from "@hugeicons/core-free-icons"
-// ConnectionState enum values: Disconnected=0, Connecting=1, Connected=2, Reconnecting=3
-const ConnectionState = { Connected: 2 } as const
+// ConnectionState string values matching livekit-client
+const ConnectionState = { Connected: "connected" } as const
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 

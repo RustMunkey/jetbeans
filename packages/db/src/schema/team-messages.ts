@@ -11,6 +11,15 @@ export type MessageAttachment = {
 	mimeType?: string
 }
 
+// Call message data for Snapchat-style call events in chat
+export type CallMessageData = {
+	callId: string
+	callType: "voice" | "video"
+	callStatus: "initiated" | "accepted" | "declined" | "missed" | "ended"
+	durationSeconds?: number // Only for ended calls
+	participantIds: string[] // Other participants in the call
+}
+
 // Discord-style embed
 export type MessageEmbed = {
 	title?: string
@@ -58,7 +67,8 @@ export const teamMessages = pgTable(
 		webhookAvatarUrl: text("webhook_avatar_url"),
 		channel: text("channel").notNull().default("general"), // "dm" for direct messages
 		body: text("body"), // Can be null if only embeds
-		contentType: text("content_type").notNull().default("text"), // text, markdown
+		contentType: text("content_type").notNull().default("text"), // text, markdown, call
+		callData: json("call_data").$type<CallMessageData>(), // Only for contentType="call"
 		embeds: json("embeds").$type<MessageEmbed[]>().default([]),
 		attachments: json("attachments").$type<MessageAttachment[]>().default([]),
 		isSystemMessage: boolean("is_system_message").default(false).notNull(),

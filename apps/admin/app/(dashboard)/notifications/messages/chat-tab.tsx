@@ -4,13 +4,13 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Image02Icon, Cancel01Icon, Link04Icon } from "@hugeicons/core-free-icons"
+import { Image02Icon, Cancel01Icon, Link04Icon, Call02Icon, Video02Icon, CallMissed01Icon } from "@hugeicons/core-free-icons"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { usePusher } from "@/components/pusher-provider"
 import { useChat } from "@/components/messages"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { sendTeamMessage, markMessageRead, getMessageReadStatus, getTeamMessages, uploadChatImage, fetchLinkPreview } from "./actions"
-import type { TeamMessage, MessageAttachment } from "./types"
+import type { TeamMessage, MessageAttachment, CallMessageData } from "./types"
 
 // URL regex for detecting links in messages
 const URL_REGEX = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/g
@@ -140,6 +140,52 @@ function getFirstUrl(body: string): string | null {
 	return match ? match[0] : null
 }
 
+// Call message component - Snapchat-style call event in chat
+function CallMessage({ callData, body, isOwn, senderName, createdAt }: {
+	callData: TeamMessage["callData"]
+	body: string | null
+	isOwn: boolean
+	senderName: string
+	createdAt: string
+}) {
+	if (!callData) return null
+
+	const isMissed = callData.callStatus === "missed"
+	const isDeclined = callData.callStatus === "declined"
+	const isEnded = callData.callStatus === "ended"
+	const isVideo = callData.callType === "video"
+
+	// Choose icon based on status
+	const Icon = isMissed ? CallMissed01Icon : isVideo ? Video02Icon : Call02Icon
+
+	// Color based on status
+	const statusColor = isMissed || isDeclined
+		? "text-red-500"
+		: isEnded
+		? "text-green-500"
+		: "text-primary"
+
+	const bgColor = isMissed || isDeclined
+		? "bg-red-500/10"
+		: isEnded
+		? "bg-green-500/10"
+		: "bg-primary/10"
+
+	return (
+		<div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${bgColor} ${isOwn ? "ml-auto" : "mr-auto"} max-w-[280px]`}>
+			<div className={`p-2 rounded-full ${bgColor}`}>
+				<HugeiconsIcon icon={Icon} size={20} className={statusColor} />
+			</div>
+			<div className="flex flex-col">
+				<span className="text-sm font-medium">{body}</span>
+				<span className="text-xs text-muted-foreground">
+					{isOwn ? "You" : senderName.split(" ")[0]} · {timeAgo(createdAt)}
+				</span>
+			</div>
+		</div>
+	)
+}
+
 function getInitials(name: string) {
 	return name
 		.split(" ")
@@ -206,6 +252,8 @@ export function ChatTab({
 				const freshMessages = await getTeamMessages(userId)
 				const formattedMessages = freshMessages.map((m) => ({
 					...m,
+					contentType: m.contentType as "text" | "markdown" | "call" | undefined,
+					callData: m.callData ?? undefined,
 					attachments: m.attachments || undefined,
 					createdAt: m.createdAt.toISOString(),
 					readAt: m.readAt?.toISOString() || null,
@@ -607,6 +655,26 @@ export function ChatTab({
 
 						const isUnread = !isOwn && !msg.readAt
 						const isHighlighted = msg.id === highlightedId
+
+						// Render call messages with special styling
+						if (msg.contentType === "call" && msg.callData) {
+							return (
+								<div
+									key={msg.id}
+									ref={(el) => observeMessage(el, msg.id, isUnread)}
+									data-message-id={msg.id}
+									className={`flex ${isOwn ? "justify-end" : "justify-start"} ${isHighlighted ? "animate-[pulse-highlight_0.6s_ease-out] relative z-[9999]" : ""}`}
+								>
+									<CallMessage
+										callData={msg.callData}
+										body={msg.body}
+										isOwn={isOwn}
+										senderName={msg.senderName}
+										createdAt={msg.createdAt}
+									/>
+								</div>
+							)
+						}
 
 						return (
 							<div

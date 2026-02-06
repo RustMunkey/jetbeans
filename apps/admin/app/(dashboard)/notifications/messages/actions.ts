@@ -20,6 +20,8 @@ export async function getTeamMessages(userId: string) {
 			senderImage: users.image,
 			channel: teamMessages.channel,
 			body: teamMessages.body,
+			contentType: teamMessages.contentType,
+			callData: teamMessages.callData,
 			attachments: teamMessages.attachments,
 			createdAt: teamMessages.createdAt,
 			readAt: teamMessageRecipients.readAt,

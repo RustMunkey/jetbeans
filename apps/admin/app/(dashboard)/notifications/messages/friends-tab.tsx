@@ -14,7 +14,6 @@ import {
 	sendDirectMessage,
 	markDMsAsRead,
 	getOrCreateConversation,
-	getFriends,
 } from "@/app/(dashboard)/discover/actions"
 import type { MessageAttachment } from "./types"
 import { uploadChatImage, fetchLinkPreview } from "./actions"
@@ -204,19 +203,23 @@ export function FriendsTab({
 	userName,
 	userImage,
 	onTabChange,
+	initialFriends = [],
+	initialConversations = [],
 }: {
 	userId: string
 	userName: string
 	userImage: string | null
 	onTabChange?: (tab: "chat" | "inbox" | "friends") => void
+	initialFriends?: Friend[]
+	initialConversations?: Conversation[]
 }) {
-	const [conversations, setConversations] = useState<Conversation[]>([])
-	const [friends, setFriends] = useState<Friend[]>([])
+	const [conversations, setConversations] = useState<Conversation[]>(initialConversations)
+	const [friends, setFriends] = useState<Friend[]>(initialFriends)
 	const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
 	const [messages, setMessages] = useState<DirectMessage[]>([])
 	const [body, setBody] = useState("")
 	const [sending, setSending] = useState(false)
-	const [loading, setLoading] = useState(true)
+	const [loading, setLoading] = useState(false)
 	const [loadingMessages, setLoadingMessages] = useState(false)
 	const [pendingAttachments, setPendingAttachments] = useState<MessageAttachment[]>([])
 	const [isDragOver, setIsDragOver] = useState(false)
@@ -227,24 +230,18 @@ export function FriendsTab({
 	const fileInputRef = useRef<HTMLInputElement>(null)
 	const { pusher } = usePusher()
 
-	// Load conversations and friends
+	// Sync state when props change (for real-time updates after initial load)
 	useEffect(() => {
-		async function loadData() {
-			try {
-				const [convos, friendsList] = await Promise.all([
-					getConversations(),
-					getFriends(),
-				])
-				setConversations(convos as Conversation[])
-				setFriends(friendsList)
-			} catch (err) {
-				console.error("Failed to load conversations:", err)
-			} finally {
-				setLoading(false)
-			}
+		if (initialFriends.length > 0) {
+			setFriends(initialFriends)
 		}
-		loadData()
-	}, [])
+	}, [initialFriends])
+
+	useEffect(() => {
+		if (initialConversations.length > 0) {
+			setConversations(initialConversations)
+		}
+	}, [initialConversations])
 
 	// Load messages when conversation selected
 	useEffect(() => {

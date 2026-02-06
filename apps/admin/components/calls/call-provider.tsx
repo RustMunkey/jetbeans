@@ -3,9 +3,8 @@
 import { createContext, useContext, useCallback, useEffect, useState, useRef, type ReactNode } from "react"
 import { usePusher } from "@/components/pusher-provider"
 
-// ConnectionState enum values from livekit-client (avoid direct import for faster builds)
-const ConnectionState = { Disconnected: 0, Connecting: 1, Connected: 2, Reconnecting: 3 } as const
-type ConnectionStateType = (typeof ConnectionState)[keyof typeof ConnectionState]
+// ConnectionState string values matching livekit-client
+const ConnectionState = { Disconnected: "disconnected", Connecting: "connecting", Connected: "connected", Reconnecting: "reconnecting" } as const
 import { useLiveKitRoom, type Participant } from "@/hooks/use-livekit-room"
 import {
 	initiateCall,
@@ -39,7 +38,7 @@ type CallState = {
 	localAudioEnabled: boolean
 	localVideoEnabled: boolean
 	isScreenSharing: boolean
-	connectionState: number
+	connectionState: string
 	callDuration: number
 	isFullscreen: boolean
 	isMinimized: boolean
@@ -95,6 +94,7 @@ export function CallProvider({
 	const statusRef = useRef<CallClientStatus>("idle")
 	const [call, setCall] = useState<CallWithParticipants | null>(null)
 	const [incomingCall, setIncomingCall] = useState<IncomingCallEvent | null>(null)
+	const [activeCallId, setActiveCallId] = useState<string | null>(null)
 	const [token, setToken] = useState<string | null>(null)
 	const [wsUrl, setWsUrl] = useState<string | null>(null)
 	const [callDuration, setCallDuration] = useState(0)
@@ -115,6 +115,8 @@ export function CallProvider({
 		toggleScreenShare,
 		disconnect,
 	} = useLiveKitRoom(token, wsUrl)
+
+	const resetCallStateRef = useRef<() => void>(() => {})
 
 	// Keep statusRef in sync
 	useEffect(() => {
@@ -190,13 +192,14 @@ export function CallProvider({
 		}
 
 		const handleCallDeclined = (event: CallDeclinedEvent) => {
-			// Check if all recipients declined
-			// For now, if we're ringing outgoing and get a decline, we might still wait for others
-			// This is handled server-side
+			// For 1-on-1 calls, if the recipient declines, end the call for the caller
+			if (statusRef.current === "ringing-outgoing" || statusRef.current === "connecting") {
+				resetCallStateRef.current()
+			}
 		}
 
 		const handleCallEnded = (event: CallEndedEvent) => {
-			resetCallState()
+			resetCallStateRef.current()
 		}
 
 		const handleParticipantJoined = (event: ParticipantJoinedEvent) => {
@@ -257,6 +260,7 @@ export function CallProvider({
 		setStatus("idle")
 		setCall(null)
 		setIncomingCall(null)
+		setActiveCallId(null)
 		setToken(null)
 		setWsUrl(null)
 		setCallDuration(0)
@@ -270,18 +274,31 @@ export function CallProvider({
 		}
 	}, [disconnect, ringTimeout])
 
-	// Update status based on connection state
+	// Keep ref in sync for use in Pusher event handlers
 	useEffect(() => {
-		if (connectionState === ConnectionState.Connected && status === "connecting") {
+		resetCallStateRef.current = resetCallState
+	}, [resetCallState])
+
+	// Update status based on connection state and participants
+	useEffect(() => {
+		// Only transition to "connected" once LiveKit is connected AND there's at least one remote participant
+		const hasRemoteParticipants = participants.filter(p => !p.isLocal).length > 0
+		if (connectionState === ConnectionState.Connected && status === "connecting" && hasRemoteParticipants) {
+			console.log("[Call] LiveKit connected with remote participants, transitioning to connected status")
 			setStatus("connected")
-			stopDialtone() // Stop dial tone when call connects
+			stopDialtone()
+			// Clear any ringing timeout since we're now connected
+			if (ringTimeout) {
+				clearTimeout(ringTimeout)
+				setRingTimeout(null)
+			}
 		}
 		// Handle connection failure
-		if (connectionState === -1 && (status === "connecting" || status === "ringing-outgoing")) {
+		if (connectionState === "failed" && (status === "connecting" || status === "ringing-outgoing")) {
 			console.error("[Call] LiveKit connection failed, resetting call state")
 			resetCallState()
 		}
-	}, [connectionState, status, resetCallState])
+	}, [connectionState, status, participants, resetCallState, ringTimeout])
 
 	const startCall = useCallback(
 		async (participantIds: string[], type: CallType, chatChannel?: string) => {
@@ -294,10 +311,21 @@ export function CallProvider({
 
 			try {
 				const result = await initiateCall({ participantIds, type, chatChannel })
+				setActiveCallId(result.callId)
 				setToken(result.token)
 				setWsUrl(result.wsUrl)
 				setStatus("connecting")
-				// Dial tone keeps playing until call is connected
+
+				// Caller-side timeout: if no one answers within 30s, end the call
+				const timeout = setTimeout(async () => {
+					if (statusRef.current === "connecting" || statusRef.current === "ringing-outgoing") {
+						try {
+							await endCall(result.callId)
+						} catch {}
+						resetCallState()
+					}
+				}, RING_TIMEOUT)
+				setRingTimeout(timeout)
 			} catch (err) {
 				resetCallState()
 				throw err
@@ -316,6 +344,7 @@ export function CallProvider({
 		}
 
 		setStatus("connecting")
+		setActiveCallId(incomingCall.callId)
 
 		try {
 			const result = await acceptCall(incomingCall.callId)
@@ -344,17 +373,14 @@ export function CallProvider({
 	}, [incomingCall, ringTimeout, resetCallState])
 
 	const hangUp = useCallback(async () => {
-		if (incomingCall) {
+		const callIdToEnd = activeCallId || incomingCall?.callId || call?.id
+		if (callIdToEnd) {
 			try {
-				await leaveCall(incomingCall.callId)
-			} catch {}
-		} else if (call) {
-			try {
-				await endCall(call.id)
+				await endCall(callIdToEnd)
 			} catch {}
 		}
 		resetCallState()
-	}, [call, incomingCall, resetCallState])
+	}, [activeCallId, call, incomingCall, resetCallState])
 
 	const toggleFullscreen = useCallback(() => {
 		setIsFullscreen((f) => !f)
