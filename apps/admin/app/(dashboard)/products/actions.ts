@@ -200,14 +200,14 @@ export async function createProduct(data: ProductData) {
 		createdAt: product.createdAt?.toISOString(),
 	}, workspace.id)
 
-	// Emit workflow event
-	await emitProductCreated({
+	// Emit workflow event (non-blocking)
+	emitProductCreated({
 		workspaceId: workspace.id,
 		productId: product.id,
 		name: product.name,
 		slug: product.slug,
 		price: product.price,
-	})
+	}).catch(() => {}) // Ignore Inngest errors
 
 	return product
 }
@@ -275,14 +275,14 @@ export async function updateProduct(id: string, data: Partial<ProductData>) {
 		updatedAt: product.updatedAt?.toISOString(),
 	}, workspace.id)
 
-	// Emit workflow event
-	await emitProductUpdated({
+	// Emit workflow event (non-blocking)
+	emitProductUpdated({
 		workspaceId: workspace.id,
 		productId: product.id,
 		name: product.name,
 		slug: product.slug,
 		price: product.price,
-	})
+	}).catch(() => {}) // Ignore Inngest errors
 
 	return product
 }
