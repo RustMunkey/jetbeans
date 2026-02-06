@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react"
 import { usePathname } from "next/navigation"
 import { ChatTab } from "./chat-tab"
 import { InboxTab } from "./inbox-tab"
+import { FriendsTab } from "./friends-tab"
 import { useChat } from "@/components/messages"
 import { useSidebarMode } from "@/lib/sidebar-mode"
 import type { TeamMessage, TeamMember, InboxEmail } from "./types"
@@ -17,6 +18,7 @@ export function MessagesClient({
 	userImage,
 	teamMembers,
 	inboxEmails,
+	selectedEmailId,
 }: {
 	messages: TeamMessage[]
 	userId: string
@@ -24,6 +26,7 @@ export function MessagesClient({
 	userImage: string | null
 	teamMembers: TeamMember[]
 	inboxEmails: InboxEmail[]
+	selectedEmailId?: string
 }) {
 	const { setMode, setPreviousPath } = useSidebarMode()
 	const { initialize, viewMode, setViewMode } = useChat()
@@ -34,6 +37,13 @@ export function MessagesClient({
 	useEffect(() => {
 		initialize({ messages, teamMembers, userId })
 	}, [messages, teamMembers, userId, initialize])
+
+	// Auto-switch to inbox if a specific email is requested
+	useEffect(() => {
+		if (selectedEmailId) {
+			setViewMode("inbox")
+		}
+	}, [selectedEmailId, setViewMode])
 
 	// Enter messages mode and set previous path (only once)
 	useEffect(() => {
@@ -55,16 +65,28 @@ export function MessagesClient({
 		// The user must click the exit button to leave messages mode
 	}, [setMode, setPreviousPath, pathname])
 
-	function handleTabChange(value: "chat" | "inbox") {
+	function handleTabChange(value: "chat" | "inbox" | "friends") {
 		setViewMode(value)
 	}
 
-	// Always show chat or inbox - navigation is done via sidebar
+	// Render based on view mode
 	if (viewMode === "inbox") {
 		return (
 			<InboxTab
 				emails={inboxEmails}
 				activeTab={viewMode}
+				onTabChange={handleTabChange}
+				selectedEmailId={selectedEmailId}
+			/>
+		)
+	}
+
+	if (viewMode === "friends") {
+		return (
+			<FriendsTab
+				userId={userId}
+				userName={userName}
+				userImage={userImage}
 				onTabChange={handleTabChange}
 			/>
 		)
@@ -75,6 +97,7 @@ export function MessagesClient({
 			userId={userId}
 			userName={userName}
 			userImage={userImage}
+			onTabChange={handleTabChange}
 		/>
 	)
 }

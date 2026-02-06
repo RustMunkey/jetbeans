@@ -12,6 +12,7 @@ import {
   Video01Icon,
   InboxIcon,
   GridIcon,
+  UserIcon,
 } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -39,7 +40,6 @@ import { ActiveCallIndicator, useCall } from "@/components/calls"
 import { useToolbar } from "@/components/toolbar"
 import { useRightSidebar } from "@/components/ui/right-sidebar"
 import { NotificationBell } from "@/components/notifications"
-import { MessagesPopover } from "@/components/messages/messages-popover"
 import { useChat } from "@/components/messages"
 import { useSidebarMode } from "@/lib/sidebar-mode"
 
@@ -109,8 +109,19 @@ export function HeaderToolbar() {
         </DropdownMenu>
       )}
 
-      {/* Messages Popover - hide in messages mode */}
-      {!isMessagesMode && <MessagesPopover />}
+      {/* Profile/Friends - hide in messages mode */}
+      {!isMessagesMode && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          onClick={() => router.push("/discover")}
+          title="Friends & Discover"
+        >
+          <HugeiconsIcon icon={UserIcon} size={16} />
+          <span className="sr-only">Friends & Discover</span>
+        </Button>
+      )}
 
       {/* Video Call - only in messages mode */}
       {isMessagesMode && (

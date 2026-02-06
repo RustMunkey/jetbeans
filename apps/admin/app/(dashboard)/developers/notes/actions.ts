@@ -1,22 +1,23 @@
 "use server"
 
 import { db } from "@jetbeans/db/client"
-import { developerNotes, users, workspaceMembers } from "@jetbeans/db/schema"
+import { developerNotes, users } from "@jetbeans/db/schema"
 import { eq, desc, and } from "@jetbeans/db/drizzle"
-import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
+import { auth } from "@/lib/auth"
+import { headers } from "next/headers"
 
-async function requireNotesPermission() {
-	const workspace = await requireWorkspace()
-	const canManage = await checkWorkspacePermission("canManageSettings")
-	if (!canManage) {
-		throw new Error("You don't have permission to manage developer notes")
+async function getCurrentUser() {
+	const session = await auth.api.getSession({ headers: await headers() })
+	if (!session?.user) {
+		throw new Error("Not authenticated")
 	}
-	return workspace
+	return session.user
 }
 
 export async function getDeveloperNotes(params?: { status?: string; type?: string }) {
-	const workspace = await requireWorkspace()
-	const conditions = [eq(developerNotes.workspaceId, workspace.id)]
+	await getCurrentUser() // Just verify user is logged in
+
+	const conditions = []
 	if (params?.status && params.status !== "all") {
 		conditions.push(eq(developerNotes.status, params.status))
 	}
@@ -42,12 +43,13 @@ export async function getDeveloperNotes(params?: { status?: string; type?: strin
 		})
 		.from(developerNotes)
 		.leftJoin(users, eq(developerNotes.authorId, users.id))
-		.where(and(...conditions))
+		.where(conditions.length > 0 ? and(...conditions) : undefined)
 		.orderBy(desc(developerNotes.createdAt))
+		.limit(200)
 }
 
 export async function getDeveloperNote(id: string) {
-	const workspace = await requireWorkspace()
+	await getCurrentUser()
 	const [note] = await db
 		.select({
 			id: developerNotes.id,
@@ -66,7 +68,7 @@ export async function getDeveloperNote(id: string) {
 		})
 		.from(developerNotes)
 		.leftJoin(users, eq(developerNotes.authorId, users.id))
-		.where(and(eq(developerNotes.id, id), eq(developerNotes.workspaceId, workspace.id)))
+		.where(eq(developerNotes.id, id))
 	return note ?? null
 }
 
@@ -77,18 +79,18 @@ export async function createDeveloperNote(data: {
 	priority?: string
 	assignedTo?: string
 }) {
-	const workspace = await requireNotesPermission()
+	const user = await getCurrentUser()
 
 	const [note] = await db
 		.insert(developerNotes)
 		.values({
-			workspaceId: workspace.id,
 			title: data.title,
 			body: data.body,
 			type: data.type || "bug",
 			priority: data.priority || "medium",
-			authorId: workspace.userId,
+			authorId: user.id,
 			assignedTo: data.assignedTo || null,
+			isGlobal: true,
 		})
 		.returning()
 	return note
@@ -102,7 +104,7 @@ export async function updateDeveloperNote(id: string, data: {
 	priority?: string
 	assignedTo?: string | null
 }) {
-	const workspace = await requireNotesPermission()
+	await getCurrentUser()
 	const updateData: Record<string, unknown> = { ...data, updatedAt: new Date() }
 
 	// If status changed to resolved or closed, set resolvedAt
@@ -115,23 +117,21 @@ export async function updateDeveloperNote(id: string, data: {
 	const [note] = await db
 		.update(developerNotes)
 		.set(updateData)
-		.where(and(eq(developerNotes.id, id), eq(developerNotes.workspaceId, workspace.id)))
+		.where(eq(developerNotes.id, id))
 		.returning()
 	return note
 }
 
 export async function deleteDeveloperNote(id: string) {
-	const workspace = await requireNotesPermission()
-	await db.delete(developerNotes).where(and(eq(developerNotes.id, id), eq(developerNotes.workspaceId, workspace.id)))
+	await getCurrentUser()
+	await db.delete(developerNotes).where(eq(developerNotes.id, id))
 }
 
-export async function getTeamMembers() {
-	const workspace = await requireWorkspace()
-	// Get users who are members of this workspace
+export async function getAllUsers() {
+	await getCurrentUser()
+	// Get all users for assignment
 	return db
 		.select({ id: users.id, name: users.name, email: users.email, image: users.image })
 		.from(users)
-		.innerJoin(workspaceMembers, eq(users.id, workspaceMembers.userId))
-		.where(eq(workspaceMembers.workspaceId, workspace.id))
 		.orderBy(users.name)
 }

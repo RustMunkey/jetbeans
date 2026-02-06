@@ -52,6 +52,19 @@ export function GeneralSettings({ settings }: { settings: Setting[] }) {
 	const [weightUnit, setWeightUnit] = useState(getVal(settings, "weight_unit") || "kg")
 	const [dimensionUnit, setDimensionUnit] = useState(getVal(settings, "dimension_unit") || "cm")
 	const [dateFormat, setDateFormat] = useState(getVal(settings, "date_format") || "MMM d, yyyy")
+	const [measurementSystem, setMeasurementSystem] = useState(getVal(settings, "measurement_system") || "metric")
+
+	// Handle measurement system change
+	const handleMeasurementSystemChange = (system: string) => {
+		setMeasurementSystem(system)
+		if (system === "metric") {
+			setWeightUnit("kg")
+			setDimensionUnit("cm")
+		} else {
+			setWeightUnit("lb")
+			setDimensionUnit("in")
+		}
+	}
 
 	// SEO
 	const [metaTitle, setMetaTitle] = useState(getVal(settings, "seo_meta_title"))
@@ -273,6 +286,7 @@ export function GeneralSettings({ settings }: { settings: Setting[] }) {
 				// Locale
 				{ key: "currency", value: currency, group: "general" },
 				{ key: "timezone", value: timezone, group: "general" },
+				{ key: "measurement_system", value: measurementSystem, group: "general" },
 				{ key: "weight_unit", value: weightUnit, group: "general" },
 				{ key: "dimension_unit", value: dimensionUnit, group: "general" },
 				{ key: "date_format", value: dateFormat, group: "general" },
@@ -612,6 +626,17 @@ export function GeneralSettings({ settings }: { settings: Setting[] }) {
 									<SelectItem value="yyyy-MM-dd">2026-01-01 (ISO)</SelectItem>
 								</SelectContent>
 							</Select>
+						</div>
+						<div className="space-y-2">
+							<Label>Measurement System</Label>
+							<Select value={measurementSystem} onValueChange={handleMeasurementSystemChange}>
+								<SelectTrigger><SelectValue /></SelectTrigger>
+								<SelectContent>
+									<SelectItem value="metric">Metric (kg, cm)</SelectItem>
+									<SelectItem value="imperial">Imperial (lb, in)</SelectItem>
+								</SelectContent>
+							</Select>
+							<p className="text-xs text-muted-foreground">Quick switch between metric and imperial units</p>
 						</div>
 						<div className="space-y-2">
 							<Label>Weight Unit</Label>

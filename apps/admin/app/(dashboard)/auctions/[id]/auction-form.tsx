@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useBreadcrumbOverride } from "@/components/breadcrumb-context"
+import { MediaUploader, type MediaItem } from "@/components/media-uploader"
 import { createAuction, updateAuction, publishAuction } from "../actions"
 import { toast } from "sonner"
 import type { Auction } from "@jetbeans/db/schema"
@@ -50,6 +51,19 @@ export function AuctionForm({ auction, products }: AuctionFormProps) {
 	const [productId, setProductId] = React.useState<string | undefined>(auction?.productId ?? undefined)
 	const [autoExtend, setAutoExtend] = React.useState(auction?.autoExtend ?? true)
 	const [autoExtendMinutes, setAutoExtendMinutes] = React.useState(auction?.autoExtendMinutes ?? 5)
+
+	// Images state
+	const [mediaItems, setMediaItems] = React.useState<MediaItem[]>(() => {
+		const items: MediaItem[] = []
+		for (const url of auction?.images ?? []) {
+			items.push({
+				id: crypto.randomUUID(),
+				url,
+				type: /\.(mp4|webm|mov|avi)(\?|$)/i.test(url) ? "video" : "image",
+			})
+		}
+		return items
+	})
 
 	// Date/time state
 	const [startsAt, setStartsAt] = React.useState(() => {
@@ -95,6 +109,7 @@ export function AuctionForm({ auction, products }: AuctionFormProps) {
 				reservePrice: type === "reserve" ? reservePrice || undefined : undefined,
 				minimumIncrement,
 				productId: productId || undefined,
+				images: mediaItems.map((i) => i.url),
 				autoExtend,
 				autoExtendMinutes,
 				startsAt: startsAt ? new Date(startsAt) : undefined,
@@ -192,6 +207,14 @@ export function AuctionForm({ auction, products }: AuctionFormProps) {
 									placeholder="Describe the item being auctioned..."
 									rows={4}
 								/>
+							</div>
+
+							<div className="space-y-2">
+								<Label>Media</Label>
+								<MediaUploader items={mediaItems} onChange={setMediaItems} />
+								<p className="text-xs text-muted-foreground">
+									Add photos and videos of the auction item
+								</p>
 							</div>
 
 							<div className="space-y-2">

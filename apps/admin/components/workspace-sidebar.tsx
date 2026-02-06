@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Add01Icon, Home01Icon, Logout02Icon, Mail01Icon, Navigation04Icon, Settings01Icon } from "@hugeicons/core-free-icons"
+import { Add01Icon, Call02Icon, Home01Icon, Logout02Icon, Mail01Icon, Navigation04Icon, Settings01Icon } from "@hugeicons/core-free-icons"
 import { Store, Users, Building2, Sparkles, Loader2 } from "lucide-react"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -401,6 +401,11 @@ export function WorkspaceSidebar({ workspaces, activeWorkspaceId }: WorkspaceSid
 						icon={Mail01Icon}
 						label="Messages"
 						onClick={() => router.push("/notifications/messages")}
+					/>
+					<NavButton
+						icon={Call02Icon}
+						label="Calls"
+						onClick={() => router.push("/calls")}
 					/>
 					<NavButton
 						icon={Navigation04Icon}

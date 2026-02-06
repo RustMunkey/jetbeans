@@ -157,6 +157,7 @@ export async function POST(request: Request) {
 				.from(users)
 
 			for (const user of adminUsers) {
+				const emailLink = `/notifications/messages?email=${email.id}`
 				const [notification] = await db
 					.insert(notifications)
 					.values({
@@ -164,7 +165,7 @@ export async function POST(request: Request) {
 						type: "inbox",
 						title: `New email from ${fromName}`,
 						body: subject,
-						link: "/notifications/messages",
+						link: emailLink,
 					})
 					.returning()
 
@@ -175,7 +176,7 @@ export async function POST(request: Request) {
 						type: "inbox",
 						title: `New email from ${fromName}`,
 						body: subject,
-						link: "/notifications/messages",
+						link: emailLink,
 						createdAt: notification.createdAt.toISOString(),
 						readAt: null,
 					})

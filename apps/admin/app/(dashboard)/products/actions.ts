@@ -120,6 +120,9 @@ interface ProductData {
 	shortDescription?: string
 	price: string
 	compareAtPrice?: string
+	salePrice?: string
+	saleStartsAt?: string // ISO date string
+	saleEndsAt?: string // ISO date string
 	costPrice?: string
 	sourceType?: string
 	categoryId?: string
@@ -150,6 +153,9 @@ export async function createProduct(data: ProductData) {
 			shortDescription: data.shortDescription || null,
 			price: data.price,
 			compareAtPrice: data.compareAtPrice || null,
+			salePrice: data.salePrice || null,
+			saleStartsAt: data.saleStartsAt ? new Date(data.saleStartsAt) : null,
+			saleEndsAt: data.saleEndsAt ? new Date(data.saleEndsAt) : null,
 			costPrice: data.costPrice || null,
 			sourceType: data.sourceType || "owned",
 			categoryId: data.categoryId || null,
@@ -222,6 +228,9 @@ export async function updateProduct(id: string, data: Partial<ProductData>) {
 	if (data.shortDescription !== undefined) updates.shortDescription = data.shortDescription || null
 	if (data.price !== undefined) updates.price = data.price
 	if (data.compareAtPrice !== undefined) updates.compareAtPrice = data.compareAtPrice || null
+	if (data.salePrice !== undefined) updates.salePrice = data.salePrice || null
+	if (data.saleStartsAt !== undefined) updates.saleStartsAt = data.saleStartsAt ? new Date(data.saleStartsAt) : null
+	if (data.saleEndsAt !== undefined) updates.saleEndsAt = data.saleEndsAt ? new Date(data.saleEndsAt) : null
 	if (data.costPrice !== undefined) updates.costPrice = data.costPrice || null
 	if (data.sourceType !== undefined) updates.sourceType = data.sourceType
 	if (data.categoryId !== undefined) updates.categoryId = data.categoryId || null

@@ -82,10 +82,10 @@ function getInitials(name: string | null) {
 
 export function NotesTable({
 	notes: initialNotes,
-	teamMembers,
+	users,
 }: {
 	notes: DeveloperNote[]
-	teamMembers: TeamMember[]
+	users: TeamMember[]
 }) {
 	useBreadcrumbOverride("developers", "Developers")
 	useBreadcrumbOverride("notes", "Notes & Bugs")
@@ -504,7 +504,7 @@ export function NotesTable({
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="__unassigned__">Unassigned</SelectItem>
-									{teamMembers.map((member) => (
+									{users.map((member) => (
 										<SelectItem key={member.id} value={member.id}>
 											{member.name || member.email}
 										</SelectItem>

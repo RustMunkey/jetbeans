@@ -122,13 +122,15 @@ export function InboxTab({
 	emails: initialEmails,
 	activeTab,
 	onTabChange,
+	selectedEmailId,
 }: {
 	emails: InboxEmail[]
-	activeTab: "chat" | "inbox"
-	onTabChange: (tab: "chat" | "inbox") => void
+	activeTab: "chat" | "inbox" | "friends"
+	onTabChange: (tab: "chat" | "inbox" | "friends") => void
+	selectedEmailId?: string
 }) {
 	const [emails, setEmails] = useState(initialEmails)
-	const [selectedId, setSelectedId] = useState<string | null>(null)
+	const [selectedId, setSelectedId] = useState<string | null>(selectedEmailId ?? null)
 	const [statusFilter, setStatusFilter] = useState("all")
 
 	// Real-time inbox updates
@@ -241,9 +243,10 @@ export function InboxTab({
 			{/* Header with tab toggle */}
 			<div className="h-12 border-b px-4 flex items-center justify-between shrink-0">
 				<span className="text-sm font-medium">Customer Inbox</span>
-				<Tabs value={activeTab} onValueChange={(v) => onTabChange(v as "chat" | "inbox")}>
+				<Tabs value={activeTab} onValueChange={(v) => onTabChange(v as "chat" | "inbox" | "friends")}>
 					<TabsList className="h-8">
-						<TabsTrigger value="chat" className="text-xs px-3 h-6">Chat</TabsTrigger>
+						<TabsTrigger value="chat" className="text-xs px-3 h-6">Team</TabsTrigger>
+						<TabsTrigger value="friends" className="text-xs px-3 h-6">Friends</TabsTrigger>
 						<TabsTrigger value="inbox" className="text-xs px-3 h-6">Inbox</TabsTrigger>
 					</TabsList>
 				</Tabs>

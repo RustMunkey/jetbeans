@@ -15,14 +15,15 @@ const CONVERSIONS: Record<ConversionCategory, {
 	convert: (value: number, from: string, to: string) => number
 }> = {
 	weight: {
-		units: ["kg", "lbs", "oz", "g"],
+		units: ["ct", "g", "oz", "lbs", "kg"],
 		convert: (value, from, to) => {
-			// Convert to grams first
+			// Convert to grams first (1 carat = 0.2 grams)
 			const toGrams: Record<string, number> = {
-				kg: 1000,
-				lbs: 453.592,
-				oz: 28.3495,
+				ct: 0.2,
 				g: 1,
+				oz: 28.3495,
+				lbs: 453.592,
+				kg: 1000,
 			}
 			const grams = value * toGrams[from]
 			return grams / toGrams[to]
@@ -79,8 +80,8 @@ const CONVERSIONS: Record<ConversionCategory, {
 export function ConverterWidget() {
 	const [category, setCategory] = React.useState<ConversionCategory>("weight")
 	const [value, setValue] = React.useState("1")
-	const [fromUnit, setFromUnit] = React.useState("kg")
-	const [toUnit, setToUnit] = React.useState("lbs")
+	const [fromUnit, setFromUnit] = React.useState("ct")
+	const [toUnit, setToUnit] = React.useState("g")
 
 	const conversion = CONVERSIONS[category]
 
@@ -194,9 +195,9 @@ export function ConverterWidget() {
 
 			{/* Quick reference */}
 			<div className="text-[10px] text-muted-foreground text-center">
-				{category === "weight" && "Great for coffee bean measurements"}
-				{category === "volume" && "Perfect for brewing ratios"}
-				{category === "temperature" && "Roasting & brewing temps"}
+				{category === "weight" && "Great for gemstone measurements"}
+				{category === "volume" && "Perfect for liquid conversions"}
+				{category === "temperature" && "Useful for shipping & storage"}
 			</div>
 		</div>
 	)

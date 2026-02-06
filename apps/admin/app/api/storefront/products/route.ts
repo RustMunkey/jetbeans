@@ -76,6 +76,9 @@ async function handleGet(request: NextRequest, storefront: StorefrontContext) {
 				shortDescription: products.shortDescription,
 				price: products.price,
 				compareAtPrice: products.compareAtPrice,
+				salePrice: products.salePrice,
+				saleStartsAt: products.saleStartsAt,
+				saleEndsAt: products.saleEndsAt,
 				images: products.images,
 				thumbnail: products.thumbnail,
 				isSubscribable: products.isSubscribable,
@@ -101,6 +104,15 @@ async function handleGet(request: NextRequest, storefront: StorefrontContext) {
 	const totalCount = Number(countResult.count)
 	const totalPages = Math.ceil(totalCount / limit)
 
+	// Helper to check if sale is active
+	const now = new Date()
+	const isSaleActive = (p: typeof items[0]) => {
+		if (!p.salePrice) return false
+		if (p.saleStartsAt && new Date(p.saleStartsAt) > now) return false
+		if (p.saleEndsAt && new Date(p.saleEndsAt) < now) return false
+		return true
+	}
+
 	return Response.json({
 		products: items.map((p) => ({
 			id: p.id,
@@ -110,6 +122,11 @@ async function handleGet(request: NextRequest, storefront: StorefrontContext) {
 			shortDescription: p.shortDescription,
 			price: p.price,
 			compareAtPrice: p.compareAtPrice,
+			salePrice: p.salePrice,
+			saleStartsAt: p.saleStartsAt,
+			saleEndsAt: p.saleEndsAt,
+			currentPrice: isSaleActive(p) ? p.salePrice : p.price, // Computed active price
+			onSale: isSaleActive(p),
 			images: p.images,
 			thumbnail: p.thumbnail,
 			isSubscribable: p.isSubscribable,

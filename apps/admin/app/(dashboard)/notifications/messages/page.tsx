@@ -7,9 +7,15 @@ import { MessagesClient } from "./messages-client"
 // Disable caching for this page - always fetch fresh messages
 export const dynamic = "force-dynamic"
 
-export default async function MessagesPage() {
+interface MessagesPageProps {
+	searchParams: Promise<{ email?: string }>
+}
+
+export default async function MessagesPage({ searchParams }: MessagesPageProps) {
 	const session = await auth.api.getSession({ headers: await headers() })
 	if (!session) redirect("/login")
+
+	const params = await searchParams
 
 	const [messages, teamMembers, inboxEmails] = await Promise.all([
 		getTeamMessages(session.user.id),
@@ -35,6 +41,7 @@ export default async function MessagesPage() {
 					name: m.name || "Unknown",
 				}))}
 				inboxEmails={inboxEmails}
+				selectedEmailId={params.email}
 			/>
 		</div>
 	)

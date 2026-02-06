@@ -41,6 +41,7 @@ const countries = [
 ]
 
 const weightUnits = [
+	{ code: "ct", name: "Carats (ct)" },
 	{ code: "lb", name: "Pounds (lb)" },
 	{ code: "kg", name: "Kilograms (kg)" },
 	{ code: "oz", name: "Ounces (oz)" },

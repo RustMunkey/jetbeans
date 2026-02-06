@@ -43,6 +43,9 @@ interface ProductFormProps {
 		shortDescription: string | null
 		price: string
 		compareAtPrice: string | null
+		salePrice: string | null
+		saleStartsAt: Date | null
+		saleEndsAt: Date | null
 		costPrice: string | null
 		sourceType: string
 		categoryId: string | null
@@ -73,6 +76,19 @@ export function ProductForm({ product, categories }: ProductFormProps) {
 	const [shortDescription, setShortDescription] = useState(product?.shortDescription ?? "")
 	const [price, setPrice] = useState(product?.price ?? "")
 	const [compareAtPrice, setCompareAtPrice] = useState(product?.compareAtPrice ?? "")
+	const [salePrice, setSalePrice] = useState(product?.salePrice ?? "")
+	const [saleStartsAt, setSaleStartsAt] = useState(() => {
+		if (product?.saleStartsAt) {
+			return new Date(product.saleStartsAt).toISOString().slice(0, 16)
+		}
+		return ""
+	})
+	const [saleEndsAt, setSaleEndsAt] = useState(() => {
+		if (product?.saleEndsAt) {
+			return new Date(product.saleEndsAt).toISOString().slice(0, 16)
+		}
+		return ""
+	})
 	const [costPrice, setCostPrice] = useState(product?.costPrice ?? "")
 	const [categoryId, setCategoryId] = useState(product?.categoryId ?? "")
 	const [sourceType, setSourceType] = useState(product?.sourceType ?? "owned")
@@ -109,6 +125,9 @@ export function ProductForm({ product, categories }: ProductFormProps) {
 		shortDescription: string
 		price: string
 		compareAtPrice: string
+		salePrice: string
+		saleStartsAt: string
+		saleEndsAt: string
 		costPrice: string
 		categoryId: string
 		sourceType: string
@@ -143,6 +162,9 @@ export function ProductForm({ product, categories }: ProductFormProps) {
 		shortDescription,
 		price,
 		compareAtPrice,
+		salePrice,
+		saleStartsAt,
+		saleEndsAt,
 		costPrice,
 		categoryId,
 		sourceType,
@@ -155,7 +177,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
 		weightUnit,
 		metaTitle,
 		metaDescription,
-	}), [name, slug, description, shortDescription, price, compareAtPrice, costPrice, categoryId, sourceType, tags, mediaItems, isActive, isSubscribable, isFeatured, weight, weightUnit, metaTitle, metaDescription])
+	}), [name, slug, description, shortDescription, price, compareAtPrice, salePrice, saleStartsAt, saleEndsAt, costPrice, categoryId, sourceType, tags, mediaItems, isActive, isSubscribable, isFeatured, weight, weightUnit, metaTitle, metaDescription])
 
 	// Auto-save draft when form data changes (only for new products)
 	useEffect(() => {
@@ -172,6 +194,9 @@ export function ProductForm({ product, categories }: ProductFormProps) {
 		setShortDescription(data.shortDescription || "")
 		setPrice(data.price || "")
 		setCompareAtPrice(data.compareAtPrice || "")
+		setSalePrice(data.salePrice || "")
+		setSaleStartsAt(data.saleStartsAt || "")
+		setSaleEndsAt(data.saleEndsAt || "")
 		setCostPrice(data.costPrice || "")
 		setCategoryId(data.categoryId || "")
 		setSourceType(data.sourceType || "owned")
@@ -219,6 +244,9 @@ export function ProductForm({ product, categories }: ProductFormProps) {
 				shortDescription: shortDescription.trim(),
 				price,
 				compareAtPrice: compareAtPrice || undefined,
+				salePrice: salePrice || undefined,
+				saleStartsAt: saleStartsAt || undefined,
+				saleEndsAt: saleEndsAt || undefined,
 				costPrice: costPrice || undefined,
 				sourceType,
 				categoryId: categoryId || undefined,
@@ -366,6 +394,29 @@ export function ProductForm({ product, categories }: ProductFormProps) {
 								<Input id="costPrice" type="number" step="0.01" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} />
 							</div>
 						</div>
+
+						{/* Sale Price Section */}
+						<div className="pt-2 border-t">
+							<h4 className="text-sm font-medium mb-3">Sale Price</h4>
+							<div className="grid gap-4 sm:grid-cols-3">
+								<div className="space-y-2">
+									<Label htmlFor="salePrice">Sale Price ($)</Label>
+									<Input id="salePrice" type="number" step="0.01" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} placeholder="Leave empty for no sale" />
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="saleStartsAt">Sale Starts</Label>
+									<Input id="saleStartsAt" type="datetime-local" value={saleStartsAt} onChange={(e) => setSaleStartsAt(e.target.value)} />
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="saleEndsAt">Sale Ends</Label>
+									<Input id="saleEndsAt" type="datetime-local" value={saleEndsAt} onChange={(e) => setSaleEndsAt(e.target.value)} />
+								</div>
+							</div>
+							<p className="text-xs text-muted-foreground mt-2">
+								Set a sale price and optional time window. Leave dates empty for immediate/indefinite sale.
+							</p>
+						</div>
+
 						<div className="grid gap-4 sm:grid-cols-2">
 							<div className="space-y-2">
 								<Label htmlFor="weight">Weight</Label>
@@ -378,6 +429,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
+										<SelectItem value="ct">ct (carats)</SelectItem>
 										<SelectItem value="oz">oz</SelectItem>
 										<SelectItem value="lb">lb</SelectItem>
 										<SelectItem value="g">g</SelectItem>

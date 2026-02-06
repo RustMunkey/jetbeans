@@ -22,7 +22,7 @@ function saveChatState(conversation: Conversation) {
 	} catch {}
 }
 
-type ViewMode = "chat" | "inbox"
+type ViewMode = "chat" | "inbox" | "friends"
 
 type ChatContextType = {
 	active: Conversation
@@ -59,7 +59,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 	const [mobileShowChat, setMobileShowChat] = React.useState(false)
 
 	const toggleViewMode = React.useCallback(() => {
-		setViewMode((prev) => (prev === "chat" ? "inbox" : "chat"))
+		setViewMode((prev) => {
+			if (prev === "chat") return "friends"
+			if (prev === "friends") return "inbox"
+			return "chat"
+		})
 	}, [])
 
 	// Mobile: open a conversation and switch to chat view

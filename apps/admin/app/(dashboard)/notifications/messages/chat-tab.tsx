@@ -8,6 +8,7 @@ import { Image02Icon, Cancel01Icon, Link04Icon } from "@hugeicons/core-free-icon
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { usePusher } from "@/components/pusher-provider"
 import { useChat } from "@/components/messages"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { sendTeamMessage, markMessageRead, getMessageReadStatus, getTeamMessages, uploadChatImage, fetchLinkPreview } from "./actions"
 import type { TeamMessage, MessageAttachment } from "./types"
 
@@ -165,10 +166,12 @@ export function ChatTab({
 	userId,
 	userName,
 	userImage,
+	onTabChange,
 }: {
 	userId: string
 	userName: string
 	userImage: string | null
+	onTabChange?: (tab: "chat" | "inbox" | "friends") => void
 }) {
 	const { active, setActive, messages, setMessages, teamMembers, userId: chatUserId } = useChat()
 	const [body, setBody] = useState("")
@@ -550,11 +553,24 @@ export function ChatTab({
 
 	return (
 		<div className="relative h-[calc(100svh-4rem)] overflow-hidden">
+			{/* Header with tab toggle */}
+			{onTabChange && (
+				<div className="absolute top-0 left-0 right-0 h-12 border-b px-4 flex items-center justify-between bg-background z-10">
+					<span className="text-sm font-medium">Team Chat</span>
+					<Tabs value="chat" onValueChange={(v) => onTabChange(v as "chat" | "inbox" | "friends")}>
+						<TabsList className="h-8">
+							<TabsTrigger value="chat" className="text-xs px-3 h-6">Team</TabsTrigger>
+							<TabsTrigger value="friends" className="text-xs px-3 h-6">Friends</TabsTrigger>
+							<TabsTrigger value="inbox" className="text-xs px-3 h-6">Inbox</TabsTrigger>
+						</TabsList>
+					</Tabs>
+				</div>
+			)}
 			{/* Messages - only this section scrolls */}
 			<div
 				ref={messagesContainerRef}
 				onScroll={handleScroll}
-				className="absolute inset-0 bottom-[88px] overflow-y-auto p-4 space-y-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+				className={`absolute inset-0 ${onTabChange ? "top-12" : ""} bottom-[88px] overflow-y-auto p-4 space-y-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
 			>
 				{filteredMessages.length === 0 ? (
 					<div className="flex items-center justify-center h-full">

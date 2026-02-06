@@ -25,6 +25,9 @@ export const products = pgTable(
 		// Pricing
 		price: decimal("price", { precision: 10, scale: 2 }).notNull(),
 		compareAtPrice: decimal("compare_at_price", { precision: 10, scale: 2 }),
+		salePrice: decimal("sale_price", { precision: 10, scale: 2 }), // Active sale price
+		saleStartsAt: timestamp("sale_starts_at"), // When sale begins (null = immediately)
+		saleEndsAt: timestamp("sale_ends_at"), // When sale ends (null = indefinitely)
 		costPrice: decimal("cost_price", { precision: 10, scale: 2 }),
 
 		// Source and fulfillment
