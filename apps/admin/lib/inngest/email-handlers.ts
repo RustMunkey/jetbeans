@@ -15,7 +15,7 @@ export const sendQueuedEmail = inngest.createFunction(
 		retries: 3,
 		// Concurrency limit to avoid overwhelming email service
 		concurrency: {
-			limit: 10,
+			limit: 5,
 		},
 	},
 	{ event: "email/send" },
@@ -124,7 +124,7 @@ export const sendDirectEmail = inngest.createFunction(
 		id: "send-direct-email",
 		retries: 3,
 		concurrency: {
-			limit: 10,
+			limit: 5,
 		},
 	},
 	{ event: "email/send-direct" },

@@ -26,7 +26,7 @@ export const workflowTriggerHandler = inngest.createFunction(
 		id: "workflow-trigger-handler",
 		name: "Workflow Trigger Handler",
 		concurrency: {
-			limit: 10, // Max 10 concurrent executions per workspace
+			limit: 5, // Max 5 concurrent executions per workspace
 			key: "event.data.workspaceId",
 		},
 		retries: 3,
