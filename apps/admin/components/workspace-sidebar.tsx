@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Add01Icon, Delete02Icon, Home01Icon, Logout02Icon, Mail01Icon, Navigation04Icon, Settings01Icon } from "@hugeicons/core-free-icons"
+import { Add01Icon, Home01Icon, Logout02Icon, Mail01Icon, Navigation04Icon, Settings01Icon } from "@hugeicons/core-free-icons"
 import { Store, Users, Building2, Sparkles, Loader2 } from "lucide-react"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -135,17 +135,14 @@ function WorkspaceIcon({
 					<HugeiconsIcon icon={Settings01Icon} size={14} className="mr-2" />
 					Workspace Settings
 				</ContextMenuItem>
-				<ContextMenuSeparator />
-				{isOwner ? (
-					<ContextMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
-						<HugeiconsIcon icon={Delete02Icon} size={14} className="mr-2" />
-						Delete Workspace
-					</ContextMenuItem>
-				) : (
-					<ContextMenuItem onClick={onLeave} className="text-destructive focus:text-destructive">
-						<HugeiconsIcon icon={Logout02Icon} size={14} className="mr-2" />
-						Leave Workspace
-					</ContextMenuItem>
+				{!isOwner && (
+					<>
+						<ContextMenuSeparator />
+						<ContextMenuItem onClick={onLeave} className="text-destructive focus:text-destructive">
+							<HugeiconsIcon icon={Logout02Icon} size={14} className="mr-2" />
+							Leave Workspace
+						</ContextMenuItem>
+					</>
 				)}
 			</ContextMenuContent>
 		</ContextMenu>
