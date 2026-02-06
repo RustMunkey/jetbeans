@@ -6,7 +6,7 @@ import {
   AnalyticsUpIcon,
   UnfoldMoreIcon,
   Audit01Icon,
-  DashboardSquare01Icon,
+  DashboardSpeed01Icon,
   DeliveryBox01Icon,
   DeliveryTracking01Icon,
   DeliveryTruck01Icon,
@@ -152,7 +152,7 @@ const data = {
     {
       title: "Dashboard",
       url: "/",
-      icon: DashboardSquare01Icon,
+      icon: DashboardSpeed01Icon,
       isActive: true,
     },
     {
@@ -226,21 +226,19 @@ const data = {
       title: "Contacts",
       url: "/sales/contacts",
       icon: UserIcon,
-    },
-    {
-      title: "Companies",
-      url: "/sales/companies",
-      icon: Building03Icon,
+      items: [
+        { title: "All Contacts", url: "/sales/contacts" },
+        { title: "Companies", url: "/sales/companies" },
+      ],
     },
     {
       title: "Deals",
       url: "/sales/deals",
       icon: SaleTag01Icon,
-    },
-    {
-      title: "Pipeline",
-      url: "/sales/pipeline",
-      icon: ChartLineData01Icon,
+      items: [
+        { title: "All Deals", url: "/sales/deals" },
+        { title: "Pipeline", url: "/sales/pipeline" },
+      ],
     },
     {
       title: "Tasks",
@@ -315,6 +313,7 @@ const data = {
       items: [
         { title: "Discounts & Coupons", url: "/marketing" },
         { title: "Campaigns", url: "/marketing/campaigns" },
+        { title: "Email Templates", url: "/marketing/email-templates" },
         { title: "Referrals", url: "/marketing/referrals" },
         { title: "SEO", url: "/marketing/seo" },
       ],
@@ -336,10 +335,9 @@ const data = {
       url: "/notifications",
       icon: Notification01Icon,
       items: [
-        { title: "Email Templates", url: "/notifications" },
         { title: "Messages", url: "/notifications/messages" },
-        { title: "Calls", url: "/calls" },
         { title: "Alerts", url: "/notifications/alerts" },
+        { title: "Preferences", url: "/settings/notifications" },
       ],
     },
     {
@@ -353,9 +351,7 @@ const data = {
       icon: Settings02Icon,
       items: [
         { title: "All Settings", url: "/settings" },
-        { title: "Account", url: "/settings/account" },
-        { title: "Notifications", url: "/settings/notifications" },
-        { title: "Team & Permissions", url: "/settings/team" },
+        { title: "Permissions", url: "/settings/team" },
         { title: "Sessions", url: "/settings/sessions" },
         { title: "Storefronts", url: "/settings/storefronts" },
         { title: "Payments", url: "/settings/payments" },
@@ -515,8 +511,11 @@ function MessagesSidebarContent() {
       active={chat.active}
       onSelect={chat.setActive}
       teamMembers={chat.teamMembers}
+      friends={chat.friends}
+      inboxEmails={chat.inboxEmails}
       userId={chat.userId}
       messages={chat.messages}
+      viewMode={chat.viewMode}
     />
   )
 }
@@ -931,7 +930,6 @@ function NormalSidebarContent({
 }) {
   return (
     <>
-      <NavRecent />
       <SidebarGroup className="group-data-[collapsible=icon]:hidden">
         <SidebarMenu>
           <SidebarMenuItem>
@@ -942,14 +940,15 @@ function NormalSidebarContent({
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarGroup>
-      <NavMain label="Overview" items={data.navOverview} />
-      <NavMain label="Store" items={data.navStore} />
-      <NavMain label="Sales" items={data.navSales} />
-      <NavMain label="Operations" items={data.navOperations} />
-      <NavMain label="Growth" items={data.navGrowth} />
-      <NavMain label="Billing" items={data.navBilling} />
-      <NavMain label="System" items={navSystem} />
-      <NavMain label="Developers" items={data.navDevelopers} />
+      <NavRecent />
+      <NavMain label="Overview" labelIcon={Home01Icon} items={data.navOverview} />
+      <NavMain label="Store" labelIcon={Building03Icon} items={data.navStore} />
+      <NavMain label="Sales" labelIcon={SaleTag01Icon} items={data.navSales} />
+      <NavMain label="Operations" labelIcon={Layers01Icon} items={data.navOperations} />
+      <NavMain label="Growth" labelIcon={RocketIcon} items={data.navGrowth} />
+      <NavMain label="Billing" labelIcon={Invoice02Icon} items={data.navBilling} />
+      <NavMain label="System" labelIcon={Settings02Icon} items={navSystem} />
+      <NavMain label="Developers" labelIcon={SourceCodeIcon} items={data.navDevelopers} />
     </>
   )
 }
@@ -979,7 +978,7 @@ export function AppSidebar({
 
   // Filter out Integrations link for non-owners
   const navSystem = React.useMemo(() => {
-    if (user.role === "owner") return data.navSystem
+    if (workspace?.role === "owner") return data.navSystem
     return data.navSystem.map((item) => {
       if (item.title === "Settings" && item.items) {
         return {
@@ -989,7 +988,7 @@ export function AppSidebar({
       }
       return item
     })
-  }, [user.role])
+  }, [workspace?.role])
 
   // On mobile, we render the workspace/servers bar inside the sidebar sheet
   // so they slide out together as one unit

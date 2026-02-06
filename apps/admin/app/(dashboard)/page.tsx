@@ -43,12 +43,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-4 pt-0">
-      <div>
-        <h2 className="text-lg font-semibold">Dashboard</h2>
-        <p className="text-sm text-muted-foreground">
-          Overview of your store performance.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Overview of your store performance.
+      </p>
 
       {/* KPI Cards - Live updating */}
       <DashboardStats initialStats={initialStats} />

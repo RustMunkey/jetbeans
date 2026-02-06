@@ -7,6 +7,7 @@ import { DataTable, type Column } from "@/components/data-table"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import {
 	Dialog,
 	DialogContent,
@@ -44,6 +45,7 @@ interface AlertsClientProps {
 
 export function AlertsClient({ items, totalCount, currentPage }: AlertsClientProps) {
 	const router = useRouter()
+	const [stockFilter, setStockFilter] = useState("all")
 	const [adjustDialogOpen, setAdjustDialogOpen] = useState(false)
 	const [selectedItem, setSelectedItem] = useState<AlertItem | null>(null)
 	const [newQuantity, setNewQuantity] = useState("")
@@ -139,17 +141,19 @@ export function AlertsClient({ items, totalCount, currentPage }: AlertsClientPro
 		}
 	}
 
-	const outOfStock = items.filter((i) => i.quantity - i.reservedQuantity <= 0)
-	const lowStock = items.filter((i) => i.quantity - i.reservedQuantity > 0)
+	const filtered = stockFilter === "all"
+		? items
+		: items.filter((i) => getStockStatus(i) === stockFilter)
 
 	return (
 		<>
 			<DataTable
 				columns={columns}
-				data={items}
+				data={filtered}
 				totalCount={totalCount}
 				currentPage={currentPage}
 				pageSize={30}
+				searchPlaceholder="Search alerts..."
 				getId={(row) => row.id}
 				onRowClick={(row) => {
 					setSelectedItem(row)
@@ -159,6 +163,18 @@ export function AlertsClient({ items, totalCount, currentPage }: AlertsClientPro
 				}}
 				emptyMessage="All stock levels are healthy"
 				emptyDescription="No items are below their low stock threshold."
+				filters={
+					<Select value={stockFilter} onValueChange={setStockFilter}>
+						<SelectTrigger className="h-9 w-full sm:w-[150px]">
+							<SelectValue placeholder="All Stock" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All Stock</SelectItem>
+							<SelectItem value="low_stock">Low Stock</SelectItem>
+							<SelectItem value="out_of_stock">Out of Stock</SelectItem>
+						</SelectContent>
+					</Select>
+				}
 			/>
 
 			<Dialog open={adjustDialogOpen} onOpenChange={setAdjustDialogOpen}>

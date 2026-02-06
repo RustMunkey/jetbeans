@@ -7,7 +7,6 @@ import {
 	Copy01Icon,
 	RefreshIcon,
 	Delete02Icon,
-	Add01Icon,
 	ViewIcon,
 	ViewOffIcon,
 	Tick01Icon,
@@ -856,31 +855,32 @@ const ADMIN_API_ENDPOINTS = [
 ]
 
 export function ApiKeysClient({ storefronts, adminApiKeys }: { storefronts: Storefront[]; adminApiKeys: AdminApiKey[] }) {
+	const [activeTab, setActiveTab] = React.useState("admin")
+
 	return (
-		<Tabs defaultValue="admin" className="space-y-4">
-			<TabsList>
-				<TabsTrigger value="admin">Admin API</TabsTrigger>
-				<TabsTrigger value="storefront">Storefront API</TabsTrigger>
-				<TabsTrigger value="docs">Documentation</TabsTrigger>
-			</TabsList>
+		<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+			<div className="flex items-center gap-3">
+				<TabsList>
+					<TabsTrigger value="admin">Admin API</TabsTrigger>
+					<TabsTrigger value="storefront">Storefront API</TabsTrigger>
+					<TabsTrigger value="docs">Documentation</TabsTrigger>
+				</TabsList>
+				<div className="ml-auto">
+					{activeTab === "admin" && (
+						<CreateAdminApiKeyDialog>
+							<Button size="sm">Create Admin Key</Button>
+						</CreateAdminApiKeyDialog>
+					)}
+					{activeTab === "storefront" && (
+						<CreateApiKeyDialog>
+							<Button size="sm">Create Storefront Key</Button>
+						</CreateApiKeyDialog>
+					)}
+				</div>
+			</div>
 
 			{/* ADMIN API TAB */}
 			<TabsContent value="admin" className="space-y-4">
-				<div className="flex justify-between items-start">
-					<div>
-						<h3 className="font-medium">Admin API Keys</h3>
-						<p className="text-sm text-muted-foreground">
-							Secret keys for server-to-server integrations. Full access to your workspace data.
-						</p>
-					</div>
-					<CreateAdminApiKeyDialog>
-						<Button size="sm">
-							<HugeiconsIcon icon={Add01Icon} size={14} className="mr-1" />
-							Create Admin Key
-						</Button>
-					</CreateAdminApiKeyDialog>
-				</div>
-
 				{adminApiKeys.length === 0 ? (
 					<Card>
 						<CardContent className="flex flex-col items-center justify-center py-12 text-center">
@@ -892,10 +892,7 @@ export function ApiKeysClient({ storefronts, adminApiKeys }: { storefronts: Stor
 								Create an Admin API key to access your workspace data programmatically.
 							</p>
 							<CreateAdminApiKeyDialog>
-								<Button>
-									<HugeiconsIcon icon={Add01Icon} size={14} className="mr-1" />
-									Create Your First Admin Key
-								</Button>
+								<Button>Create Your First Admin Key</Button>
 							</CreateAdminApiKeyDialog>
 						</CardContent>
 					</Card>
@@ -947,21 +944,6 @@ export function ApiKeysClient({ storefronts, adminApiKeys }: { storefronts: Stor
 
 			{/* STOREFRONT API TAB */}
 			<TabsContent value="storefront" className="space-y-4">
-				<div className="flex justify-between items-start">
-					<div>
-						<h3 className="font-medium">Storefront API Keys</h3>
-						<p className="text-sm text-muted-foreground">
-							Public keys for customer-facing storefronts with limited permissions.
-						</p>
-					</div>
-					<CreateApiKeyDialog>
-						<Button size="sm">
-							<HugeiconsIcon icon={Add01Icon} size={14} className="mr-1" />
-							Create Storefront Key
-						</Button>
-					</CreateApiKeyDialog>
-				</div>
-
 				{storefronts.length === 0 ? (
 					<Card>
 						<CardContent className="flex flex-col items-center justify-center py-12 text-center">
@@ -973,10 +955,7 @@ export function ApiKeysClient({ storefronts, adminApiKeys }: { storefronts: Stor
 								Create an API key to connect your external storefront applications.
 							</p>
 							<CreateApiKeyDialog>
-								<Button>
-									<HugeiconsIcon icon={Add01Icon} size={14} className="mr-1" />
-									Create Your First Storefront Key
-								</Button>
+								<Button>Create Your First Storefront Key</Button>
 							</CreateApiKeyDialog>
 						</CardContent>
 					</Card>

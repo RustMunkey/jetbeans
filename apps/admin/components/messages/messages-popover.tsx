@@ -14,7 +14,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { useSession } from "@/lib/auth-client"
 import { usePusher } from "@/components/pusher-provider"
-import { getUnreadCount, getRecentMessages } from "@/app/(dashboard)/notifications/messages/actions"
+import { getUnreadCount, getRecentMessages } from "@/app/(dashboard)/messages/actions"
 import { formatDistanceToNow } from "date-fns"
 
 interface RecentMessage {
@@ -97,7 +97,7 @@ export function MessagesPopover() {
 
 	const handleViewAll = () => {
 		setOpen(false)
-		router.push("/notifications/messages")
+		router.push("/messages")
 	}
 
 	return (
@@ -141,7 +141,7 @@ export function MessagesPopover() {
 									className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-muted/50 transition-colors"
 									onClick={() => {
 										setOpen(false)
-										router.push("/notifications/messages")
+										router.push("/messages")
 									}}
 								>
 									<Avatar className="h-8 w-8 shrink-0">

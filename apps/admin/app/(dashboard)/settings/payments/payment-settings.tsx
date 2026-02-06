@@ -114,10 +114,7 @@ export function PaymentSettings({ settings }: { settings: Setting[] }) {
 	return (
 		<div className="space-y-6">
 			<div className="flex items-start justify-between">
-				<div>
-					<h2 className="text-lg font-semibold">Payment Settings</h2>
-					<p className="text-muted-foreground text-sm"><span className="sm:hidden">Methods & checkout.</span><span className="hidden sm:inline">Configure payment methods, currencies, and checkout behavior.</span></p>
-				</div>
+				<p className="text-muted-foreground text-sm"><span className="sm:hidden">Methods & checkout.</span><span className="hidden sm:inline">Configure payment methods, currencies, and checkout behavior.</span></p>
 				<Button size="sm" onClick={handleSave} disabled={saving}>
 					{saving ? "Saving..." : "Save All"}
 				</Button>

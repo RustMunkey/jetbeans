@@ -65,12 +65,9 @@ export default async function TrafficPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-4 pt-0">
-      <div>
-        <h2 className="text-lg font-semibold">Traffic</h2>
-        <p className="text-sm text-muted-foreground">
-          Visitor activity and traffic sources.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Visitor activity and traffic sources.
+      </p>
 
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

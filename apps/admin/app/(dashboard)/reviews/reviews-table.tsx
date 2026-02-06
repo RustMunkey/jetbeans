@@ -133,10 +133,10 @@ export function ReviewsTable({ reviews, totalCount }: ReviewsTableProps) {
 					}}
 				>
 					<SelectTrigger className="h-9 w-full sm:w-[140px]">
-						<SelectValue placeholder="All Status" />
+						<SelectValue placeholder="All Statuses" />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="all">All Status</SelectItem>
+						<SelectItem value="all">All Statuses</SelectItem>
 						<SelectItem value="pending">Pending</SelectItem>
 						<SelectItem value="approved">Approved</SelectItem>
 						<SelectItem value="rejected">Rejected</SelectItem>

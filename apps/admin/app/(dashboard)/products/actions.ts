@@ -475,3 +475,19 @@ export async function deleteVariant(id: string) {
 
 	await db.delete(productVariants).where(eq(productVariants.id, id))
 }
+
+export async function bulkDeleteVariants(ids: string[]) {
+	const workspace = await requireProductsPermission()
+
+	// Only delete variants whose products belong to this workspace
+	const validVariants = await db
+		.select({ id: productVariants.id })
+		.from(productVariants)
+		.innerJoin(products, eq(products.id, productVariants.productId))
+		.where(and(inArray(productVariants.id, ids), eq(products.workspaceId, workspace.id)))
+
+	const validIds = validVariants.map((v) => v.id)
+	if (validIds.length === 0) return
+
+	await db.delete(productVariants).where(inArray(productVariants.id, validIds))
+}

@@ -4,7 +4,6 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
-	Add01Icon,
 	MoreHorizontalIcon,
 	ViewIcon,
 	PencilEdit01Icon,
@@ -327,16 +326,12 @@ export function AuctionsTable({ auctions: initialAuctions, totalCount, view }: A
 
 	return (
 		<>
-			<div className="flex justify-end mb-4">
-				<Button size="sm" onClick={() => router.push("/auctions/new")}>
-					<HugeiconsIcon icon={Add01Icon} size={14} className="mr-1" />
-					Create Auction
-				</Button>
-			</div>
 			<DataTable
 				columns={columns}
 				data={auctions}
 				totalCount={totalCount}
+				searchPlaceholder="Search auctions..."
+				getId={(row) => row.id}
 				onRowClick={(auction) => router.push(`/auctions/${auction.id}`)}
 				emptyMessage={
 					view === "active"
@@ -344,6 +339,11 @@ export function AuctionsTable({ auctions: initialAuctions, totalCount, view }: A
 						: view === "drafts"
 						? "No draft auctions."
 						: "No closed auctions yet."
+				}
+				filters={
+					<Button size="sm" className="h-9 hidden sm:flex" onClick={() => router.push("/auctions/new")}>
+						Create Auction
+					</Button>
 				}
 			/>
 

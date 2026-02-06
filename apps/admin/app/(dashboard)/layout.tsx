@@ -85,24 +85,30 @@ export default async function DashboardLayout({
   let workspaceFavicon: string | null = null
   let workspaceStoreName: string | null = null
   let workspaceTagline: string | null = null
+  let workspaceStorefrontUrl: string | null = null
+  let workspaceCustomDomain: string | null = null
+  let workspaceMaintenanceMode = false
   if (activeWorkspace?.id) {
     const brandingSettings = await db
       .select({ key: storeSettings.key, value: storeSettings.value })
       .from(storeSettings)
       .where(and(
         eq(storeSettings.workspaceId, activeWorkspace.id),
-        inArray(storeSettings.key, ["store_favicon_url", "store_name", "store_tagline"])
+        inArray(storeSettings.key, ["store_favicon_url", "store_name", "store_tagline", "storefront_url", "custom_domain", "maintenance_mode"])
       ))
     for (const setting of brandingSettings) {
       if (setting.key === "store_favicon_url") workspaceFavicon = setting.value
       if (setting.key === "store_name") workspaceStoreName = setting.value
       if (setting.key === "store_tagline") workspaceTagline = setting.value
+      if (setting.key === "storefront_url") workspaceStorefrontUrl = setting.value
+      if (setting.key === "custom_domain") workspaceCustomDomain = setting.value
+      if (setting.key === "maintenance_mode") workspaceMaintenanceMode = setting.value === "true"
     }
   }
 
   const cookieStore = await cookies()
   const sidebarOpen = cookieStore.get("sidebar_state")?.value !== "false"
-  const rightSidebarOpen = cookieStore.get("right_sidebar_state")?.value !== "false"
+  const rightSidebarOpen = cookieStore.get("right_sidebar_state")?.value === "true"
 
   return (
     <>
@@ -158,12 +164,11 @@ export default async function DashboardLayout({
                           <div className="flex items-center gap-2 px-4 min-w-0">
                             {/* Mobile sidebar trigger */}
                             <SidebarTrigger className="md:hidden" />
-                            {/* Breadcrumb - hidden on mobile */}
-                            <div className="hidden md:block min-w-0 overflow-x-auto sm:overflow-hidden [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
+                            <div className="min-w-0 overflow-x-auto sm:overflow-hidden [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
                               <BreadcrumbNav />
                             </div>
                           </div>
-                          <HeaderToolbar />
+                          <HeaderToolbar storefrontUrl={workspaceCustomDomain || workspaceStorefrontUrl} initialMaintenanceMode={workspaceMaintenanceMode} />
                         </header>
                         {children}
                       </BreadcrumbProvider>

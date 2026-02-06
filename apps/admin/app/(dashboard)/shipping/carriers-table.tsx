@@ -104,16 +104,6 @@ export function CarriersTable({ carriers, totalCount, currentPage }: CarriersTab
 
 	return (
 		<>
-			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-lg font-semibold">Carriers & Rates</h2>
-					<p className="text-sm text-muted-foreground">Configure shipping carriers and their delivery rates.</p>
-				</div>
-				<Button size="sm" onClick={() => setCreateOpen(true)}>
-					Add Carrier
-				</Button>
-			</div>
-
 			<DataTable
 				columns={columns}
 				data={statusFilter === "all" ? carriers : carriers.filter((c) => statusFilter === "active" ? c.isActive : !c.isActive)}
@@ -126,16 +116,19 @@ export function CarriersTable({ carriers, totalCount, currentPage }: CarriersTab
 				currentPage={currentPage}
 				pageSize={30}
 				filters={
-					<Select value={statusFilter} onValueChange={setStatusFilter}>
-						<SelectTrigger className="h-9 w-full sm:w-[160px]">
-							<SelectValue placeholder="All Statuses" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Statuses</SelectItem>
-							<SelectItem value="active">Active</SelectItem>
-							<SelectItem value="inactive">Inactive</SelectItem>
-						</SelectContent>
-					</Select>
+					<>
+						<Select value={statusFilter} onValueChange={setStatusFilter}>
+							<SelectTrigger className="h-9 w-full sm:w-[160px]">
+								<SelectValue placeholder="All Statuses" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Statuses</SelectItem>
+								<SelectItem value="active">Active</SelectItem>
+								<SelectItem value="inactive">Inactive</SelectItem>
+							</SelectContent>
+						</Select>
+						<Button size="sm" className="h-9 hidden sm:flex" onClick={() => setCreateOpen(true)}>Add Carrier</Button>
+					</>
 				}
 			/>
 

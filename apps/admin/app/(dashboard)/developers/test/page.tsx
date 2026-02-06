@@ -76,10 +76,7 @@ export default function TestPage() {
 
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 pt-0">
-			<div>
-				<h2 className="text-lg font-semibold">Test Page</h2>
-				<p className="text-sm text-muted-foreground">Test various features and behaviors in development.</p>
-			</div>
+			<p className="text-sm text-muted-foreground">Test various features and behaviors in development.</p>
 
 			<div className="grid gap-6 md:grid-cols-2">
 				{/* Notifications Testing */}

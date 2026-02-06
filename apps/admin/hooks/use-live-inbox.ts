@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import { usePusher } from "@/components/pusher-provider"
-import type { InboxEmail } from "@/app/(dashboard)/notifications/messages/types"
+import type { InboxEmail } from "@/app/(dashboard)/messages/types"
 
 interface LiveInboxEmail {
 	id: string

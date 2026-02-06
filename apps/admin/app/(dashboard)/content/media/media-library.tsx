@@ -105,10 +105,7 @@ export function MediaLibrary({ items: initialItems }: { items: MediaItemType[] }
 	return (
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-lg font-semibold">Media Library</h2>
-					<p className="text-muted-foreground text-sm">Upload and manage images and videos.</p>
-				</div>
+				<p className="text-muted-foreground text-sm">Upload and manage images and videos.</p>
 				<div className="flex items-center gap-2">
 					<Select value={typeFilter} onValueChange={setTypeFilter}>
 						<SelectTrigger className="w-[120px]">

@@ -18,12 +18,9 @@ export default async function FulfillmentPage({ searchParams }: PageProps) {
 
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 pt-0">
-			<div>
-				<h2 className="text-lg font-semibold">Fulfillment</h2>
-				<p className="text-sm text-muted-foreground">
-					Orders ready to be packed and shipped.
-				</p>
-			</div>
+			<p className="text-sm text-muted-foreground">
+				Orders ready to be packed and shipped.
+			</p>
 
 			<FulfillmentClient orders={items} totalCount={totalCount} currentPage={page} />
 		</div>

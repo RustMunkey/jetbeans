@@ -13,34 +13,50 @@ import {
 } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { getQuickStats } from "./stats-actions"
 
-// Mock data - in real implementation, this would fetch from API
-function useMockStats() {
-	const [loading, setLoading] = React.useState(false)
-	const [stats, setStats] = React.useState({
-		todaySales: 1247.50,
-		todayOrders: 18,
-		pendingOrders: 5,
-		lowStockItems: 3,
-		newCustomers: 7,
-		salesChange: 12.5, // percentage
-		ordersChange: -5.2,
+type Stats = {
+	todaySales: number
+	todayOrders: number
+	pendingOrders: number
+	lowStockItems: number
+	newCustomers: number
+	salesChange: number
+	ordersChange: number
+}
+
+function useStats() {
+	const [loading, setLoading] = React.useState(true)
+	const [lastUpdated, setLastUpdated] = React.useState<Date | null>(null)
+	const [stats, setStats] = React.useState<Stats>({
+		todaySales: 0,
+		todayOrders: 0,
+		pendingOrders: 0,
+		lowStockItems: 0,
+		newCustomers: 0,
+		salesChange: 0,
+		ordersChange: 0,
 	})
 
-	const refresh = React.useCallback(() => {
+	const refresh = React.useCallback(async () => {
 		setLoading(true)
-		// Simulate API call
-		setTimeout(() => {
-			setStats((prev) => ({
-				...prev,
-				todaySales: prev.todaySales + Math.random() * 100 - 50,
-				todayOrders: prev.todayOrders + Math.floor(Math.random() * 3),
-			}))
+		try {
+			const data = await getQuickStats()
+			setStats(data)
+			setLastUpdated(new Date())
+		} catch {
+			// Silently fail - widget will show stale data
+		} finally {
 			setLoading(false)
-		}, 500)
+		}
 	}, [])
 
-	return { stats, loading, refresh }
+	// Load on mount
+	React.useEffect(() => {
+		refresh()
+	}, [refresh])
+
+	return { stats, loading, refresh, lastUpdated }
 }
 
 function StatCard({
@@ -87,7 +103,7 @@ function StatCard({
 }
 
 export function StatsWidget() {
-	const { stats, loading, refresh } = useMockStats()
+	const { stats, loading, refresh, lastUpdated } = useStats()
 
 	return (
 		<div className="p-4 space-y-4">
@@ -141,7 +157,9 @@ export function StatsWidget() {
 			</div>
 
 			<div className="text-[10px] text-muted-foreground text-center">
-				Last updated: {new Date().toLocaleTimeString()}
+				{lastUpdated
+					? `Last updated: ${lastUpdated.toLocaleTimeString()}`
+					: "Loading..."}
 			</div>
 		</div>
 	)

@@ -17,14 +17,14 @@ import Link from "next/link"
 
 const labels: Record<string, string> = {
   analytics: "Analytics",
-  sales: "Sales Reports",
+  sales: "Sales",
   traffic: "Traffic",
   customers: "Customers",
   "customer-insights": "Customer Insights",
   orders: "Orders",
   returns: "Returns & Refunds",
   fulfillment: "Fulfillment",
-  notes: "Notes",
+  notes: "Notes & Bugs",
   products: "Products",
   categories: "Categories",
   variants: "Variants",
@@ -54,6 +54,9 @@ const labels: Record<string, string> = {
   media: "Media Library",
   suppliers: "Suppliers",
   "purchase-orders": "Purchase Orders",
+  automation: "Automation",
+  triggers: "Triggers",
+  history: "History",
   notifications: "Notifications",
   "activity-log": "Activity Log",
   settings: "Settings",
@@ -63,8 +66,33 @@ const labels: Record<string, string> = {
   integrations: "Integrations",
   account: "Account",
   sessions: "Sessions",
-  messages: "Team Messages",
+  storefronts: "Storefronts",
+  messages: "Messages",
+  calls: "Calls",
+  auctions: "Auctions",
+  drafts: "Drafts",
+  closed: "Closed",
+  contacts: "Contacts",
+  companies: "Companies",
+  deals: "Deals",
+  pipeline: "Pipeline",
+  tasks: "Tasks",
+  billing: "Billing",
+  invoices: "Invoices",
+  "payment-methods": "Payment Methods",
+  usage: "Usage",
+  "email-templates": "Email Templates",
+  developers: "Developers",
+  "api-keys": "API Keys",
+  webhooks: "Webhooks",
+  test: "Test Page",
   new: "New",
+}
+
+function toTitleCase(str: string) {
+  return str
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 export function BreadcrumbNav() {
@@ -114,7 +142,7 @@ export function BreadcrumbNav() {
       <BreadcrumbList>
         {segments.map((segment, index) => {
           const href = "/" + segments.slice(0, index + 1).join("/")
-          const label = labels[segment] || segment
+          const label = labels[segment] || toTitleCase(segment)
           const isLast = index === segments.length - 1
 
           const isId = !labels[segment] && index > 0

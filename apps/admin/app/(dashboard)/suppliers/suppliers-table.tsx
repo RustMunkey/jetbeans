@@ -116,16 +116,6 @@ export function SuppliersTable({ suppliers, totalCount, currentPage }: Suppliers
 
 	return (
 		<>
-			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-lg font-semibold">Suppliers</h2>
-					<p className="text-sm text-muted-foreground">Manage your product suppliers and vendors.</p>
-				</div>
-				<Button size="sm" onClick={() => setCreateOpen(true)}>
-					Add Supplier
-				</Button>
-			</div>
-
 			<DataTable
 				columns={columns}
 				data={countryFilter === "all" ? suppliers : suppliers.filter((s) => s.country === countryFilter)}
@@ -138,17 +128,20 @@ export function SuppliersTable({ suppliers, totalCount, currentPage }: Suppliers
 				currentPage={currentPage}
 				pageSize={30}
 				filters={
-					<Select value={countryFilter} onValueChange={setCountryFilter}>
-						<SelectTrigger className="h-9 w-full sm:w-[160px]">
-							<SelectValue placeholder="All Countries" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Countries</SelectItem>
-							{[...new Set(suppliers.map((s) => s.country).filter(Boolean) as string[])].sort().map((c) => (
-								<SelectItem key={c} value={c}>{c}</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+					<>
+						<Select value={countryFilter} onValueChange={setCountryFilter}>
+							<SelectTrigger className="h-9 w-full sm:w-[160px]">
+								<SelectValue placeholder="All Countries" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Countries</SelectItem>
+								{[...new Set(suppliers.map((s) => s.country).filter(Boolean) as string[])].sort().map((c) => (
+									<SelectItem key={c} value={c}>{c}</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<Button size="sm" className="h-9 hidden sm:flex" onClick={() => setCreateOpen(true)}>Add Supplier</Button>
+					</>
 				}
 			/>
 

@@ -18,12 +18,9 @@ export default async function ReturnsPage({ searchParams }: PageProps) {
 
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 pt-0">
-			<div>
-				<h2 className="text-lg font-semibold">Returns & Refunds</h2>
-				<p className="text-sm text-muted-foreground">
-					Orders with refunds or returns.
-				</p>
-			</div>
+			<p className="text-sm text-muted-foreground">
+				Orders with refunds or returns.
+			</p>
 
 			<ReturnsClient orders={items} totalCount={totalCount} currentPage={page} />
 		</div>

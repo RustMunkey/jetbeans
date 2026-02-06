@@ -120,3 +120,19 @@ export async function deleteCategory(id: string) {
 		targetLabel: category?.name,
 	})
 }
+
+export async function bulkDeleteCategories(ids: string[]) {
+	const workspace = await requireCategoriesPermission()
+	const { inArray } = await import("@jetbeans/db/drizzle")
+
+	await db
+		.delete(categories)
+		.where(and(eq(categories.workspaceId, workspace.id), inArray(categories.id, ids)))
+
+	await logAudit({
+		action: "category.bulk_deleted",
+		targetType: "category",
+		targetId: ids.join(","),
+		targetLabel: `${ids.length} categories`,
+	})
+}

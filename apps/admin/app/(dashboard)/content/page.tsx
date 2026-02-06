@@ -15,6 +15,7 @@ export default async function ContentPage({ searchParams }: PageProps) {
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+			<p className="text-sm text-muted-foreground">Create and manage blog content.</p>
 			<BlogPostsTable posts={items} totalCount={totalCount} currentPage={page} currentStatus={params.status} />
 		</div>
 	)

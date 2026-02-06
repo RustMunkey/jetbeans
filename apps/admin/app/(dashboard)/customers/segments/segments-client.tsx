@@ -153,17 +153,6 @@ export function SegmentsClient({ segments, totalCount, currentPage }: SegmentsCl
 
 	return (
 		<>
-			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-lg font-semibold">Segments</h2>
-					<p className="text-sm text-muted-foreground">
-						<span className="sm:hidden">Manage customer groups.</span>
-						<span className="hidden sm:inline">Organize customers into groups for targeted marketing.</span>
-					</p>
-				</div>
-				<Button size="sm" onClick={() => setOpen(true)}>Create Segment</Button>
-			</div>
-
 			<DataTable
 				columns={columns}
 				data={segments}
@@ -174,6 +163,9 @@ export function SegmentsClient({ segments, totalCount, currentPage }: SegmentsCl
 				emptyDescription="Create segments to organize customers into groups."
 				totalCount={totalCount}
 				currentPage={currentPage}
+				filters={
+					<Button size="sm" className="h-9 hidden sm:flex" onClick={() => setOpen(true)}>Create Segment</Button>
+				}
 			/>
 
 			<Dialog open={open} onOpenChange={setOpen}>

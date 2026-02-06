@@ -4,7 +4,6 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
-	Add01Icon,
 	MoreHorizontalIcon,
 	ViewIcon,
 	PencilEdit01Icon,
@@ -212,18 +211,18 @@ export function WorkflowsTable({ workflows: initialWorkflows, totalCount }: Work
 
 	return (
 		<>
-			<div className="flex justify-end mb-4">
-				<Button size="sm" onClick={() => router.push("/automation/new")}>
-					<HugeiconsIcon icon={Add01Icon} size={14} className="mr-1" />
-					Create Workflow
-				</Button>
-			</div>
 			<DataTable
 				columns={columns}
 				data={workflows}
 				totalCount={totalCount}
+				searchPlaceholder="Search workflows..."
 				onRowClick={(workflow) => router.push(`/automation/${workflow.id}`)}
 				emptyMessage="No workflows yet. Create one to automate your business."
+				filters={
+					<Button size="sm" className="h-9 hidden sm:flex" onClick={() => router.push("/automation/new")}>
+						New Workflow
+					</Button>
+				}
 			/>
 
 			<AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>

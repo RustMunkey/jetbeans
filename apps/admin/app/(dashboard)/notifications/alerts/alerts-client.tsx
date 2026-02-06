@@ -182,7 +182,6 @@ export function AlertsClient({ rules: initial }: { rules: AlertRule[] }) {
 	return (
 		<div className="space-y-6">
 			<div>
-				<h2 className="text-lg font-semibold">Alert Preferences</h2>
 				<p className="text-sm text-muted-foreground">
 					Choose which events trigger notifications.
 				</p>

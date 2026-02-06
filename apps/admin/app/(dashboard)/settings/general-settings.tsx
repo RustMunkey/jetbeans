@@ -470,7 +470,6 @@ export function GeneralSettings({ settings }: { settings: Setting[] }) {
 		<div className="space-y-6">
 			<div className="flex items-start justify-between">
 				<div>
-					<h2 className="text-lg font-semibold">All Settings</h2>
 					<p className="text-muted-foreground text-sm"><span className="sm:hidden">Store configuration.</span><span className="hidden sm:inline">Store info, checkout, inventory, SEO, security, and more.</span></p>
 				</div>
 				<Button size="sm" onClick={handleSaveAll} disabled={saving}>

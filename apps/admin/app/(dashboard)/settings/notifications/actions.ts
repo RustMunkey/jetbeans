@@ -3,7 +3,7 @@
 import { headers } from "next/headers"
 import { eq, desc, and, isNull, or } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
-import { notifications, notificationPreferences } from "@jetbeans/db/schema"
+import { notifications, notificationPreferences, alertRules } from "@jetbeans/db/schema"
 import { auth } from "@/lib/auth"
 import { getActiveWorkspace } from "@/lib/workspace"
 
@@ -204,8 +204,28 @@ export async function updateNotificationPreferences(preferences: {
 	return getNotificationPreferences()
 }
 
+// Map granular alert types (e.g. "order.placed") to broad preference categories
+const ALERT_TYPE_TO_PREFERENCE: Record<string, "newOrders" | "lowStock" | "payments" | "shipments" | "collaboration"> = {
+	order: "newOrders",
+	inventory: "lowStock",
+	payment: "payments",
+	subscription: "payments",
+	shipping: "shipments",
+	team: "collaboration",
+	customer: "newOrders",
+	review: "newOrders",
+	marketing: "newOrders",
+	// security and system alerts always go through - no mapping needed
+}
+
+function getPreferenceCategory(type: string) {
+	const prefix = type.split(".")[0]
+	return ALERT_TYPE_TO_PREFERENCE[prefix] ?? null
+}
+
 // Create a notification (utility for other parts of the app)
 // workspaceId is optional - null means platform-wide notification (e.g., friend requests)
+// Checks alertRules (workspace-level) and notificationPreferences (user-level) before creating
 export async function createNotification(data: {
 	userId: string
 	workspaceId?: string | null
@@ -215,6 +235,40 @@ export async function createNotification(data: {
 	link?: string
 	metadata?: Record<string, unknown>
 }) {
+	// Check workspace-level alert rules (granular toggles like "order.placed")
+	if (data.workspaceId) {
+		const [rule] = await db
+			.select({ isActive: alertRules.isActive })
+			.from(alertRules)
+			.where(
+				and(
+					eq(alertRules.workspaceId, data.workspaceId),
+					eq(alertRules.type, data.type)
+				)
+			)
+			.limit(1)
+
+		// If a rule exists and is explicitly disabled, skip this notification
+		if (rule && rule.isActive === false) {
+			return null
+		}
+	}
+
+	// Check user-level notification preferences (broad category toggles)
+	const prefCategory = getPreferenceCategory(data.type)
+	if (prefCategory) {
+		const [prefs] = await db
+			.select()
+			.from(notificationPreferences)
+			.where(eq(notificationPreferences.userId, data.userId))
+			.limit(1)
+
+		// If preferences exist and this category is disabled, skip
+		if (prefs && prefs[prefCategory] === false) {
+			return null
+		}
+	}
+
 	const [notification] = await db
 		.insert(notifications)
 		.values({

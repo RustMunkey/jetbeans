@@ -19,12 +19,9 @@ export default async function TeamPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-4 pt-0">
-      <div>
-        <h2 className="text-lg font-semibold">Team & Permissions</h2>
-        <p className="text-sm text-muted-foreground">
-          Manage who has access to the admin panel.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Manage who has access to the admin panel.
+      </p>
       <TeamClient
         members={members}
         pendingInvites={pendingInvites}

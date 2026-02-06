@@ -20,23 +20,8 @@ interface Server {
 	unreadCount?: number
 }
 
-// Example servers - in production these would come from the database
-const SERVERS: Server[] = [
-	{
-		id: "coffee",
-		name: "Coffee Store",
-		unreadCount: 1,
-	},
-	{
-		id: "matcha",
-		name: "Matcha Store",
-	},
-	{
-		id: "skate",
-		name: "Skate Shop",
-		unreadCount: 3,
-	},
-]
+// Servers come from the database - user-created via "Add a Server"
+const SERVERS: Server[] = []
 
 function getInitials(name: string) {
 	return name

@@ -5,12 +5,9 @@ export default function DealsPage() {
 	return (
 		<div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 pt-0">
 			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-lg font-semibold">Deals</h2>
-					<p className="text-sm text-muted-foreground">
-						Track sales opportunities from lead to close.
-					</p>
-				</div>
+				<p className="text-sm text-muted-foreground">
+					Track sales opportunities from lead to close.
+				</p>
 				<Button>New Deal</Button>
 			</div>
 

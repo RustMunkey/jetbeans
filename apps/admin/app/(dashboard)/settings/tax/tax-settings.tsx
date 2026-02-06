@@ -142,11 +142,8 @@ export function TaxSettings({ settings }: { settings: Setting[] }) {
 
 	return (
 		<div className="space-y-6">
-			<div className="flex items-start justify-between">
-				<div>
-					<h2 className="text-lg font-semibold">Tax Settings</h2>
-					<p className="text-muted-foreground text-sm"><span className="sm:hidden">Tax rates & duties.</span><span className="hidden sm:inline">Manage tax rates, collection rules, and import duty disclaimers.</span></p>
-				</div>
+			<div className="flex items-center justify-between">
+				<p className="text-muted-foreground text-sm"><span className="sm:hidden">Tax rates & duties.</span><span className="hidden sm:inline">Manage tax rates, collection rules, and import duty disclaimers.</span></p>
 				<Button size="sm" onClick={handleSave} disabled={saving}>
 					{saving ? "Saving..." : "Save All"}
 				</Button>

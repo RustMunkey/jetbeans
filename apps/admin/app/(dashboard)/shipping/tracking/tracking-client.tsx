@@ -75,7 +75,6 @@ export function TrackingClient({ items, totalCount, currentPage, currentStatus }
 	return (
 		<>
 		<div>
-			<h2 className="text-lg font-semibold">Shipment Tracking</h2>
 			<p className="text-sm text-muted-foreground">Carrier-provided tracking updates for shipments.</p>
 		</div>
 		<DataTable

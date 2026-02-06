@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { DataTable, type Column } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -25,7 +26,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { slugify } from "@/lib/format"
-import { createCategory, updateCategory, deleteCategory } from "./actions"
+import { createCategory, updateCategory, deleteCategory, bulkDeleteCategories } from "./actions"
 import { useDraft, type Draft } from "@/lib/use-draft"
 import { DraftIndicator, DraftStatus } from "@/components/drafts-manager"
 
@@ -49,6 +50,8 @@ export function CategoriesClient({ categories }: CategoriesClientProps) {
 	const [deleteId, setDeleteId] = useState<string | null>(null)
 	const [editing, setEditing] = useState<Category | null>(null)
 	const [loading, setLoading] = useState(false)
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+	const [parentFilter, setParentFilter] = useState("all")
 
 	const [name, setName] = useState("")
 	const [slug, setSlug] = useState("")
@@ -155,70 +158,132 @@ export function CategoriesClient({ categories }: CategoriesClientProps) {
 		}
 	}
 
-	// Build tree structure
-	const roots = categories.filter((c) => !c.parentId)
-	const children = (parentId: string) => categories.filter((c) => c.parentId === parentId)
+	const handleBulkDelete = async () => {
+		setLoading(true)
+		try {
+			await bulkDeleteCategories(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`${selectedIds.length} category(ies) deleted`)
+		} catch (e: any) {
+			toast.error(e.message)
+		} finally {
+			setLoading(false)
+		}
+	}
 
-	const renderCategory = (cat: Category, depth: number = 0) => (
-		<div key={cat.id}>
-			<div
-				className="flex items-center justify-between px-4 py-3 hover:bg-muted/50"
-				style={{ paddingLeft: `${16 + depth * 24}px` }}
-			>
-				<div className="space-y-0.5">
-					<span className="text-sm font-medium">{cat.name}</span>
-					{cat.description && (
-						<p className="text-xs text-muted-foreground">{cat.description}</p>
-					)}
-				</div>
-				<div className="flex items-center gap-2">
-					<Button variant="ghost" size="sm" onClick={() => openEdit(cat)}>
-						Edit
-					</Button>
-					<Button
-						variant="ghost"
-						size="sm"
-						className="text-destructive"
-						onClick={() => setDeleteId(cat.id)}
-					>
-						Delete
-					</Button>
-				</div>
-			</div>
-			{children(cat.id).map((child) => renderCategory(child, depth + 1))}
-		</div>
-	)
+	// Get parent category names for display
+	const parentMap = new Map(categories.map((c) => [c.id, c.name]))
+
+	// Filter by parent
+	const filteredCategories = parentFilter === "all"
+		? categories
+		: parentFilter === "top-level"
+			? categories.filter((c) => !c.parentId)
+			: categories.filter((c) => c.parentId === parentFilter)
+
+	// Top-level categories for the filter dropdown
+	const topLevelCategories = categories.filter((c) => !c.parentId)
+
+	const columns: Column<Category>[] = [
+		{
+			key: "name",
+			header: "Name",
+			cell: (row) => (
+				<button
+					type="button"
+					className="font-medium hover:underline text-left"
+					onClick={(e) => {
+						e.stopPropagation()
+						openEdit(row)
+					}}
+				>
+					{row.name}
+				</button>
+			),
+		},
+		{
+			key: "slug",
+			header: "Slug",
+			cell: (row) => (
+				<span className="text-muted-foreground text-xs font-mono">{row.slug}</span>
+			),
+		},
+		{
+			key: "parent",
+			header: "Parent",
+			cell: (row) => (
+				<span className="text-muted-foreground">
+					{row.parentId ? parentMap.get(row.parentId) ?? "—" : "—"}
+				</span>
+			),
+		},
+		{
+			key: "description",
+			header: "Description",
+			cell: (row) => (
+				<span className="text-muted-foreground text-xs truncate max-w-[200px] block">
+					{row.description || "—"}
+				</span>
+			),
+		},
+	]
 
 	return (
 		<>
 			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-lg font-semibold">Categories</h2>
-					<p className="text-sm text-muted-foreground">
-						Organize products into categories.
-					</p>
-				</div>
-				<div className="flex items-center gap-2">
-					<DraftIndicator
-						draftKey="category"
-						onSelect={handleLoadDraft}
-					/>
+				<p className="text-sm text-muted-foreground">
+					Organize products into categories.
+				</p>
+				<div className="flex items-center gap-2 sm:hidden">
 					<Button size="sm" onClick={openCreate}>Add Category</Button>
 				</div>
 			</div>
 
-			{categories.length === 0 ? (
-				<div className="rounded-lg border px-4 py-12 text-center">
-					<p className="text-sm text-muted-foreground">No categories yet</p>
-					<p className="text-xs text-muted-foreground/60 mt-1">
-						Create categories to organize your products.
-					</p>
-				</div>
-			) : (
-				<div className="rounded-lg border divide-y">
-					{roots.map((cat) => renderCategory(cat))}
-				</div>
-			)}
+			<DataTable
+				columns={columns}
+				data={filteredCategories}
+				searchPlaceholder="Search categories..."
+				totalCount={filteredCategories.length}
+				selectable
+				selectedIds={selectedIds}
+				onSelectionChange={setSelectedIds}
+				getId={(row) => row.id}
+				onRowClick={(row) => openEdit(row)}
+				emptyMessage="No categories yet"
+				emptyDescription="Create categories to organize your products."
+				filters={
+					<>
+						<Select
+							value={parentFilter}
+							onValueChange={setParentFilter}
+						>
+							<SelectTrigger className="h-9 w-full sm:w-[160px]">
+								<SelectValue placeholder="All Categories" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Categories</SelectItem>
+								<SelectItem value="top-level">Top Level Only</SelectItem>
+								{topLevelCategories.map((cat) => (
+									<SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<div className="hidden sm:flex items-center gap-2">
+							<DraftIndicator
+								draftKey="category"
+								onSelect={handleLoadDraft}
+							/>
+							<Button size="sm" className="h-9" onClick={openCreate}>Add Category</Button>
+						</div>
+					</>
+				}
+				bulkActions={
+					<Button size="sm" variant="destructive" disabled={loading} onClick={handleBulkDelete}>
+						Delete ({selectedIds.length})
+					</Button>
+				}
+			/>
 
 			<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
 				<DialogContent>

@@ -161,7 +161,7 @@ export async function POST(request: Request) {
 				.from(users)
 
 			for (const user of adminUsers) {
-				const emailLink = `/notifications/messages?email=${email.id}`
+				const emailLink = `/messages?email=${email.id}`
 				const [notification] = await db
 					.insert(notifications)
 					.values({

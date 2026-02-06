@@ -14,6 +14,7 @@ export default async function SitePagesPage({ searchParams }: PageProps) {
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+			<p className="text-sm text-muted-foreground">Manage static pages like About, Contact, FAQ.</p>
 			<PagesTable pages={items} totalCount={totalCount} currentPage={page} />
 		</div>
 	)

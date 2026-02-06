@@ -147,10 +147,7 @@ export function SeoClient({ products }: { products: ProductSeo[] }) {
 	return (
 		<>
 			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-lg font-semibold">SEO</h2>
-					<p className="text-sm text-muted-foreground">Manage meta titles and descriptions for products.</p>
-				</div>
+				<p className="text-sm text-muted-foreground">Manage meta titles and descriptions for products.</p>
 				<div className="text-right text-xs text-muted-foreground">
 					<span className="text-green-600 dark:text-green-400">{completeCount} complete</span>
 					<span className="mx-1">&middot;</span>

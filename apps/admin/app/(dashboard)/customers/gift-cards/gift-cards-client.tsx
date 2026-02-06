@@ -121,17 +121,6 @@ export function GiftCardsClient({ cards, totalCount, currentPage }: GiftCardsCli
 
 	return (
 		<>
-			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-lg font-semibold">Gift Cards</h2>
-					<p className="text-sm text-muted-foreground">
-						<span className="sm:hidden">Manage gift cards.</span>
-						<span className="hidden sm:inline">Create and manage gift cards for customers.</span>
-					</p>
-				</div>
-				<Button size="sm" onClick={() => setOpen(true)}>Create Gift Card</Button>
-			</div>
-
 			<DataTable
 				columns={columns}
 				data={filtered}
@@ -144,18 +133,21 @@ export function GiftCardsClient({ cards, totalCount, currentPage }: GiftCardsCli
 				currentPage={currentPage}
 				pageSize={30}
 				filters={
-					<Select value={statusFilter} onValueChange={setStatusFilter}>
-						<SelectTrigger className="h-9 w-full sm:w-[150px]">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Statuses</SelectItem>
-							<SelectItem value="active">Active</SelectItem>
-							<SelectItem value="used">Used</SelectItem>
-							<SelectItem value="expired">Expired</SelectItem>
-							<SelectItem value="deactivated">Deactivated</SelectItem>
-						</SelectContent>
-					</Select>
+					<>
+						<Select value={statusFilter} onValueChange={setStatusFilter}>
+							<SelectTrigger className="h-9 w-full sm:w-[150px]">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Statuses</SelectItem>
+								<SelectItem value="active">Active</SelectItem>
+								<SelectItem value="used">Used</SelectItem>
+								<SelectItem value="expired">Expired</SelectItem>
+								<SelectItem value="deactivated">Deactivated</SelectItem>
+							</SelectContent>
+						</Select>
+						<Button size="sm" className="h-9 hidden sm:flex" onClick={() => setOpen(true)}>Add Card</Button>
+					</>
 				}
 			/>
 

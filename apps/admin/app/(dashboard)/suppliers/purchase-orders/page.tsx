@@ -17,10 +17,7 @@ export default async function PurchaseOrdersPage({ searchParams }: PageProps) {
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-			<div>
-				<h2 className="text-lg font-semibold">Purchase Orders</h2>
-				<p className="text-sm text-muted-foreground">Orders placed with suppliers for restocking.</p>
-			</div>
+			<p className="text-sm text-muted-foreground">Orders placed with suppliers for restocking.</p>
 			<POTable
 				orders={items}
 				totalCount={totalCount}

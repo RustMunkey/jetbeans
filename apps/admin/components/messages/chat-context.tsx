@@ -1,16 +1,37 @@
 "use client"
 
 import * as React from "react"
-import type { TeamMessage, TeamMember, Conversation } from "@/app/(dashboard)/notifications/messages/types"
+import type { TeamMessage, TeamMember, Conversation } from "@/app/(dashboard)/messages/types"
 
 const CHAT_STATE_KEY = "jetbeans_chat_state"
 const VIEW_MODE_KEY = "jetbeans_messages_view_mode"
+const RECENT_CONVOS_KEY = "jetbeans-recent-conversations"
+
+type Friend = {
+	id: string
+	name: string | null
+	username: string | null
+	image: string | null
+	bio: string | null
+}
+
+type InboxEmailSummary = {
+	id: string
+	fromName: string
+	fromEmail: string
+	subject: string
+	status: "unread" | "read" | "replied"
+}
 
 function loadChatState(): Conversation | null {
 	if (typeof window === "undefined") return null
 	try {
 		const stored = localStorage.getItem(CHAT_STATE_KEY)
-		return stored ? JSON.parse(stored) : null
+		if (!stored) return null
+		const parsed = JSON.parse(stored)
+		// Don't restore channel-type conversations (channels removed)
+		if (parsed?.type === "channel") return null
+		return parsed
 	} catch {
 		return null
 	}
@@ -41,6 +62,21 @@ function saveViewMode(mode: ViewMode) {
 	} catch {}
 }
 
+// Clear stale recents that reference channels (since channels are now removed)
+function clearStaleRecents() {
+	if (typeof window === "undefined") return
+	try {
+		const stored = localStorage.getItem(RECENT_CONVOS_KEY)
+		if (!stored) return
+		const recents = JSON.parse(stored)
+		// Filter out channel-type recents
+		const filtered = recents.filter((r: { type: string }) => r.type !== "channel")
+		if (filtered.length !== recents.length) {
+			localStorage.setItem(RECENT_CONVOS_KEY, JSON.stringify(filtered))
+		}
+	} catch {}
+}
+
 type ViewMode = "chat" | "inbox" | "friends"
 
 type ChatContextType = {
@@ -50,11 +86,21 @@ type ChatContextType = {
 	setMessages: React.Dispatch<React.SetStateAction<TeamMessage[]>>
 	teamMembers: TeamMember[]
 	setTeamMembers: React.Dispatch<React.SetStateAction<TeamMember[]>>
+	friends: Friend[]
+	setFriends: React.Dispatch<React.SetStateAction<Friend[]>>
+	inboxEmails: InboxEmailSummary[]
+	setInboxEmails: React.Dispatch<React.SetStateAction<InboxEmailSummary[]>>
 	userId: string
 	setUserId: React.Dispatch<React.SetStateAction<string>>
 	hydrated: boolean
 	isInitialized: boolean
-	initialize: (data: { messages: TeamMessage[]; teamMembers: TeamMember[]; userId: string }) => void
+	initialize: (data: {
+		messages: TeamMessage[]
+		teamMembers: TeamMember[]
+		userId: string
+		friends?: Friend[]
+		inboxEmails?: InboxEmailSummary[]
+	}) => void
 	viewMode: ViewMode
 	setViewMode: (mode: ViewMode) => void
 	toggleViewMode: () => void
@@ -70,8 +116,10 @@ const ChatContext = React.createContext<ChatContextType | null>(null)
 export function ChatProvider({ children }: { children: React.ReactNode }) {
 	const [messages, setMessages] = React.useState<TeamMessage[]>([])
 	const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([])
+	const [friends, setFriends] = React.useState<Friend[]>([])
+	const [inboxEmails, setInboxEmails] = React.useState<InboxEmailSummary[]>([])
 	const [userId, setUserId] = React.useState<string>("")
-	const [active, setActiveState] = React.useState<Conversation>({ type: "channel", id: "general", label: "#general" })
+	const [active, setActiveState] = React.useState<Conversation>({ type: "dm", id: "", label: "" })
 	const [hydrated, setHydrated] = React.useState(false)
 	const [isInitialized, setIsInitialized] = React.useState(false)
 	const [viewMode, setViewModeState] = React.useState<ViewMode>("friends")
@@ -103,8 +151,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 		setMobileShowChat(false)
 	}, [])
 
-	// Load saved chat state and view mode after hydration
+	// Load saved chat state and view mode after hydration + clear stale data
 	React.useEffect(() => {
+		clearStaleRecents()
 		const saved = loadChatState()
 		if (saved) setActiveState(saved)
 		const savedViewMode = loadViewMode()
@@ -117,10 +166,18 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 		saveChatState(c)
 	}, [])
 
-	const initialize = React.useCallback((data: { messages: TeamMessage[]; teamMembers: TeamMember[]; userId: string }) => {
+	const initialize = React.useCallback((data: {
+		messages: TeamMessage[]
+		teamMembers: TeamMember[]
+		userId: string
+		friends?: Friend[]
+		inboxEmails?: InboxEmailSummary[]
+	}) => {
 		setMessages(data.messages)
 		setTeamMembers(data.teamMembers)
 		setUserId(data.userId)
+		if (data.friends) setFriends(data.friends)
+		if (data.inboxEmails) setInboxEmails(data.inboxEmails)
 		setIsInitialized(true)
 	}, [])
 
@@ -133,6 +190,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 				setMessages,
 				teamMembers,
 				setTeamMembers,
+				friends,
+				setFriends,
+				inboxEmails,
+				setInboxEmails,
 				userId,
 				setUserId,
 				hydrated,

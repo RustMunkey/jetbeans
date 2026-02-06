@@ -13,7 +13,6 @@ interface SubscriptionsTableProps {
 	totalCount: number
 	currentStatus?: string
 	basePath?: string
-	title?: string
 	description?: string
 }
 
@@ -24,7 +23,6 @@ export function SubscriptionsTable({
 	totalCount,
 	currentStatus,
 	basePath = "/subscriptions",
-	title = "Subscriptions",
 	description = "Manage recurring delivery subscriptions.",
 }: SubscriptionsTableProps) {
 	const router = useRouter()
@@ -99,10 +97,7 @@ export function SubscriptionsTable({
 
 	return (
 		<>
-		<div>
-			<h2 className="text-lg font-semibold">{title}</h2>
-			<p className="text-sm text-muted-foreground">{description}</p>
-		</div>
+		<p className="text-sm text-muted-foreground">{description}</p>
 		<DataTable
 			columns={columns}
 			data={subscriptions}

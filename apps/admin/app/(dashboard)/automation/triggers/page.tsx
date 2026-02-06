@@ -6,7 +6,6 @@ export default function TriggersPage() {
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 pt-0">
 			<div>
-				<h2 className="text-lg font-semibold">Available Triggers</h2>
 				<p className="text-sm text-muted-foreground">
 					Events that can start your automated workflows.
 				</p>

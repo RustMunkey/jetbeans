@@ -117,13 +117,10 @@ export function ShippingSettings({ settings }: { settings: Setting[] }) {
 	return (
 		<div className="space-y-6">
 			<div className="flex items-start justify-between">
-				<div>
-					<h2 className="text-lg font-semibold">Shipping Settings</h2>
-					<p className="text-muted-foreground text-sm">
-						<span className="sm:hidden">Ship-from address & labels.</span>
-						<span className="hidden sm:inline">Configure your warehouse address, label preferences, and shipping options.</span>
-					</p>
-				</div>
+				<p className="text-muted-foreground text-sm">
+					<span className="sm:hidden">Ship-from address & labels.</span>
+					<span className="hidden sm:inline">Configure your warehouse address, label preferences, and shipping options.</span>
+				</p>
 				<Button size="sm" onClick={handleSave} disabled={saving}>
 					{saving ? "Saving..." : "Save All"}
 				</Button>

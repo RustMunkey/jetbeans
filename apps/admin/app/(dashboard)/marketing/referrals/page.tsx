@@ -19,7 +19,10 @@ export default async function ReferralsPage({ searchParams }: PageProps) {
 	])
 
 	return (
-		<div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+		<div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 pt-0">
+			<p className="text-sm text-muted-foreground">
+				Track customer referrals and reward codes.
+			</p>
 			<ReferralsClient
 				referrals={referralsData.items}
 				referralsTotalCount={referralsData.totalCount}

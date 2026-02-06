@@ -20,12 +20,9 @@ export default async function InventoryPage({ searchParams }: PageProps) {
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 pt-0">
-			<div>
-				<h2 className="text-lg font-semibold">Stock Levels</h2>
-				<p className="text-sm text-muted-foreground">
-					Monitor and adjust inventory across all products.
-				</p>
-			</div>
+			<p className="text-sm text-muted-foreground">
+				Monitor and adjust inventory across all products.
+			</p>
 
 			<Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded-lg" />}>
 				<InventoryTable

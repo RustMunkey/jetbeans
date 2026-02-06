@@ -122,16 +122,6 @@ export function ZonesClient({ zones, totalCount, currentPage }: ZonesClientProps
 
 	return (
 		<>
-			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-lg font-semibold">Shipping Zones</h2>
-					<p className="text-sm text-muted-foreground">Define geographic zones for region-specific shipping rates.</p>
-				</div>
-				<Button size="sm" onClick={() => setCreateOpen(true)}>
-					Add Zone
-				</Button>
-			</div>
-
 			<DataTable
 				columns={columns}
 				data={statusFilter === "all" ? zones : zones.filter((z) => statusFilter === "active" ? z.isActive : !z.isActive)}
@@ -143,16 +133,19 @@ export function ZonesClient({ zones, totalCount, currentPage }: ZonesClientProps
 				totalCount={totalCount}
 				currentPage={currentPage}
 				filters={
-					<Select value={statusFilter} onValueChange={setStatusFilter}>
-						<SelectTrigger className="h-9 w-full sm:w-[160px]">
-							<SelectValue placeholder="All Statuses" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Statuses</SelectItem>
-							<SelectItem value="active">Active</SelectItem>
-							<SelectItem value="inactive">Inactive</SelectItem>
-						</SelectContent>
-					</Select>
+					<>
+						<Select value={statusFilter} onValueChange={setStatusFilter}>
+							<SelectTrigger className="h-9 w-full sm:w-[160px]">
+								<SelectValue placeholder="All Statuses" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Statuses</SelectItem>
+								<SelectItem value="active">Active</SelectItem>
+								<SelectItem value="inactive">Inactive</SelectItem>
+							</SelectContent>
+						</Select>
+						<Button size="sm" className="h-9 hidden sm:flex" onClick={() => setCreateOpen(true)}>Add Zone</Button>
+					</>
 				}
 			/>
 

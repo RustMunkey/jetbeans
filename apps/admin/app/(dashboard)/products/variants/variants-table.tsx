@@ -1,10 +1,14 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
+import { toast } from "sonner"
 import { DataTable, type Column } from "@/components/data-table"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { formatCurrency } from "@/lib/format"
+import { bulkDeleteVariants } from "../actions"
 
 interface Variant {
 	id: string
@@ -28,6 +32,8 @@ export function VariantsTable({ variants, totalCount, currentPage, currentFilter
 	const router = useRouter()
 	const pathname = usePathname()
 	const searchParams = useSearchParams()
+	const [selectedIds, setSelectedIds] = useState<string[]>([])
+	const [loading, setLoading] = useState(false)
 
 	const updateFilter = (value: string) => {
 		const params = new URLSearchParams(searchParams.toString())
@@ -36,8 +42,22 @@ export function VariantsTable({ variants, totalCount, currentPage, currentFilter
 		} else {
 			params.set("filter", value)
 		}
-		params.delete("page") // Reset to page 1 on filter change
+		params.delete("page")
 		router.push(`${pathname}?${params.toString()}`)
+	}
+
+	const handleBulkDelete = async () => {
+		setLoading(true)
+		try {
+			await bulkDeleteVariants(selectedIds)
+			setSelectedIds([])
+			router.refresh()
+			toast.success(`${selectedIds.length} variant(s) deleted`)
+		} catch (e: any) {
+			toast.error(e.message)
+		} finally {
+			setLoading(false)
+		}
 	}
 
 	const columns: Column<Variant>[] = [
@@ -92,6 +112,9 @@ export function VariantsTable({ variants, totalCount, currentPage, currentFilter
 			currentPage={currentPage}
 			pageSize={30}
 			searchPlaceholder="Search variants..."
+			selectable
+			selectedIds={selectedIds}
+			onSelectionChange={setSelectedIds}
 			getId={(row) => row.id}
 			onRowClick={(row) => router.push(`/products/${row.productId}`)}
 			emptyMessage="No variants yet"
@@ -99,15 +122,20 @@ export function VariantsTable({ variants, totalCount, currentPage, currentFilter
 			filters={
 				<Select value={currentFilter || "all"} onValueChange={updateFilter}>
 					<SelectTrigger className="h-9 w-full sm:w-[150px]">
-						<SelectValue placeholder="All Stock" />
+						<SelectValue placeholder="All Statuses" />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="all">All Stock</SelectItem>
+						<SelectItem value="all">All Statuses</SelectItem>
 						<SelectItem value="in">In Stock</SelectItem>
 						<SelectItem value="low">Low Stock</SelectItem>
 						<SelectItem value="out">Out of Stock</SelectItem>
 					</SelectContent>
 				</Select>
+			}
+			bulkActions={
+				<Button size="sm" variant="destructive" disabled={loading} onClick={handleBulkDelete}>
+					Delete ({selectedIds.length})
+				</Button>
 			}
 		/>
 	)

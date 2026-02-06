@@ -9,7 +9,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog"
-import { useSidebar } from "@/components/ui/sidebar"
+import { useRightSidebar } from "@/components/ui/right-sidebar"
 import { useCommandMenu } from "@/components/command-menu"
 import {
 	getKeybindings,
@@ -57,7 +57,7 @@ export function KeyboardShortcutsProvider({ children }: { children: React.ReactN
 	const [isHelpOpen, setIsHelpOpen] = React.useState(false)
 	const router = useRouter()
 	const { setTheme } = useTheme()
-	const { toggleSidebar } = useSidebar()
+	const { toggleSidebar } = useRightSidebar()
 	const { open: openCommandMenu } = useCommandMenu()
 
 	// Use refs to avoid stale closures
@@ -85,9 +85,12 @@ export function KeyboardShortcutsProvider({ children }: { children: React.ReactN
 			"go-customers": () => routerRef.current.push("/customers"),
 			"go-analytics": () => routerRef.current.push("/analytics"),
 			"go-settings": () => routerRef.current.push("/settings"),
-			"go-messages": () => routerRef.current.push("/notifications/messages"),
+			"go-messages": () => routerRef.current.push("/messages"),
 			"go-back": () => routerRef.current.back(),
 			"go-forward": () => routerRef.current.forward(),
+			"go-inventory": () => routerRef.current.push("/inventory"),
+			"go-shipping": () => routerRef.current.push("/shipping"),
+			"go-content": () => routerRef.current.push("/content"),
 			"search": () => openCommandMenuRef.current(),
 			"new-product": () => routerRef.current.push("/products?new=true"),
 			"new-order": () => routerRef.current.push("/orders?new=true"),
@@ -103,6 +106,9 @@ export function KeyboardShortcutsProvider({ children }: { children: React.ReactN
 			},
 			"save": () => {
 				document.dispatchEvent(new CustomEvent("keyboard-save"))
+			},
+			"submit-form": () => {
+				document.dispatchEvent(new CustomEvent("keyboard-submit"))
 			},
 			"escape": () => {
 				document.dispatchEvent(new CustomEvent("keyboard-escape"))

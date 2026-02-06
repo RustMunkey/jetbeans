@@ -6,6 +6,13 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { ViewIcon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select"
 import { DataTable, Column } from "@/components/data-table"
 import { formatDistanceToNow, format } from "date-fns"
 
@@ -47,6 +54,7 @@ function getStatusBadge(status: string) {
 
 export function RunsTable({ runs, totalCount }: RunsTableProps) {
 	const router = useRouter()
+	const [statusFilter, setStatusFilter] = React.useState("all")
 
 	const columns: Column<WorkflowRunItem>[] = [
 		{
@@ -130,12 +138,29 @@ export function RunsTable({ runs, totalCount }: RunsTableProps) {
 		},
 	]
 
+	const filteredRuns = statusFilter === "all" ? runs : runs.filter((r) => r.status === statusFilter)
+
 	return (
 		<DataTable
 			columns={columns}
-			data={runs}
+			data={filteredRuns}
 			totalCount={totalCount}
 			emptyMessage="No workflow runs yet. Activate a workflow to see executions here."
+			filters={
+				<Select value={statusFilter} onValueChange={setStatusFilter}>
+					<SelectTrigger className="h-9 w-[130px] text-xs">
+						<SelectValue placeholder="Status" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="all">All Statuses</SelectItem>
+						<SelectItem value="pending">Pending</SelectItem>
+						<SelectItem value="running">Running</SelectItem>
+						<SelectItem value="completed">Completed</SelectItem>
+						<SelectItem value="failed">Failed</SelectItem>
+						<SelectItem value="cancelled">Cancelled</SelectItem>
+					</SelectContent>
+				</Select>
+			}
 		/>
 	)
 }

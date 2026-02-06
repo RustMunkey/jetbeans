@@ -14,12 +14,9 @@ export default async function AlertsPage({ searchParams }: PageProps) {
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 pt-0">
-			<div>
-				<h2 className="text-lg font-semibold">Inventory Alerts</h2>
-				<p className="text-sm text-muted-foreground">
-					Items that are low or out of stock.
-				</p>
-			</div>
+			<p className="text-sm text-muted-foreground">
+				Items that are low or out of stock.
+			</p>
 
 			<AlertsClient items={items} totalCount={totalCount} currentPage={page} />
 		</div>

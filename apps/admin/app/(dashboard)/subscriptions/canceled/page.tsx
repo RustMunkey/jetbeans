@@ -19,7 +19,6 @@ export default async function CanceledSubscriptionsPage({ searchParams }: PagePr
 					subscriptions={items}
 					totalCount={totalCount}
 					currentStatus="cancelled"
-					title="Cancelled Subscriptions"
 					description="Subscriptions that have been cancelled by customers."
 				/>
 			</Suspense>

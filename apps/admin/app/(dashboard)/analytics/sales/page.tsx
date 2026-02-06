@@ -39,12 +39,9 @@ export default async function SalesReportsPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-4 pt-0">
-      <div>
-        <h2 className="text-lg font-semibold">Sales Reports</h2>
-        <p className="text-sm text-muted-foreground">
-          Detailed sales breakdown and product performance.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Detailed sales breakdown and product performance.
+      </p>
 
       {/* KPI Cards - Live updating */}
       <SalesStats

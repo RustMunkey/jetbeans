@@ -61,12 +61,9 @@ export default async function VariantsPage({ searchParams }: PageProps) {
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 pt-0">
-			<div>
-				<h2 className="text-lg font-semibold">Variants</h2>
-				<p className="text-sm text-muted-foreground">
-					All product variants with inventory levels.
-				</p>
-			</div>
+			<p className="text-sm text-muted-foreground">
+				All product variants with inventory levels.
+			</p>
 
 			<VariantsTable
 				variants={variants}

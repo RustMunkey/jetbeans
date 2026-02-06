@@ -1,7 +1,7 @@
 "use server"
 
 import { db } from "@jetbeans/db/client"
-import { users, workspaces, workspaceMembers, userWorkspacePreferences, workspaceInvites } from "@jetbeans/db/schema"
+import { users, workspaces, workspaceMembers, userWorkspacePreferences, workspaceInvites, storeSettings } from "@jetbeans/db/schema"
 import { eq, and } from "@jetbeans/db/drizzle"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
@@ -118,6 +118,19 @@ export async function createWorkspace(formData: FormData) {
 		userId: user.id,
 		role: "owner",
 	})
+
+	// Save storefront URL if domain was provided
+	const domain = formData.get("domain") as string | null
+	if (domain?.trim()) {
+		const storefrontUrl = `https://${domain.trim().toLowerCase()}.jetbeans.cafe`
+		await db.insert(storeSettings).values({
+			workspaceId: workspace.id,
+			key: "storefront_url",
+			value: storefrontUrl,
+			group: "domain",
+			updatedBy: user.id,
+		})
+	}
 
 	// Set as active workspace
 	await db

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import type { Conversation } from "@/app/(dashboard)/notifications/messages/types"
+import type { Conversation } from "@/app/(dashboard)/messages/types"
 
 interface RecentConversation extends Conversation {
 	visitedAt: number

@@ -8,7 +8,6 @@ export default async function HistoryPage() {
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 pt-0">
 			<div>
-				<h2 className="text-lg font-semibold">Run History</h2>
 				<p className="text-sm text-muted-foreground">
 					View the execution history of all your workflows.
 				</p>

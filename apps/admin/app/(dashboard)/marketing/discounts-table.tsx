@@ -201,16 +201,6 @@ export function DiscountsTable({ discounts, totalCount }: DiscountsTableProps) {
 
 	return (
 		<>
-			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-lg font-semibold">Discounts & Coupons</h2>
-					<p className="text-sm text-muted-foreground">Create and manage discount codes for your store.</p>
-				</div>
-				<Button size="sm" onClick={() => setCreateOpen(true)}>
-					Create Discount
-				</Button>
-			</div>
-
 			<DataTable
 				columns={columns}
 				data={filtered}
@@ -223,17 +213,20 @@ export function DiscountsTable({ discounts, totalCount }: DiscountsTableProps) {
 				currentPage={params.page}
 				onPageChange={(page) => setParams({ page })}
 				filters={
-					<Select value={statusFilter ?? "all"} onValueChange={(v) => setStatusFilter(v as "all" | "active" | "inactive" | "expired")}>
-						<SelectTrigger className="h-9 w-full sm:w-[160px]">
-							<SelectValue placeholder="All Statuses" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Statuses</SelectItem>
-							<SelectItem value="active">Active</SelectItem>
-							<SelectItem value="inactive">Inactive</SelectItem>
-							<SelectItem value="expired">Expired</SelectItem>
-						</SelectContent>
-					</Select>
+					<>
+						<Select value={statusFilter ?? "all"} onValueChange={(v) => setStatusFilter(v as "all" | "active" | "inactive" | "expired")}>
+							<SelectTrigger className="h-9 w-full sm:w-[160px]">
+								<SelectValue placeholder="All Statuses" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Statuses</SelectItem>
+								<SelectItem value="active">Active</SelectItem>
+								<SelectItem value="inactive">Inactive</SelectItem>
+								<SelectItem value="expired">Expired</SelectItem>
+							</SelectContent>
+						</Select>
+						<Button size="sm" className="h-9 hidden sm:flex" onClick={() => setCreateOpen(true)}>Create Discount</Button>
+					</>
 				}
 			/>
 

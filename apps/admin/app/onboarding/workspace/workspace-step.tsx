@@ -25,6 +25,7 @@ export function WorkspaceStep({ userName, hasExistingWorkspace }: WorkspaceStepP
 	const [isPending, startTransition] = useTransition()
 	const [workspaceName, setWorkspaceName] = useState("")
 	const [workspaceType, setWorkspaceType] = useState("ecommerce")
+	const [domain, setDomain] = useState("")
 	const [error, setError] = useState<string | null>(null)
 
 	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -39,6 +40,9 @@ export function WorkspaceStep({ userName, hasExistingWorkspace }: WorkspaceStepP
 		const formData = new FormData()
 		formData.set("name", workspaceName.trim())
 		formData.set("workspaceType", workspaceType)
+		if (domain.trim()) {
+			formData.set("domain", domain.trim().toLowerCase())
+		}
 
 		startTransition(async () => {
 			const result = await createWorkspace(formData)
@@ -109,6 +113,26 @@ export function WorkspaceStep({ userName, hasExistingWorkspace }: WorkspaceStepP
 							/>
 							<p className="text-xs text-muted-foreground">
 								This can be your business name or project name
+							</p>
+						</div>
+
+						{/* Domain */}
+						<div className="space-y-2">
+							<Label htmlFor="domain">Store domain</Label>
+							<div className="flex items-center">
+								<Input
+									id="domain"
+									value={domain}
+									onChange={(e) => setDomain(e.target.value.replace(/[^a-zA-Z0-9-]/g, ""))}
+									placeholder="mystore"
+									className="rounded-r-none"
+								/>
+								<span className="inline-flex items-center h-9 px-3 rounded-r-md border border-l-0 bg-muted text-muted-foreground text-sm whitespace-nowrap">
+									.jetbeans.cafe
+								</span>
+							</div>
+							<p className="text-xs text-muted-foreground">
+								You can add a custom domain later in settings
 							</p>
 						</div>
 

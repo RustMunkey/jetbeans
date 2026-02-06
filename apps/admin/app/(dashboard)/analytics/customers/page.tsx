@@ -61,12 +61,9 @@ export default async function CustomerInsightsPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-4 pt-0">
-      <div>
-        <h2 className="text-lg font-semibold">Customer Insights</h2>
-        <p className="text-sm text-muted-foreground">
-          Customer behavior, segments, and lifetime value.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Customer behavior, segments, and lifetime value.
+      </p>
 
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

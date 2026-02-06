@@ -7,10 +7,9 @@ import {
   Search01Icon,
   Add01Icon,
   Store01Icon,
-  ComputerTerminal02Icon,
+  DashboardSquare01Icon,
   InboxIcon,
   GridIcon,
-  UserIcon,
 } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -34,15 +33,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useCommandMenu } from "@/components/command-menu"
+import { updateSetting } from "@/app/(dashboard)/settings/actions"
+import { toast } from "sonner"
 import { ActiveCallIndicator } from "@/components/calls"
+import { FriendRequestsPopover } from "@/components/friend-requests-popover"
 import { useToolbar } from "@/components/toolbar"
 import { useRightSidebar } from "@/components/ui/right-sidebar"
 import { NotificationBell } from "@/components/notifications"
 import { useChat } from "@/components/messages"
 import { useSidebarMode } from "@/lib/sidebar-mode"
 
-export function HeaderToolbar() {
-  const [storeOnline, setStoreOnline] = React.useState(true)
+export function HeaderToolbar({ storefrontUrl, initialMaintenanceMode }: { storefrontUrl?: string | null; initialMaintenanceMode?: boolean }) {
+  const [storeOnline, setStoreOnline] = React.useState(!initialMaintenanceMode)
   const [confirmOpen, setConfirmOpen] = React.useState(false)
   const { open: openCommandMenu } = useCommandMenu()
   const router = useRouter()
@@ -63,7 +65,7 @@ export function HeaderToolbar() {
               <span className="sr-only">Quick create</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuLabel>Create New</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => router.push("/products?new=true")}>
@@ -86,18 +88,7 @@ export function HeaderToolbar() {
       )}
 
       {/* Profile/Friends - hide in messages mode */}
-      {!isMessagesMode && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          onClick={() => router.push("/discover")}
-          title="Friends & Discover"
-        >
-          <HugeiconsIcon icon={UserIcon} size={16} />
-          <span className="sr-only">Friends & Discover</span>
-        </Button>
-      )}
+      {!isMessagesMode && <FriendRequestsPopover />}
 
       <ActiveCallIndicator />
 
@@ -108,14 +99,15 @@ export function HeaderToolbar() {
       {!isMessagesMode && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-8">
+            <Button variant="ghost" size="icon" className={`size-8 relative ${!storeOnline ? "text-destructive" : ""}`}>
               <HugeiconsIcon icon={Store01Icon} size={16} />
+              {!storeOnline && <span className="absolute top-1 right-1 size-2 rounded-full bg-destructive" />}
               <span className="sr-only">Store</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem asChild>
-              <a href="https://jetbeans.cafe" target="_blank" rel="noopener noreferrer">
+              <a href={storefrontUrl && storefrontUrl.startsWith("http") ? storefrontUrl : storefrontUrl ? `https://${storefrontUrl}` : "https://jetbeans.cafe"} target="_blank" rel="noopener noreferrer">
                 View Store
               </a>
             </DropdownMenuItem>
@@ -146,7 +138,16 @@ export function HeaderToolbar() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               variant={storeOnline ? "destructive" : "default"}
-              onClick={() => setStoreOnline(!storeOnline)}
+              onClick={async () => {
+                const newOnline = !storeOnline
+                try {
+                  await updateSetting("maintenance_mode", String(!newOnline), "maintenance")
+                  setStoreOnline(newOnline)
+                  toast.success(newOnline ? "Store is back online" : "Store is in maintenance mode")
+                } catch {
+                  toast.error("Failed to update store status")
+                }
+              }}
             >
               {storeOnline ? "Take Offline" : "Go Online"}
             </AlertDialogAction>
@@ -162,7 +163,7 @@ export function HeaderToolbar() {
         onClick={toggleToolbar}
         title="Tools (Ctrl+\\ or Cmd+\\)"
       >
-        <HugeiconsIcon icon={ComputerTerminal02Icon} size={16} />
+        <HugeiconsIcon icon={DashboardSquare01Icon} size={16} />
         <span className="sr-only">Tools</span>
       </Button>
 

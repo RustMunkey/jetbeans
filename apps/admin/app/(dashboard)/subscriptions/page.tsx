@@ -22,7 +22,6 @@ export default async function SubscriptionsPage({ searchParams }: PageProps) {
 				<SubscriptionsTable
 					subscriptions={items}
 					totalCount={totalCount}
-					title="Subscriptions"
 					description="Manage recurring delivery subscriptions."
 				/>
 			</Suspense>

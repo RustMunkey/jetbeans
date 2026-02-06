@@ -14,6 +14,9 @@ export default async function SegmentsPage({ searchParams }: PageProps) {
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 sm:gap-6 p-4 pt-0">
+			<p className="text-sm text-muted-foreground">
+				Organize customers into groups for targeted marketing.
+			</p>
 			<SegmentsClient segments={items} totalCount={totalCount} currentPage={page} />
 		</div>
 	)

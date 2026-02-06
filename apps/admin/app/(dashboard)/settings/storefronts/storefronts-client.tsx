@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Copy01Icon, RefreshIcon, Delete02Icon, Add01Icon, ViewIcon, ViewOffIcon } from "@hugeicons/core-free-icons"
+import { Copy01Icon, RefreshIcon, Delete02Icon, ViewIcon, ViewOffIcon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -272,12 +272,12 @@ function StorefrontCard({ storefront }: { storefront: Storefront }) {
 export function StorefrontsClient({ storefronts }: { storefronts: Storefront[] }) {
 	return (
 		<div className="space-y-4">
-			<div className="flex justify-end">
+			<div className="flex items-center justify-between">
+				<p className="text-sm text-muted-foreground">
+					Connect your external websites and apps via API.
+				</p>
 				<CreateStorefrontDialog>
-					<Button size="sm">
-						<HugeiconsIcon icon={Add01Icon} size={14} className="mr-1" />
-						Add Storefront
-					</Button>
+					<Button size="sm">Add Storefront</Button>
 				</CreateStorefrontDialog>
 			</div>
 
@@ -288,10 +288,7 @@ export function StorefrontsClient({ storefronts }: { storefronts: Storefront[] }
 							No storefronts connected yet. Create one to get started.
 						</p>
 						<CreateStorefrontDialog>
-							<Button>
-								<HugeiconsIcon icon={Add01Icon} size={14} className="mr-1" />
-								Create Storefront
-							</Button>
+							<Button>Create Storefront</Button>
 						</CreateStorefrontDialog>
 					</CardContent>
 				</Card>

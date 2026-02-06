@@ -47,23 +47,17 @@ export function PagesTable({ pages, totalCount, currentPage }: PagesTableProps) 
 	]
 
 	return (
-		<div className="space-y-4">
-			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-2xl font-bold tracking-tight">Pages</h2>
-					<p className="text-muted-foreground text-sm">Manage static pages like About, Contact, FAQ.</p>
-				</div>
-				<Button onClick={() => router.push("/content/pages/new")}>New Page</Button>
-			</div>
-			<DataTable
-				data={pages}
-				columns={columns}
-				searchKey="title"
-				searchPlaceholder="Search pages..."
-				onRowClick={(row) => router.push(`/content/pages/${row.id}`)}
-				totalCount={totalCount}
-				currentPage={currentPage}
-			/>
-		</div>
+		<DataTable
+			data={pages}
+			columns={columns}
+			searchKey="title"
+			searchPlaceholder="Search pages..."
+			onRowClick={(row) => router.push(`/content/pages/${row.id}`)}
+			totalCount={totalCount}
+			currentPage={currentPage}
+			filters={
+				<Button size="sm" className="h-9 hidden sm:flex" onClick={() => router.push("/content/pages/new")}>New Page</Button>
+			}
+		/>
 	)
 }

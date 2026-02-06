@@ -349,26 +349,6 @@ export function NotesTable({
 
 	return (
 		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-lg font-semibold">Developer Notes</h2>
-					<p className="text-sm text-muted-foreground">
-						Track bugs, issues, and notes.
-					</p>
-				</div>
-				<div className="flex items-center gap-2">
-					<DraftIndicator
-						draftKey="note"
-						onSelect={(draft) => {
-							handleLoadDraft(draft)
-							setEditingNote(null)
-							setDialogOpen(true)
-						}}
-					/>
-					<Button onClick={openCreateDialog}>New Note</Button>
-				</div>
-			</div>
-
 			<DataTable
 				data={notes}
 				columns={columns}
@@ -402,6 +382,15 @@ export function NotesTable({
 								<SelectItem value="closed">Closed</SelectItem>
 							</SelectContent>
 						</Select>
+						<DraftIndicator
+							draftKey="note"
+							onSelect={(draft) => {
+								handleLoadDraft(draft)
+								setEditingNote(null)
+								setDialogOpen(true)
+							}}
+						/>
+						<Button size="sm" className="h-9 hidden sm:flex" onClick={openCreateDialog}>New Note</Button>
 					</>
 				}
 			/>

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
 	WebhookIcon,
-	Add01Icon,
 	ArrowRight01Icon,
 	ArrowLeft01Icon,
 	Copy01Icon,
@@ -235,7 +234,6 @@ export function WebhooksClient({
 						<span>/</span>
 						<span>Webhooks</span>
 					</div>
-					<h2 className="text-lg font-semibold">Webhooks</h2>
 					<p className="text-muted-foreground text-sm">
 						Configure incoming and outgoing webhooks to connect with external services.
 					</p>
@@ -268,10 +266,7 @@ export function WebhooksClient({
 										Send event notifications to external services when things happen in your store.
 									</CardDescription>
 								</div>
-								<Button size="sm" onClick={() => setShowOutgoingDialog(true)}>
-									<HugeiconsIcon icon={Add01Icon} size={14} className="mr-2" />
-									Add Webhook
-								</Button>
+								<Button size="sm" onClick={() => setShowOutgoingDialog(true)}>Add Webhook</Button>
 							</div>
 						</CardHeader>
 						<CardContent>
@@ -345,10 +340,7 @@ export function WebhooksClient({
 										Generate webhook URLs for external services to send messages to your channels.
 									</CardDescription>
 								</div>
-								<Button size="sm" onClick={() => setShowIncomingDialog(true)}>
-									<HugeiconsIcon icon={Add01Icon} size={14} className="mr-2" />
-									Create Webhook
-								</Button>
+								<Button size="sm" onClick={() => setShowIncomingDialog(true)}>Create Webhook</Button>
 							</div>
 						</CardHeader>
 						<CardContent>

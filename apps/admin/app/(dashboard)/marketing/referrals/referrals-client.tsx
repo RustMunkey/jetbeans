@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DataTable, type Column } from "@/components/data-table"
 import {
@@ -163,27 +164,6 @@ export function ReferralsClient({
 
 	return (
 		<>
-			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-lg font-semibold">Referrals</h2>
-					<p className="text-sm text-muted-foreground">Track customer referrals and reward codes.</p>
-				</div>
-				<div className="flex items-center gap-2">
-					<button
-						className={`text-sm px-3 py-1.5 rounded-md transition-colors ${tab === "referrals" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-						onClick={() => setTab("referrals")}
-					>
-						Referrals
-					</button>
-					<button
-						className={`text-sm px-3 py-1.5 rounded-md transition-colors ${tab === "codes" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-						onClick={() => setTab("codes")}
-					>
-						Codes
-					</button>
-				</div>
-			</div>
-
 			{tab === "referrals" ? (
 				<DataTable
 					columns={referralColumns}
@@ -196,17 +176,21 @@ export function ReferralsClient({
 					emptyMessage="No referrals"
 					emptyDescription="Referrals will appear when customers share their codes."
 					filters={
-						<Select value={statusFilter} onValueChange={setStatusFilter}>
-							<SelectTrigger className="h-9 w-full sm:w-[160px]">
-								<SelectValue placeholder="All Statuses" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All Statuses</SelectItem>
-								<SelectItem value="pending">Pending</SelectItem>
-								<SelectItem value="completed">Completed</SelectItem>
-								<SelectItem value="rewarded">Rewarded</SelectItem>
-							</SelectContent>
-						</Select>
+						<>
+							<Select value={statusFilter} onValueChange={setStatusFilter}>
+								<SelectTrigger className="h-9 w-full sm:w-[160px]">
+									<SelectValue placeholder="All Statuses" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">All Statuses</SelectItem>
+									<SelectItem value="pending">Pending</SelectItem>
+									<SelectItem value="completed">Completed</SelectItem>
+									<SelectItem value="rewarded">Rewarded</SelectItem>
+								</SelectContent>
+							</Select>
+							<Button size="sm" className="h-9 hidden sm:flex" onClick={() => setTab("referrals")}>Referrals</Button>
+							<Button size="sm" variant="outline" className="h-9 hidden sm:flex" onClick={() => setTab("codes")}>Codes</Button>
+						</>
 					}
 				/>
 			) : (
@@ -220,6 +204,12 @@ export function ReferralsClient({
 					getId={(row) => row.id}
 					emptyMessage="No referral codes"
 					emptyDescription="Referral codes are generated for customers."
+					filters={
+						<>
+							<Button size="sm" variant="outline" className="h-9 hidden sm:flex" onClick={() => setTab("referrals")}>Referrals</Button>
+							<Button size="sm" className="h-9 hidden sm:flex" onClick={() => setTab("codes")}>Codes</Button>
+						</>
+					}
 				/>
 			)}
 		</>

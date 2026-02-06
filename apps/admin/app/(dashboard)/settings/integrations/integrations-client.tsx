@@ -162,12 +162,38 @@ export function IntegrationsClient({ settings, workspaceEmail, workspaceStripe, 
 	// Crisp (user's live chat)
 	const [crispWebsiteId, setCrispWebsiteId] = useState(getVal(settings, "crisp_website_id"))
 
+	// Google Ads (conversion tracking)
+	const [googleAdsConversionId, setGoogleAdsConversionId] = useState(getVal(settings, "google_ads_conversion_id"))
+	const [googleAdsConversionLabel, setGoogleAdsConversionLabel] = useState(getVal(settings, "google_ads_conversion_label"))
+
+	// Pinterest Tag (ad tracking)
+	const [pinterestTagId, setPinterestTagId] = useState(getVal(settings, "pinterest_tag_id"))
+
+	// Snapchat Pixel (ad tracking)
+	const [snapchatPixelId, setSnapchatPixelId] = useState(getVal(settings, "snapchat_pixel_id"))
+	const [snapchatApiToken, setSnapchatApiToken] = useState(getVal(settings, "snapchat_api_token"))
+
+	// Twilio (SMS notifications & marketing)
+	const [twilioAccountSid, setTwilioAccountSid] = useState(getVal(settings, "twilio_account_sid"))
+	const [twilioAuthToken, setTwilioAuthToken] = useState(getVal(settings, "twilio_auth_token"))
+	const [twilioFromNumber, setTwilioFromNumber] = useState(getVal(settings, "twilio_from_number"))
+
+	// EasyPost (shipping rates & labels)
+	const [easypostApiKey, setEasypostApiKey] = useState(getVal(settings, "easypost_api_key"))
+	const [easypostTestMode, setEasypostTestMode] = useState(getVal(settings, "easypost_test_mode") === "true")
+
+	// Cloudflare Turnstile (bot protection)
+	const [turnstileSiteKey, setTurnstileSiteKey] = useState(getVal(settings, "turnstile_site_key"))
+	const [turnstileSecretKey, setTurnstileSecretKey] = useState(getVal(settings, "turnstile_secret_key"))
+
+	// Algolia (storefront search)
+	const [algoliaAppId, setAlgoliaAppId] = useState(getVal(settings, "algolia_app_id"))
+	const [algoliaAdminKey, setAlgoliaAdminKey] = useState(getVal(settings, "algolia_admin_key"))
+	const [algoliaSearchKey, setAlgoliaSearchKey] = useState(getVal(settings, "algolia_search_key"))
+
 	return (
 		<div className="space-y-6">
-			<div>
-				<h2 className="text-lg font-semibold">Integrations</h2>
-				<p className="text-muted-foreground text-sm">Connect your own third-party services to power your storefront.</p>
-			</div>
+			<p className="text-muted-foreground text-sm">Connect your own third-party services to power your storefront.</p>
 
 			<div className="space-y-4">
 				{/* --- PAYMENTS --- */}
@@ -548,6 +574,47 @@ export function IntegrationsClient({ settings, workspaceEmail, workspaceStripe, 
 					</div>
 				</IntegrationCard>
 
+				<IntegrationCard
+					name="Twilio"
+					description="SMS order notifications, shipping updates, and marketing messages."
+					connected={!!twilioAccountSid}
+					onSave={() => updateSettings([
+						{ key: "twilio_account_sid", value: twilioAccountSid, group: "integrations" },
+						{ key: "twilio_auth_token", value: twilioAuthToken, group: "integrations" },
+						{ key: "twilio_from_number", value: twilioFromNumber, group: "integrations" },
+					])}
+				>
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+						<div className="space-y-2">
+							<Label>Account SID</Label>
+							<Input
+								value={twilioAccountSid}
+								onChange={(e) => setTwilioAccountSid(e.target.value)}
+								placeholder="AC..."
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label>Auth Token</Label>
+							<Input
+								type="password"
+								value={twilioAuthToken}
+								onChange={(e) => setTwilioAuthToken(e.target.value)}
+							/>
+						</div>
+						<div className="space-y-2 sm:col-span-2">
+							<Label>From Number</Label>
+							<Input
+								value={twilioFromNumber}
+								onChange={(e) => setTwilioFromNumber(e.target.value)}
+								placeholder="+1234567890"
+							/>
+							<p className="text-xs text-muted-foreground">
+								Get credentials from <code className="bg-muted px-1 py-0.5 rounded">console.twilio.com</code>. SMS messages are sent from your Twilio account.
+							</p>
+						</div>
+					</div>
+				</IntegrationCard>
+
 				{/* --- ANALYTICS & TRACKING --- */}
 				<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider pt-4">Analytics & Tracking</p>
 
@@ -628,6 +695,124 @@ export function IntegrationsClient({ settings, workspaceEmail, workspaceStripe, 
 								onChange={(e) => setTiktokAccessToken(e.target.value)}
 							/>
 							<p className="text-xs text-muted-foreground">Server-side tracking for accurate attribution.</p>
+						</div>
+					</div>
+				</IntegrationCard>
+
+				<IntegrationCard
+					name="Google Ads"
+					description="Google Ads conversion tracking for search, shopping, and display campaigns."
+					connected={!!googleAdsConversionId}
+					onSave={() => updateSettings([
+						{ key: "google_ads_conversion_id", value: googleAdsConversionId, group: "integrations" },
+						{ key: "google_ads_conversion_label", value: googleAdsConversionLabel, group: "integrations" },
+					])}
+				>
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+						<div className="space-y-2">
+							<Label>Conversion ID</Label>
+							<Input
+								value={googleAdsConversionId}
+								onChange={(e) => setGoogleAdsConversionId(e.target.value)}
+								placeholder="AW-123456789"
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label>Conversion Label</Label>
+							<Input
+								value={googleAdsConversionLabel}
+								onChange={(e) => setGoogleAdsConversionLabel(e.target.value)}
+								placeholder="AbCdEfGhIjK"
+							/>
+							<p className="text-xs text-muted-foreground">
+								From Google Ads → Tools → Conversions → Tag setup.
+							</p>
+						</div>
+					</div>
+				</IntegrationCard>
+
+				<IntegrationCard
+					name="Pinterest Tag"
+					description="Pinterest ad conversion tracking and retargeting for product discovery."
+					connected={!!pinterestTagId}
+					onSave={() => updateSettings([
+						{ key: "pinterest_tag_id", value: pinterestTagId, group: "integrations" },
+					])}
+				>
+					<div className="space-y-2">
+						<Label>Tag ID</Label>
+						<Input
+							value={pinterestTagId}
+							onChange={(e) => setPinterestTagId(e.target.value)}
+							placeholder="123456789012"
+						/>
+						<p className="text-xs text-muted-foreground">
+							From Pinterest Business → Ads → Conversions → Tag Manager.
+						</p>
+					</div>
+				</IntegrationCard>
+
+				<IntegrationCard
+					name="Snapchat Pixel"
+					description="Snapchat ad conversion tracking and audience retargeting."
+					connected={!!snapchatPixelId}
+					onSave={() => updateSettings([
+						{ key: "snapchat_pixel_id", value: snapchatPixelId, group: "integrations" },
+						{ key: "snapchat_api_token", value: snapchatApiToken, group: "integrations" },
+					])}
+				>
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+						<div className="space-y-2">
+							<Label>Pixel ID</Label>
+							<Input
+								value={snapchatPixelId}
+								onChange={(e) => setSnapchatPixelId(e.target.value)}
+								placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label>Conversions API Token</Label>
+							<Input
+								type="password"
+								value={snapchatApiToken}
+								onChange={(e) => setSnapchatApiToken(e.target.value)}
+							/>
+							<p className="text-xs text-muted-foreground">Server-side tracking for improved attribution.</p>
+						</div>
+					</div>
+				</IntegrationCard>
+
+				{/* --- SHIPPING --- */}
+				<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider pt-4">Shipping</p>
+
+				<IntegrationCard
+					name="EasyPost"
+					description="Shipping rate calculation, label printing, and package tracking across carriers."
+					connected={!!easypostApiKey}
+					onSave={() => updateSettings([
+						{ key: "easypost_api_key", value: easypostApiKey, group: "integrations" },
+						{ key: "easypost_test_mode", value: easypostTestMode ? "true" : "false", group: "integrations" },
+					])}
+				>
+					<div className="space-y-4">
+						<div className="space-y-2">
+							<Label>API Key</Label>
+							<Input
+								type="password"
+								value={easypostApiKey}
+								onChange={(e) => setEasypostApiKey(e.target.value)}
+								placeholder="EZ..."
+							/>
+							<p className="text-xs text-muted-foreground">
+								Get your API key from <code className="bg-muted px-1 py-0.5 rounded">easypost.com/account/api-keys</code>.
+							</p>
+						</div>
+						<div className="flex items-center justify-between">
+							<div>
+								<Label>Test Mode</Label>
+								<p className="text-xs text-muted-foreground">Use test API key for development</p>
+							</div>
+							<Switch checked={easypostTestMode} onCheckedChange={setEasypostTestMode} />
 						</div>
 					</div>
 				</IntegrationCard>

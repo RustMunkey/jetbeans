@@ -161,12 +161,9 @@ export function NotificationPreferencesSettings({
 
 	return (
 		<div className="space-y-6">
-			<div>
-				<h2 className="text-lg font-semibold">Notification Preferences</h2>
-				<p className="text-muted-foreground text-sm">
-					Choose what notifications you want to receive and how.
-				</p>
-			</div>
+			<p className="text-muted-foreground text-sm">
+				Choose what notifications you want to receive and how.
+			</p>
 
 			{/* Event Types */}
 			<Card>

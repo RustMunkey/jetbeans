@@ -56,6 +56,7 @@ export default async function WebhooksPage({ searchParams }: PageProps) {
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+			<p className="text-sm text-muted-foreground">View incoming webhook events from external services.</p>
 			<WebhooksClient
 				events={events}
 				totalCount={total.count}

@@ -38,7 +38,7 @@ export const DEFAULT_KEYBINDINGS: KeyBinding[] = [
 		id: "go-customers",
 		name: "Go to Customers",
 		description: "Navigate to customers",
-		keys: ["alt", "shift", "c"],
+		keys: ["meta", "shift", "c"],
 		category: "navigation",
 	},
 	{
@@ -59,7 +59,7 @@ export const DEFAULT_KEYBINDINGS: KeyBinding[] = [
 		id: "go-messages",
 		name: "Go to Messages",
 		description: "Navigate to messages",
-		keys: ["alt", "shift", "m"],
+		keys: ["meta", "shift", "m"],
 		category: "navigation",
 	},
 	{
@@ -76,6 +76,27 @@ export const DEFAULT_KEYBINDINGS: KeyBinding[] = [
 		keys: ["meta", "]"],
 		category: "navigation",
 	},
+	{
+		id: "go-inventory",
+		name: "Go to Inventory",
+		description: "Navigate to inventory",
+		keys: ["meta", "shift", "i"],
+		category: "navigation",
+	},
+	{
+		id: "go-shipping",
+		name: "Go to Shipping",
+		description: "Navigate to shipping",
+		keys: ["meta", "shift", "s"],
+		category: "navigation",
+	},
+	{
+		id: "go-content",
+		name: "Go to Content",
+		description: "Navigate to content editor",
+		keys: ["meta", "shift", "e"],
+		category: "navigation",
+	},
 
 	// Actions
 	{
@@ -90,7 +111,7 @@ export const DEFAULT_KEYBINDINGS: KeyBinding[] = [
 		id: "new-product",
 		name: "New Product",
 		description: "Create a new product",
-		keys: ["alt", "shift", "n"],
+		keys: ["meta", "shift", "n"],
 		category: "actions",
 	},
 	{
@@ -104,9 +125,9 @@ export const DEFAULT_KEYBINDINGS: KeyBinding[] = [
 	// View
 	{
 		id: "toggle-sidebar",
-		name: "Toggle Sidebar",
-		description: "Show or hide the sidebar",
-		keys: ["meta", "b"],
+		name: "Toggle Right Sidebar",
+		description: "Show or hide the right sidebar",
+		keys: ["meta", "shift", "b"],
 		category: "view",
 		global: true,
 	},
@@ -139,6 +160,14 @@ export const DEFAULT_KEYBINDINGS: KeyBinding[] = [
 		name: "Save",
 		description: "Save current form",
 		keys: ["meta", "s"],
+		category: "editing",
+		global: true,
+	},
+	{
+		id: "submit-form",
+		name: "Submit Form",
+		description: "Submit the current form",
+		keys: ["meta", "enter"],
 		category: "editing",
 		global: true,
 	},

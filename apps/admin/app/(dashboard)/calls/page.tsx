@@ -81,8 +81,8 @@ export default function CallsPage() {
 	if (loading) {
 		return (
 			<div className="flex-1 p-6">
-				<div className="max-w-4xl mx-auto">
-					<h1 className="text-2xl font-semibold mb-6">Calls</h1>
+				<div>
+					<p className="text-sm text-muted-foreground mb-6">View and manage your call history.</p>
 					<div className="space-y-3">
 						{[1, 2, 3].map((i) => (
 							<div key={i} className="h-20 rounded-lg bg-muted animate-pulse" />
@@ -95,8 +95,8 @@ export default function CallsPage() {
 
 	return (
 		<div className="flex-1 p-6">
-			<div className="max-w-4xl mx-auto">
-				<h1 className="text-2xl font-semibold mb-6">Calls</h1>
+			<div>
+				<p className="text-sm text-muted-foreground mb-6">View and manage your call history.</p>
 
 				{calls.length === 0 ? (
 					<div className="text-center py-12">
@@ -123,7 +123,7 @@ export default function CallsPage() {
 							return (
 								<div
 									key={c.id}
-									className="flex items-center gap-4 p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+									className="flex items-center gap-3 px-4 py-2.5 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
 								>
 									{/* Direction icon */}
 									<div className={`shrink-0 ${isOutgoing ? "text-blue-500" : "text-green-500"}`}>
@@ -134,7 +134,7 @@ export default function CallsPage() {
 									</div>
 
 									{/* Avatar */}
-									<Avatar className="h-10 w-10 shrink-0">
+									<Avatar className="h-8 w-8 shrink-0">
 										{displayImage && <AvatarImage src={displayImage} alt={displayName} />}
 										<AvatarFallback>
 											{c.isGroup ? "#" : getInitials(displayName)}

@@ -9,6 +9,7 @@ export default async function DeveloperNotesPage() {
 
 	return (
 		<div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+			<p className="text-sm text-muted-foreground">Track bugs, issues, and notes.</p>
 			<NotesTable notes={notes} users={allUsers} />
 		</div>
 	)

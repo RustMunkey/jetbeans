@@ -59,7 +59,7 @@ export function MessageToast({ id, senderName, body, messageId, channel }: Messa
 							className="h-6 text-[10px] px-2"
 							onClick={() => {
 								toast.dismiss(id)
-								router.push(`/notifications/messages?highlight=${messageId}&channel=${channel}`)
+								router.push(`/messages?highlight=${messageId}&channel=${channel}`)
 							}}
 						>
 							View

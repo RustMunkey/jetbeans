@@ -65,14 +65,11 @@ export default async function SessionsPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-4 pt-0">
-      <div>
-        <h2 className="text-lg font-semibold">Sessions</h2>
-        <p className="text-sm text-muted-foreground">
-          {isOwner
-            ? "Active sessions across all team members."
-            : "Your active sessions."}
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        {isOwner
+          ? "Active sessions across all team members."
+          : "Your active sessions."}
+      </p>
       <SessionsList sessions={serialized} isOwner={isOwner} currentUserId={session.user.id} />
     </div>
   )

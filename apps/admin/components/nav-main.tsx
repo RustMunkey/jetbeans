@@ -24,9 +24,11 @@ const PREVIOUS_PATH_KEY = "jetbeans_messages_previous_path"
 
 export function NavMain({
   label,
+  labelIcon,
   items,
 }: {
   label: string
+  labelIcon?: IconSvgElement
   items: {
     title: string
     url: string
@@ -45,7 +47,7 @@ export function NavMain({
 
   // Save current path before navigating to messages
   const handleLinkClick = (url: string) => {
-    if (url === "/notifications/messages" && pathname !== "/notifications/messages") {
+    if (url === "/messages" && pathname !== "/messages") {
       sessionStorage.setItem(PREVIOUS_PATH_KEY, pathname)
     }
     if (isMobile) setOpenMobile(false)
@@ -53,7 +55,10 @@ export function NavMain({
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+      <SidebarGroupLabel>
+        {labelIcon && <HugeiconsIcon icon={labelIcon} size={12} className="mr-1.5" />}
+        {label}
+      </SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => {
           const isOpen = openItems.has(item.title)

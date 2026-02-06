@@ -21,7 +21,7 @@ import {
 	getInboxEmails,
 	sendInboxReply,
 	markInboxEmailRead,
-} from "@/app/(dashboard)/notifications/messages/actions"
+} from "@/app/(dashboard)/messages/actions"
 
 interface Message {
 	id: string

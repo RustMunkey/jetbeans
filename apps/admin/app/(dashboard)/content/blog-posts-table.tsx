@@ -78,15 +78,18 @@ export function BlogPostsTable({ posts, totalCount, currentPage, currentStatus }
 	]
 
 	return (
-		<div className="space-y-4">
-			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-2xl font-bold tracking-tight">Blog Posts</h2>
-					<p className="text-muted-foreground text-sm">Create and manage blog content.</p>
-				</div>
-				<div className="flex items-center gap-2">
+		<DataTable
+			data={posts}
+			columns={columns}
+			searchKey="title"
+			searchPlaceholder="Search posts..."
+			onRowClick={(row) => router.push(`/content/${row.id}`)}
+			totalCount={totalCount}
+			currentPage={currentPage}
+			filters={
+				<>
 					<Select value={currentStatus || "all"} onValueChange={handleFilterChange}>
-						<SelectTrigger className="w-[140px]">
+						<SelectTrigger className="h-9 w-full sm:w-[140px]">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -96,18 +99,9 @@ export function BlogPostsTable({ posts, totalCount, currentPage, currentStatus }
 							<SelectItem value="archived">Archived</SelectItem>
 						</SelectContent>
 					</Select>
-					<Button onClick={() => router.push("/content/new")}>New Post</Button>
-				</div>
-			</div>
-			<DataTable
-				data={posts}
-				columns={columns}
-				searchKey="title"
-				searchPlaceholder="Search posts..."
-				onRowClick={(row) => router.push(`/content/${row.id}`)}
-				totalCount={totalCount}
-				currentPage={currentPage}
-			/>
-		</div>
+					<Button size="sm" className="h-9 hidden sm:flex" onClick={() => router.push("/content/new")}>New Post</Button>
+				</>
+			}
+		/>
 	)
 }

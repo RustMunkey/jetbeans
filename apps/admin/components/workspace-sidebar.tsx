@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Add01Icon, Call02Icon, Home01Icon, Logout02Icon, Mail01Icon, Navigation04Icon, Settings01Icon } from "@hugeicons/core-free-icons"
+import { Add01Icon, Call02Icon, Logout02Icon, Mail01Icon, DiscoverCircleIcon, Settings01Icon } from "@hugeicons/core-free-icons"
 import { Store, Users, Building2, Sparkles, Loader2 } from "lucide-react"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -41,6 +41,8 @@ import {
 } from "@/components/ui/context-menu"
 import { cn } from "@/lib/utils"
 import { setActiveWorkspace, createWorkspaceAction, deleteWorkspaceAction, leaveWorkspaceAction } from "@/lib/workspace"
+import { getSidebarBadgeCounts } from "@/lib/sidebar-counts"
+import { usePusher } from "@/components/pusher-provider"
 import type { WorkspaceWithRole } from "@/lib/workspace"
 
 function getInitials(name: string) {
@@ -149,7 +151,7 @@ function WorkspaceIcon({
 	)
 }
 
-function NavButton({ icon, label, onClick }: { icon: typeof Home01Icon; label: string; onClick: () => void }) {
+function NavButton({ icon, label, onClick, badge }: { icon: typeof Mail01Icon; label: string; onClick: () => void; badge?: number }) {
 	return (
 		<Tooltip delayDuration={0}>
 			<TooltipTrigger asChild>
@@ -158,11 +160,14 @@ function NavButton({ icon, label, onClick }: { icon: typeof Home01Icon; label: s
 					onClick={onClick}
 					className="relative group flex items-center justify-center w-full"
 				>
-					<Avatar className="size-10 rounded-lg transition-all duration-200">
-						<AvatarFallback className="rounded-lg bg-muted text-muted-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-200">
-							<HugeiconsIcon icon={icon} size={18} />
-						</AvatarFallback>
-					</Avatar>
+					<div className="relative overflow-visible">
+						<Avatar className="size-10 rounded-lg transition-all duration-200">
+							<AvatarFallback className="rounded-lg bg-muted text-muted-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-200">
+								<HugeiconsIcon icon={icon} size={18} />
+							</AvatarFallback>
+						</Avatar>
+						<NotificationBadge count={badge || 0} />
+					</div>
 				</button>
 			</TooltipTrigger>
 			<TooltipContent side="right" sideOffset={8}>
@@ -316,14 +321,60 @@ interface WorkspaceSidebarProps {
 
 export function WorkspaceSidebar({ workspaces, activeWorkspaceId }: WorkspaceSidebarProps) {
 	const router = useRouter()
+	const { pusher, isConnected } = usePusher()
 	const [switching, setSwitching] = React.useState(false)
 	const [createDialogOpen, setCreateDialogOpen] = React.useState(false)
 	const [deleteWorkspace, setDeleteWorkspace] = React.useState<WorkspaceWithRole | null>(null)
 	const [leaveWorkspace, setLeaveWorkspace] = React.useState<WorkspaceWithRole | null>(null)
 	const [actionPending, setActionPending] = React.useState(false)
+	const [badges, setBadges] = React.useState({ messages: 0, calls: 0 })
+
+	// Fetch initial badge counts
+	React.useEffect(() => {
+		getSidebarBadgeCounts().then(setBadges).catch(() => {})
+	}, [activeWorkspaceId])
+
+	// Real-time badge updates via Pusher user channel
+	React.useEffect(() => {
+		if (!pusher || !isConnected) return
+
+		const handler = () => {
+			getSidebarBadgeCounts().then(setBadges).catch(() => {})
+		}
+
+		// Listen for events that affect badge counts
+		// These are user-scoped channels already subscribed elsewhere
+		const channels = pusher.allChannels?.() || []
+		for (const ch of channels) {
+			if (ch.name?.startsWith("private-user-")) {
+				ch.bind("dm-received", handler)
+				ch.bind("notification", handler)
+				ch.bind("call:incoming", () => {
+					// Refresh counts after a delay (call might be missed)
+					setTimeout(handler, 35000)
+				})
+			}
+		}
+
+		return () => {
+			for (const ch of channels) {
+				if (ch.name?.startsWith("private-user-")) {
+					ch.unbind("dm-received", handler)
+					ch.unbind("notification", handler)
+					ch.unbind("call:incoming")
+				}
+			}
+		}
+	}, [pusher, isConnected])
 
 	const handleWorkspaceSwitch = async (workspaceId: string) => {
-		if (switching || workspaceId === activeWorkspaceId) return
+		if (switching) return
+
+		// If already on this workspace, navigate home
+		if (workspaceId === activeWorkspaceId) {
+			router.push("/")
+			return
+		}
 
 		setSwitching(true)
 		try {
@@ -376,9 +427,8 @@ export function WorkspaceSidebar({ workspaces, activeWorkspaceId }: WorkspaceSid
 	return (
 		<>
 			<aside className="shrink-0 w-16 h-screen flex flex-col items-center py-3 bg-sidebar border-r border-sidebar-border overflow-visible">
-				{/* All buttons in one vertical flow */}
+				{/* Workspaces at top */}
 				<div className="flex flex-col items-center gap-2 w-full">
-					{/* Workspace list */}
 					{workspaces.map((workspace) => (
 						<WorkspaceIcon
 							key={workspace.id}
@@ -390,30 +440,30 @@ export function WorkspaceSidebar({ workspaces, activeWorkspaceId }: WorkspaceSid
 							onSettings={() => router.push("/settings")}
 						/>
 					))}
+				</div>
 
-					{/* Navigation buttons */}
-					<NavButton
-						icon={Home01Icon}
-						label="Home"
-						onClick={() => router.push("/")}
-					/>
+				{/* Spacer */}
+				<div className="flex-1" />
+
+				{/* Navigation at bottom */}
+				<div className="flex flex-col items-center gap-2 w-full">
 					<NavButton
 						icon={Mail01Icon}
 						label="Messages"
-						onClick={() => router.push("/notifications/messages")}
+						badge={badges.messages}
+						onClick={() => router.push("/messages")}
 					/>
 					<NavButton
 						icon={Call02Icon}
 						label="Calls"
+						badge={badges.calls}
 						onClick={() => router.push("/calls")}
 					/>
 					<NavButton
-						icon={Navigation04Icon}
+						icon={DiscoverCircleIcon}
 						label="Discover"
 						onClick={() => router.push("/discover")}
 					/>
-
-					{/* Add workspace button */}
 					<AddWorkspaceButton onClick={() => setCreateDialogOpen(true)} />
 				</div>
 			</aside>

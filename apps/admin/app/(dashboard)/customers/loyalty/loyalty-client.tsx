@@ -187,17 +187,6 @@ export function LoyaltyClient({ config, holders, transactions }: LoyaltyClientPr
 
 	return (
 		<>
-			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-lg font-semibold">Loyalty & Rewards</h2>
-					<p className="text-sm text-muted-foreground">
-						<span className="sm:hidden">Manage points & rewards.</span>
-						<span className="hidden sm:inline">Manage customer loyalty points and rewards program.</span>
-					</p>
-				</div>
-				<Button size="sm" onClick={() => setAdjustOpen(true)}>Adjust Points</Button>
-			</div>
-
 			<div className="flex items-center gap-3 rounded-lg border px-4 py-3">
 				<div className="flex-1 flex items-center gap-4 sm:gap-6 text-sm flex-wrap">
 					<div>
@@ -229,15 +218,18 @@ export function LoyaltyClient({ config, holders, transactions }: LoyaltyClientPr
 					emptyMessage="No loyalty members yet"
 					emptyDescription="Customers earn points when they make purchases."
 					filters={
-						<Select value={view} onValueChange={setView}>
-							<SelectTrigger className="h-9 w-full sm:w-[160px]">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="holders">Top Holders</SelectItem>
-								<SelectItem value="transactions">Transactions</SelectItem>
-							</SelectContent>
-						</Select>
+						<>
+							<Select value={view} onValueChange={setView}>
+								<SelectTrigger className="h-9 w-full sm:w-[160px]">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="holders">Top Holders</SelectItem>
+									<SelectItem value="transactions">Transactions</SelectItem>
+								</SelectContent>
+							</Select>
+							<Button size="sm" className="h-9 hidden sm:flex" onClick={() => setAdjustOpen(true)}>Adjust Points</Button>
+						</>
 					}
 				/>
 			) : (
@@ -249,15 +241,18 @@ export function LoyaltyClient({ config, holders, transactions }: LoyaltyClientPr
 					emptyMessage="No transactions yet"
 					emptyDescription="Points transactions will appear here."
 					filters={
-						<Select value={view} onValueChange={setView}>
-							<SelectTrigger className="h-9 w-full sm:w-[160px]">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="holders">Top Holders</SelectItem>
-								<SelectItem value="transactions">Transactions</SelectItem>
-							</SelectContent>
-						</Select>
+						<>
+							<Select value={view} onValueChange={setView}>
+								<SelectTrigger className="h-9 w-full sm:w-[160px]">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="holders">Top Holders</SelectItem>
+									<SelectItem value="transactions">Transactions</SelectItem>
+								</SelectContent>
+							</Select>
+							<Button size="sm" className="h-9 hidden sm:flex" onClick={() => setAdjustOpen(true)}>Adjust Points</Button>
+						</>
 					}
 				/>
 			)}

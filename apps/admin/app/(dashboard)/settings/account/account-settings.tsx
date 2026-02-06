@@ -688,10 +688,7 @@ export function AccountSettings({ user }: { user: User }) {
 	return (
 		<div className="space-y-6">
 			<div className="flex items-start justify-between">
-				<div>
-					<h2 className="text-lg font-semibold">Account</h2>
-					<p className="text-muted-foreground text-sm">Manage your profile and account settings.</p>
-				</div>
+				<p className="text-muted-foreground text-sm">Manage your profile and account settings.</p>
 				<Button onClick={handleSave} disabled={saving}>
 					{saving ? "Saving..." : "Save Changes"}
 				</Button>

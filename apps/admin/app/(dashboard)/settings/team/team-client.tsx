@@ -59,6 +59,7 @@ export function TeamClient({
   const [inviteRole, setInviteRole] = React.useState("admin")
   const [inviteError, setInviteError] = React.useState("")
   const [loading, setLoading] = React.useState(false)
+  const [roleFilter, setRoleFilter] = React.useState("all")
 
   const handleInvite = async () => {
     if (!inviteEmail) return
@@ -212,23 +213,38 @@ export function TeamClient({
     }] : []),
   ]
 
+  const filteredMembers = roleFilter === "all"
+    ? members
+    : members.filter((m) => m.role === roleFilter)
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium">Members</h3>
-        {isOwner && (
-          <Button size="sm" onClick={() => setInviteOpen(true)}>
-            Invite Member
-          </Button>
-        )}
-      </div>
-
       <DataTable
         columns={memberColumns}
-        data={members}
+        data={filteredMembers}
         searchPlaceholder="Search members..."
         getId={(row) => row.id}
         emptyMessage="No team members yet"
+        filters={
+          <>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="h-9 w-[120px] text-xs">
+                <SelectValue placeholder="Role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                <SelectItem value="owner">Owner</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="member">Member</SelectItem>
+              </SelectContent>
+            </Select>
+            {isOwner && (
+              <Button size="sm" className="h-9 hidden sm:flex" onClick={() => setInviteOpen(true)}>
+                Invite Member
+              </Button>
+            )}
+          </>
+        }
       />
 
       {pendingInvites.length > 0 && (

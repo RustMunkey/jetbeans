@@ -17,12 +17,9 @@ export default async function ReviewsPage({ searchParams }: PageProps) {
 
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 pt-0">
-			<div>
-				<h2 className="text-lg font-semibold">Reviews</h2>
-				<p className="text-sm text-muted-foreground">
-					Moderate customer reviews.
-				</p>
-			</div>
+			<p className="text-sm text-muted-foreground">
+				Moderate customer reviews.
+			</p>
 
 			<Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded-lg" />}>
 				<ReviewsTable

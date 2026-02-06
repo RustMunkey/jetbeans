@@ -17,12 +17,9 @@ export default async function PendingReviewsPage({ searchParams }: PageProps) {
 
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 pt-0">
-			<div>
-				<h2 className="text-lg font-semibold">Pending Reviews</h2>
-				<p className="text-sm text-muted-foreground">
-					Reviews awaiting moderation.
-				</p>
-			</div>
+			<p className="text-sm text-muted-foreground">
+				Reviews awaiting moderation.
+			</p>
 
 			<Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded-lg" />}>
 				<ReviewsTable
