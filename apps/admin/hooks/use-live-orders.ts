@@ -41,7 +41,7 @@ export function useLiveOrders({
 	initialOrders,
 	enabled = true,
 }: UseLiveOrdersOptions) {
-	const { pusher, isConnected } = usePusher()
+	const { pusher, isConnected, workspaceId } = usePusher()
 	const [orders, setOrders] = useState<LiveOrder[]>(initialOrders)
 	const initialOrdersRef = useRef(initialOrders)
 
@@ -54,9 +54,10 @@ export function useLiveOrders({
 	}, [initialOrders])
 
 	useEffect(() => {
-		if (!pusher || !isConnected || !enabled) return
+		if (!pusher || !isConnected || !enabled || !workspaceId) return
 
-		const channel = pusher.subscribe("private-orders")
+		const channelName = `private-workspace-${workspaceId}-orders`
+		const channel = pusher.subscribe(channelName)
 
 		// New order created - prepend to list
 		channel.bind("order:created", (data: LiveOrder) => {
@@ -106,9 +107,9 @@ export function useLiveOrders({
 
 		return () => {
 			channel.unbind_all()
-			pusher.unsubscribe("private-orders")
+			pusher.unsubscribe(channelName)
 		}
-	}, [pusher, isConnected, enabled])
+	}, [pusher, isConnected, workspaceId, enabled])
 
 	return { orders, isConnected }
 }

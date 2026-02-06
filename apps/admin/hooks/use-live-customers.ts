@@ -41,7 +41,7 @@ interface UseLiveCustomersOptions {
 }
 
 export function useLiveCustomers({ initialCustomers }: UseLiveCustomersOptions) {
-	const { pusher, isConnected } = usePusher()
+	const { pusher, isConnected, workspaceId } = usePusher()
 	const [customers, setCustomers] = useState<LiveCustomer[]>(initialCustomers)
 	const initialRef = useRef(initialCustomers)
 
@@ -54,9 +54,10 @@ export function useLiveCustomers({ initialCustomers }: UseLiveCustomersOptions) 
 	}, [initialCustomers])
 
 	useEffect(() => {
-		if (!pusher || !isConnected) return
+		if (!pusher || !isConnected || !workspaceId) return
 
-		const channel = pusher.subscribe("private-customers")
+		const channelName = `private-workspace-${workspaceId}-customers`
+		const channel = pusher.subscribe(channelName)
 
 		// New customer created - prepend to list
 		channel.bind("customer:created", (data: CustomerCreatedEvent) => {
@@ -104,9 +105,9 @@ export function useLiveCustomers({ initialCustomers }: UseLiveCustomersOptions) 
 
 		return () => {
 			channel.unbind_all()
-			pusher.unsubscribe("private-customers")
+			pusher.unsubscribe(channelName)
 		}
-	}, [pusher, isConnected])
+	}, [pusher, isConnected, workspaceId])
 
 	return { customers, isConnected }
 }

@@ -62,8 +62,16 @@ export default async function DashboardLayout({
     user = undefined
   }
 
+  // If user doesn't exist in DB anymore (e.g. DB was cleared), kill the session
+  if (!user) {
+    try {
+      await auth.api.signOut({ headers: await headers() })
+    } catch {}
+    redirect("/login")
+  }
+
   // Redirect to onboarding if not completed
-  if (!user?.onboardingCompletedAt) {
+  if (!user.onboardingCompletedAt) {
     redirect("/onboarding")
   }
 
@@ -106,6 +114,7 @@ export default async function DashboardLayout({
     <PusherProvider
       pusherKey={process.env.NEXT_PUBLIC_PUSHER_KEY}
       pusherCluster={process.env.NEXT_PUBLIC_PUSHER_CLUSTER}
+      workspaceId={activeWorkspace?.id ?? null}
     >
       <UserStatusProvider>
       <CallProvider

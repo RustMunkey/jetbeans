@@ -2,10 +2,9 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 export default function proxy(request: NextRequest) {
-  // Allow static assets without auth
   const { pathname } = request.nextUrl
 
-  // Skip auth for public assets
+  // Skip for public assets
   if (
     pathname.startsWith("/images/") ||
     pathname.startsWith("/logos/") ||
@@ -19,7 +18,15 @@ export default function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  return NextResponse.next()
+  // Prevent browser bfcache from serving stale dashboard pages
+  // This ensures the back button always re-validates auth
+  const response = NextResponse.next()
+  if (!pathname.startsWith("/api/")) {
+    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate")
+    response.headers.set("Pragma", "no-cache")
+  }
+
+  return response
 }
 
 export const config = {

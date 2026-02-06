@@ -19,12 +19,13 @@ interface UseLiveInboxOptions {
 }
 
 export function useLiveInbox({ onNewEmail }: UseLiveInboxOptions = {}) {
-	const { pusher, isConnected } = usePusher()
+	const { pusher, isConnected, workspaceId } = usePusher()
 
 	useEffect(() => {
-		if (!pusher || !isConnected) return
+		if (!pusher || !isConnected || !workspaceId) return
 
-		const channel = pusher.subscribe("private-inbox")
+		const channelName = `private-workspace-${workspaceId}-inbox`
+		const channel = pusher.subscribe(channelName)
 
 		channel.bind("new-email", (data: LiveInboxEmail) => {
 			onNewEmail?.({
@@ -35,7 +36,7 @@ export function useLiveInbox({ onNewEmail }: UseLiveInboxOptions = {}) {
 
 		return () => {
 			channel.unbind_all()
-			pusher.unsubscribe("private-inbox")
+			pusher.unsubscribe(channelName)
 		}
-	}, [pusher, isConnected, onNewEmail])
+	}, [pusher, isConnected, workspaceId, onNewEmail])
 }

@@ -1,5 +1,6 @@
 import { inngest } from "../inngest"
 import { pusherServer } from "../pusher-server"
+import { wsChannel } from "../pusher-channels"
 import { db } from "@jetbeans/db"
 import { auctions, bids, auctionWatchers, notifications } from "@jetbeans/db/schema"
 import { eq, and } from "@jetbeans/db/drizzle"
@@ -58,7 +59,7 @@ export const handleAuctionScheduledStart = inngest.createFunction(
 		await step.run("notify-start", async () => {
 			if (!pusherServer) return
 
-			await pusherServer.trigger("private-auctions", "auctions:started", {
+			await pusherServer.trigger(wsChannel(workspaceId, "auctions"), "auctions:started", {
 				auctions: [{
 					auctionId: auction.id,
 					title: auction.title,
@@ -161,7 +162,7 @@ export const handleAuctionEndingSoon = inngest.createFunction(
 		await step.run("pusher-notify", async () => {
 			if (!pusherServer) return
 
-			await pusherServer.trigger("private-auctions", "auctions:ending-soon", {
+			await pusherServer.trigger(wsChannel(workspaceId, "auctions"), "auctions:ending-soon", {
 				auctions: [{
 					auctionId,
 					title,
@@ -305,7 +306,7 @@ export const handleAuctionScheduledEnd = inngest.createFunction(
 		await step.run("notify-ended", async () => {
 			if (!pusherServer) return
 
-			await pusherServer.trigger("private-auctions", "auction:ended", {
+			await pusherServer.trigger(wsChannel(auction.workspaceId, "auctions"), "auction:ended", {
 				auctionId,
 				title: auction.title,
 				status: finalStatus,

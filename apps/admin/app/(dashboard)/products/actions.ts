@@ -6,6 +6,7 @@ import { products, productVariants, categories, inventory } from "@jetbeans/db/s
 import { logAudit } from "@/lib/audit"
 import { slugify } from "@/lib/format"
 import { pusherServer } from "@/lib/pusher-server"
+import { wsChannel } from "@/lib/pusher-channels"
 import { fireWebhooks } from "@/lib/webhooks/outgoing"
 import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 import { emitProductCreated, emitProductUpdated } from "@/lib/workflows"
@@ -181,7 +182,7 @@ export async function createProduct(data: ProductData) {
 
 	// Broadcast for live updates
 	if (pusherServer) {
-		await pusherServer.trigger("private-products", "product:created", {
+		await pusherServer.trigger(wsChannel(workspace.id, "products"), "product:created", {
 			id: product.id,
 			name: product.name,
 			slug: product.slug,
@@ -260,7 +261,7 @@ export async function updateProduct(id: string, data: Partial<ProductData>) {
 
 	// Broadcast for live updates
 	if (pusherServer) {
-		await pusherServer.trigger("private-products", "product:updated", {
+		await pusherServer.trigger(wsChannel(workspace.id, "products"), "product:updated", {
 			id: product.id,
 			name: product.name,
 			slug: product.slug,
@@ -338,7 +339,7 @@ export async function bulkUpdateProducts(ids: string[], action: "activate" | "de
 		})
 		// Broadcast deletions
 		if (pusherServer) {
-			await pusherServer.trigger("private-products", "product:deleted", { ids })
+			await pusherServer.trigger(wsChannel(workspace.id, "products"), "product:deleted", { ids })
 		}
 		// Fire webhooks for each deleted product
 		for (const productId of ids) {
@@ -360,7 +361,7 @@ export async function bulkUpdateProducts(ids: string[], action: "activate" | "de
 		})
 		// Broadcast updates
 		if (pusherServer) {
-			await pusherServer.trigger("private-products", "product:bulk-updated", { ids, isActive })
+			await pusherServer.trigger(wsChannel(workspace.id, "products"), "product:bulk-updated", { ids, isActive })
 		}
 		// Fire webhooks for each updated product
 		for (const productId of ids) {

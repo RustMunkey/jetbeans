@@ -2,10 +2,11 @@
 
 import { headers } from "next/headers"
 import { db } from "@jetbeans/db/client"
-import { users, friendships, directMessages, dmConversations, developerNotes } from "@jetbeans/db/schema"
+import { users, friendships, directMessages, dmConversations } from "@jetbeans/db/schema"
 import { eq, ne, and, or, like, isNotNull, desc, asc, sql, inArray } from "@jetbeans/db/drizzle"
 import { auth } from "@/lib/auth"
 import { pusherServer } from "@/lib/pusher-server"
+
 
 async function getCurrentUser() {
 	const session = await auth.api.getSession({ headers: await headers() })
@@ -501,95 +502,6 @@ export async function markDMsAsRead(conversationId: string) {
 				sql`${directMessages.readAt} IS NULL`
 			)
 		)
-}
-
-// ============ GLOBAL DEVELOPER NOTES ============
-
-export async function getGlobalNotes() {
-	return db
-		.select({
-			id: developerNotes.id,
-			title: developerNotes.title,
-			body: developerNotes.body,
-			type: developerNotes.type,
-			status: developerNotes.status,
-			priority: developerNotes.priority,
-			createdAt: developerNotes.createdAt,
-			updatedAt: developerNotes.updatedAt,
-			authorId: developerNotes.authorId,
-			authorName: users.name,
-			authorUsername: users.username,
-			authorImage: users.image,
-		})
-		.from(developerNotes)
-		.leftJoin(users, eq(users.id, developerNotes.authorId))
-		.where(eq(developerNotes.isGlobal, true))
-		.orderBy(desc(developerNotes.createdAt))
-		.limit(100)
-}
-
-export async function createGlobalNote(data: {
-	title: string
-	body: string
-	type?: string
-	priority?: string
-}) {
-	const user = await getCurrentUser()
-
-	const [note] = await db
-		.insert(developerNotes)
-		.values({
-			title: data.title,
-			body: data.body,
-			type: data.type || "note",
-			priority: data.priority || "medium",
-			isGlobal: true,
-			authorId: user.id,
-		})
-		.returning()
-
-	// Broadcast to all connected users
-	if (pusherServer) {
-		const [author] = await db
-			.select({ name: users.name, username: users.username, image: users.image })
-			.from(users)
-			.where(eq(users.id, user.id))
-			.limit(1)
-
-		await pusherServer.trigger("private-global-notes", "note-created", {
-			...note,
-			authorName: author?.name,
-			authorUsername: author?.username,
-			authorImage: author?.image,
-		})
-	}
-
-	return note
-}
-
-export async function updateGlobalNoteStatus(noteId: string, status: string) {
-	const user = await getCurrentUser()
-
-	// Only author can update status
-	const [note] = await db
-		.select()
-		.from(developerNotes)
-		.where(eq(developerNotes.id, noteId))
-		.limit(1)
-
-	if (!note) throw new Error("Note not found")
-	if (note.authorId !== user.id) throw new Error("Only the author can update this note")
-
-	await db
-		.update(developerNotes)
-		.set({
-			status,
-			updatedAt: new Date(),
-			resolvedAt: status === "resolved" ? new Date() : null,
-		})
-		.where(eq(developerNotes.id, noteId))
-
-	return { success: true }
 }
 
 // ============ USER PROFILE ============

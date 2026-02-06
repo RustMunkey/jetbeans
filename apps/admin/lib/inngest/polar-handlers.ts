@@ -1,7 +1,8 @@
 import { inngest } from "../inngest"
 import { pusherServer } from "../pusher-server"
+import { wsChannel } from "../pusher-channels"
 import { db } from "@jetbeans/db"
-import { notifications } from "@jetbeans/db/schema"
+import { notifications, workspaces } from "@jetbeans/db/schema"
 import {
 	markWebhookProcessed,
 	updateWebhookStatus,
@@ -29,15 +30,18 @@ export const processPolarOrder = inngest.createFunction(
 		await step.run("broadcast-order", async () => {
 			// Broadcast complete order data to all admins for live updates
 			if (pusherServer) {
-				await pusherServer.trigger("private-orders", "order:created", {
-					id: order.id,
-					orderNumber: order.id.slice(0, 8).toUpperCase(),
-					status: "pending",
-					total: (order.amount / 100).toFixed(2),
-					customerName: order.user.public_name || null,
-					customerEmail: order.user.email,
-					createdAt: order.created_at,
-				})
+				const [workspace] = await db.select({ id: workspaces.id }).from(workspaces).limit(1)
+				if (workspace) {
+					await pusherServer.trigger(wsChannel(workspace.id, "orders"), "order:created", {
+						id: order.id,
+						orderNumber: order.id.slice(0, 8).toUpperCase(),
+						status: "pending",
+						total: (order.amount / 100).toFixed(2),
+						customerName: order.user.public_name || null,
+						customerEmail: order.user.email,
+						createdAt: order.created_at,
+					})
+				}
 			}
 		})
 
@@ -69,15 +73,18 @@ export const processPolarSubscriptionCreated = inngest.createFunction(
 
 		await step.run("broadcast-subscription", async () => {
 			if (pusherServer) {
-				await pusherServer.trigger("private-orders", "subscription:created", {
-					subscriptionId: subscription.id,
-					customerEmail: subscription.user.email,
-					customerName: subscription.user.public_name || null,
-					product: subscription.product.name,
-					status: subscription.status,
-					amount: subscription.price.price_amount || 0,
-					currency: subscription.price.price_currency,
-				})
+				const [workspace] = await db.select({ id: workspaces.id }).from(workspaces).limit(1)
+				if (workspace) {
+					await pusherServer.trigger(wsChannel(workspace.id, "orders"), "subscription:created", {
+						subscriptionId: subscription.id,
+						customerEmail: subscription.user.email,
+						customerName: subscription.user.public_name || null,
+						product: subscription.product.name,
+						status: subscription.status,
+						amount: subscription.price.price_amount || 0,
+						currency: subscription.price.price_currency,
+					})
+				}
 			}
 		})
 
@@ -137,11 +144,14 @@ export const processPolarSubscriptionCanceled = inngest.createFunction(
 
 		await step.run("notify-team", async () => {
 			if (pusherServer) {
-				await pusherServer.trigger("private-orders", "subscription:canceled", {
-					subscriptionId: subscription.id,
-					customerEmail: subscription.user.email,
-					product: subscription.product.name,
-				})
+				const [workspace] = await db.select({ id: workspaces.id }).from(workspaces).limit(1)
+				if (workspace) {
+					await pusherServer.trigger(wsChannel(workspace.id, "orders"), "subscription:canceled", {
+						subscriptionId: subscription.id,
+						customerEmail: subscription.user.email,
+						product: subscription.product.name,
+					})
+				}
 			}
 		})
 

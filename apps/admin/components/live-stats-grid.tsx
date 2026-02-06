@@ -37,7 +37,7 @@ function ChangeIndicator({ change, showVsPrev = false }: { change: number; showV
 }
 
 export function LiveStatsGrid({ stats: initialStats, columns = 4 }: LiveStatsGridProps) {
-  const { pusher, isConnected } = usePusher()
+  const { pusher, isConnected, workspaceId } = usePusher()
   const [stats, setStats] = useState(initialStats)
   const initialRef = useRef(initialStats)
   const statsConfigRef = useRef(initialStats)
@@ -99,9 +99,10 @@ export function LiveStatsGrid({ stats: initialStats, columns = 4 }: LiveStatsGri
   }, [])
 
   useEffect(() => {
-    if (!pusher || !isConnected) return
+    if (!pusher || !isConnected || !workspaceId) return
 
-    const ordersChannel = pusher.subscribe("private-orders")
+    const channelName = `private-workspace-${workspaceId}-orders`
+    const ordersChannel = pusher.subscribe(channelName)
 
     ordersChannel.bind("order:created", handleOrderCreated)
     ordersChannel.bind("subscription:created", handleSubscriptionCreated)
@@ -111,9 +112,9 @@ export function LiveStatsGrid({ stats: initialStats, columns = 4 }: LiveStatsGri
 
     return () => {
       ordersChannel.unbind_all()
-      pusher.unsubscribe("private-orders")
+      pusher.unsubscribe(channelName)
     }
-  }, [pusher, isConnected, handleOrderCreated, handleSubscriptionCreated, handleSubscriptionCanceled])
+  }, [pusher, isConnected, workspaceId, handleOrderCreated, handleSubscriptionCreated, handleSubscriptionCanceled])
 
   const gridCols = {
     2: "sm:grid-cols-2",

@@ -1,5 +1,8 @@
 import { inngest } from "../inngest"
 import { pusherServer } from "../pusher-server"
+import { wsChannel } from "../pusher-channels"
+import { db } from "@jetbeans/db"
+import { workspaces } from "@jetbeans/db/schema"
 import {
 	markWebhookProcessed,
 	updateWebhookStatus,
@@ -53,12 +56,15 @@ export const processEmailBounced = inngest.createFunction(
 		await step.run("notify-team", async () => {
 			// Alert team about bounced email
 			if (pusherServer) {
-				await pusherServer.trigger("private-orders", "email:bounced", {
-					emailId: email.email_id,
-					to: email.to[0],
-					subject: email.subject,
-					reason: email.bounce.message,
-				})
+				const [workspace] = await db.select({ id: workspaces.id }).from(workspaces).limit(1)
+				if (workspace) {
+					await pusherServer.trigger(wsChannel(workspace.id, "orders"), "email:bounced", {
+						emailId: email.email_id,
+						to: email.to[0],
+						subject: email.subject,
+						reason: email.bounce.message,
+					})
+				}
 			}
 		})
 
@@ -92,11 +98,14 @@ export const processEmailComplained = inngest.createFunction(
 		await step.run("notify-team", async () => {
 			// Alert team about spam complaint
 			if (pusherServer) {
-				await pusherServer.trigger("private-orders", "email:complained", {
-					emailId: email.email_id,
-					to: email.to[0],
-					subject: email.subject,
-				})
+				const [workspace] = await db.select({ id: workspaces.id }).from(workspaces).limit(1)
+				if (workspace) {
+					await pusherServer.trigger(wsChannel(workspace.id, "orders"), "email:complained", {
+						emailId: email.email_id,
+						to: email.to[0],
+						subject: email.subject,
+					})
+				}
 			}
 		})
 

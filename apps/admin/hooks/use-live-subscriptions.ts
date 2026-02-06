@@ -49,7 +49,7 @@ interface UseLiveSubscriptionsOptions {
 }
 
 export function useLiveSubscriptions({ initialSubscriptions }: UseLiveSubscriptionsOptions) {
-	const { pusher, isConnected } = usePusher()
+	const { pusher, isConnected, workspaceId } = usePusher()
 	const [subscriptions, setSubscriptions] = useState<LiveSubscription[]>(initialSubscriptions)
 	const initialRef = useRef(initialSubscriptions)
 
@@ -62,9 +62,10 @@ export function useLiveSubscriptions({ initialSubscriptions }: UseLiveSubscripti
 	}, [initialSubscriptions])
 
 	useEffect(() => {
-		if (!pusher || !isConnected) return
+		if (!pusher || !isConnected || !workspaceId) return
 
-		const channel = pusher.subscribe("private-subscriptions")
+		const channelName = `private-workspace-${workspaceId}-subscriptions`
+		const channel = pusher.subscribe(channelName)
 
 		// New subscription created - prepend to list
 		channel.bind("subscription:created", (data: SubscriptionCreatedEvent) => {
@@ -135,9 +136,9 @@ export function useLiveSubscriptions({ initialSubscriptions }: UseLiveSubscripti
 
 		return () => {
 			channel.unbind_all()
-			pusher.unsubscribe("private-subscriptions")
+			pusher.unsubscribe(channelName)
 		}
-	}, [pusher, isConnected])
+	}, [pusher, isConnected, workspaceId])
 
 	return { subscriptions, isConnected }
 }

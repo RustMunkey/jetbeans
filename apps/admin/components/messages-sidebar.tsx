@@ -322,7 +322,7 @@ export function MessagesSidebar({
 	onOpenChange: (open: boolean) => void
 }) {
 	const { data: session } = useSession()
-	const { pusher } = usePusher()
+	const { pusher, workspaceId } = usePusher()
 	const [tab, setTab] = useState<"chat" | "inbox">("chat")
 	const [messages, setMessages] = useState<Message[]>([])
 	const [members, setMembers] = useState<TeamMember[]>([])
@@ -379,9 +379,10 @@ export function MessagesSidebar({
 
 	// Real-time inbox updates
 	useEffect(() => {
-		if (!pusher) return
+		if (!pusher || !workspaceId) return
 
-		const channel = pusher.subscribe("private-inbox")
+		const channelName = `private-workspace-${workspaceId}-inbox`
+		const channel = pusher.subscribe(channelName)
 
 		channel.bind("new-email", (data: InboxEmail) => {
 			setEmails((prev) => [{ ...data, replies: [] }, ...prev])
@@ -390,9 +391,9 @@ export function MessagesSidebar({
 
 		return () => {
 			channel.unbind_all()
-			pusher.unsubscribe("private-inbox")
+			pusher.unsubscribe(channelName)
 		}
-	}, [pusher])
+	}, [pusher, workspaceId])
 
 	const handleSendMessage = useCallback(
 		async (body: string) => {

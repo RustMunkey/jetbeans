@@ -9,6 +9,7 @@ import {
 	inboxEmails,
 } from "@jetbeans/db/schema"
 import { pusherServer } from "@/lib/pusher-server"
+import { wsChannel } from "@/lib/pusher-channels"
 import { parseShippingEmail, isShippingEmail } from "@/lib/tracking/parser"
 import { registerTracking, isTracktryConfigured } from "@/lib/tracking/service"
 import { env } from "@/env"
@@ -236,16 +237,23 @@ export async function POST(request: Request) {
 				await registerTracking(trackingNumber, carrier.code, matchedOrderId)
 			}
 
-			// Broadcast update
-			if (pusherServer) {
-				await pusherServer.trigger("private-orders", "tracking:ingested", {
-					trackingId: tracking.id,
-					trackingNumber,
-					orderId: matchedOrderId,
-					carrier: carrier?.name,
-					source: "email",
-					reviewStatus,
-				})
+			// Broadcast update (workspace-scoped)
+			if (pusherServer && matchedOrderId) {
+				const [orderForWs] = await db
+					.select({ workspaceId: orders.workspaceId })
+					.from(orders)
+					.where(eq(orders.id, matchedOrderId))
+					.limit(1)
+				if (orderForWs?.workspaceId) {
+					await pusherServer.trigger(wsChannel(orderForWs.workspaceId, "orders"), "tracking:ingested", {
+						trackingId: tracking.id,
+						trackingNumber,
+						orderId: matchedOrderId,
+						carrier: carrier?.name,
+						source: "email",
+						reviewStatus,
+					})
+				}
 			}
 
 			results.push({

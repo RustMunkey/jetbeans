@@ -24,7 +24,7 @@ interface UseLiveChartDataOptions {
  * Increments today's data point when new orders come in
  */
 export function useLiveChartData({ initialData }: UseLiveChartDataOptions) {
-	const { pusher, isConnected } = usePusher()
+	const { pusher, isConnected, workspaceId } = usePusher()
 	const [data, setData] = useState<ChartDataPoint[]>(initialData)
 	const initialRef = useRef(initialData)
 
@@ -42,9 +42,10 @@ export function useLiveChartData({ initialData }: UseLiveChartDataOptions) {
 	}, [initialData])
 
 	useEffect(() => {
-		if (!pusher || !isConnected) return
+		if (!pusher || !isConnected || !workspaceId) return
 
-		const channel = pusher.subscribe("private-orders")
+		const channelName = `private-workspace-${workspaceId}-orders`
+		const channel = pusher.subscribe(channelName)
 
 		// When order is created, increment today's revenue
 		channel.bind("order:created", (event: OrderEvent) => {
@@ -81,9 +82,9 @@ export function useLiveChartData({ initialData }: UseLiveChartDataOptions) {
 
 		return () => {
 			channel.unbind_all()
-			pusher.unsubscribe("private-orders")
+			pusher.unsubscribe(channelName)
 		}
-	}, [pusher, isConnected, getTodayStr])
+	}, [pusher, isConnected, workspaceId, getTodayStr])
 
 	return { data, isConnected }
 }

@@ -18,7 +18,7 @@ interface TopProductsLiveProps {
 }
 
 export function TopProductsLive({ initialProducts }: TopProductsLiveProps) {
-  const { pusher, isConnected } = usePusher()
+  const { pusher, isConnected, workspaceId } = usePusher()
   const [products, setProducts] = useState<TopProduct[]>(initialProducts)
   const initialRef = useRef(initialProducts)
 
@@ -32,9 +32,10 @@ export function TopProductsLive({ initialProducts }: TopProductsLiveProps) {
 
   // Listen for order events to update product revenue/units
   useEffect(() => {
-    if (!pusher || !isConnected) return
+    if (!pusher || !isConnected || !workspaceId) return
 
-    const channel = pusher.subscribe("private-orders")
+    const channelName = `private-workspace-${workspaceId}-orders`
+    const channel = pusher.subscribe(channelName)
 
     // When a new order comes in with a product, increment its stats
     channel.bind("order:created", (data: { product?: string; amount?: number }) => {
@@ -65,9 +66,9 @@ export function TopProductsLive({ initialProducts }: TopProductsLiveProps) {
 
     return () => {
       channel.unbind_all()
-      pusher.unsubscribe("private-orders")
+      pusher.unsubscribe(channelName)
     }
-  }, [pusher, isConnected])
+  }, [pusher, isConnected, workspaceId])
 
   if (products.length === 0) {
     return (

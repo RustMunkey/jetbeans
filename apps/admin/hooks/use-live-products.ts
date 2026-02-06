@@ -58,7 +58,7 @@ interface UseLiveProductsOptions {
  * Returns products array that updates in real-time
  */
 export function useLiveProducts({ initialProducts }: UseLiveProductsOptions) {
-	const { pusher, isConnected } = usePusher()
+	const { pusher, isConnected, workspaceId } = usePusher()
 	const [products, setProducts] = useState<LiveProduct[]>(initialProducts)
 	const initialRef = useRef(initialProducts)
 
@@ -71,9 +71,10 @@ export function useLiveProducts({ initialProducts }: UseLiveProductsOptions) {
 	}, [initialProducts])
 
 	useEffect(() => {
-		if (!pusher || !isConnected) return
+		if (!pusher || !isConnected || !workspaceId) return
 
-		const channel = pusher.subscribe("private-products")
+		const channelName = `private-workspace-${workspaceId}-products`
+		const channel = pusher.subscribe(channelName)
 
 		// New product created - prepend to list
 		channel.bind("product:created", (data: ProductCreatedEvent) => {
@@ -131,9 +132,9 @@ export function useLiveProducts({ initialProducts }: UseLiveProductsOptions) {
 
 		return () => {
 			channel.unbind_all()
-			pusher.unsubscribe("private-products")
+			pusher.unsubscribe(channelName)
 		}
-	}, [pusher, isConnected])
+	}, [pusher, isConnected, workspaceId])
 
 	return { products, isConnected }
 }

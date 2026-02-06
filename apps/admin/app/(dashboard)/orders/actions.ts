@@ -5,6 +5,7 @@ import { db } from "@jetbeans/db/client"
 import { orders, orderItems, orderNotes, users, payments, addresses, inventory, auditLog } from "@jetbeans/db/schema"
 import { logAudit } from "@/lib/audit"
 import { pusherServer } from "@/lib/pusher-server"
+import { wsChannel } from "@/lib/pusher-channels"
 import { fireWebhooks } from "@/lib/webhooks/outgoing"
 import { registerTracking, isTracktryConfigured } from "@/lib/tracking/service"
 import { detectCarrier } from "@/lib/tracking/carrier-detector"
@@ -168,7 +169,7 @@ export async function updateOrderStatus(id: string, status: string) {
 
 	// Broadcast real-time order update
 	if (pusherServer) {
-		await pusherServer.trigger("private-orders", "order:updated", {
+		await pusherServer.trigger(wsChannel(workspace.id, "orders"), "order:updated", {
 			orderId: order.id,
 			orderNumber: order.orderNumber,
 			status: order.status,

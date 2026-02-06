@@ -13,7 +13,7 @@ interface UseLiveRefreshOptions {
  * Use this on analytics/dashboard pages to auto-refresh stats
  */
 export function useLiveRefresh({ enabled = true }: UseLiveRefreshOptions = {}) {
-	const { pusher, isConnected } = usePusher()
+	const { pusher, isConnected, workspaceId } = usePusher()
 	const router = useRouter()
 	const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -28,10 +28,12 @@ export function useLiveRefresh({ enabled = true }: UseLiveRefreshOptions = {}) {
 	}, [router])
 
 	useEffect(() => {
-		if (!pusher || !isConnected || !enabled) return
+		if (!pusher || !isConnected || !enabled || !workspaceId) return
 
-		const ordersChannel = pusher.subscribe("private-orders")
-		const inventoryChannel = pusher.subscribe("private-inventory")
+		const ordersChannelName = `private-workspace-${workspaceId}-orders`
+		const inventoryChannelName = `private-workspace-${workspaceId}-inventory`
+		const ordersChannel = pusher.subscribe(ordersChannelName)
+		const inventoryChannel = pusher.subscribe(inventoryChannelName)
 
 		// Refresh on order events
 		ordersChannel.bind("order:created", triggerRefresh)
@@ -50,10 +52,10 @@ export function useLiveRefresh({ enabled = true }: UseLiveRefreshOptions = {}) {
 			}
 			ordersChannel.unbind_all()
 			inventoryChannel.unbind_all()
-			pusher.unsubscribe("private-orders")
-			pusher.unsubscribe("private-inventory")
+			pusher.unsubscribe(ordersChannelName)
+			pusher.unsubscribe(inventoryChannelName)
 		}
-	}, [pusher, isConnected, enabled, triggerRefresh])
+	}, [pusher, isConnected, workspaceId, enabled, triggerRefresh])
 
 	return { isConnected }
 }

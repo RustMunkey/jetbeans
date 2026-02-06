@@ -6,6 +6,31 @@ import type {
 } from "../types"
 import { resolveConfigVariables } from "../variable-resolver"
 
+// SSRF protection: block requests to internal/private networks
+const BLOCKED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "::1", "169.254.169.254", "[::1]"]
+
+function isUrlAllowed(urlString: string): boolean {
+	try {
+		const parsed = new URL(urlString)
+		// Only allow http/https
+		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false
+		// Block known internal hosts
+		if (BLOCKED_HOSTS.includes(parsed.hostname)) return false
+		// Block private IP ranges (10.x, 172.16-31.x, 192.168.x)
+		const ip = parsed.hostname
+		if (/^10\./.test(ip)) return false
+		if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return false
+		if (/^192\.168\./.test(ip)) return false
+		// Block link-local
+		if (/^169\.254\./.test(ip)) return false
+		// Block .local/.internal TLDs
+		if (ip.endsWith(".local") || ip.endsWith(".internal")) return false
+		return true
+	} catch {
+		return false
+	}
+}
+
 /**
  * Send a webhook to an external URL
  */
@@ -18,6 +43,10 @@ export const handleWebhookSend: ActionHandler<WebhookSendConfig> = async (
 
 	if (!url) {
 		return { success: false, error: "Webhook URL is required" }
+	}
+
+	if (!isUrlAllowed(url)) {
+		return { success: false, error: "Webhook URL is not allowed: must be a public HTTP/HTTPS URL" }
 	}
 
 	try {
@@ -104,6 +133,10 @@ export const handleSlackSendMessage: ActionHandler<SlackSendMessageConfig> = asy
 
 	if (!webhookUrl) {
 		return { success: false, error: "Slack webhook URL is required" }
+	}
+
+	if (!isUrlAllowed(webhookUrl)) {
+		return { success: false, error: "Slack webhook URL is not allowed: must be a public HTTP/HTTPS URL" }
 	}
 
 	if (!message) {

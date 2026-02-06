@@ -5,6 +5,7 @@ import { db } from "@jetbeans/db/client"
 import { inventory, inventoryLogs, products, productVariants } from "@jetbeans/db/schema"
 import { logAudit } from "@/lib/audit"
 import { pusherServer } from "@/lib/pusher-server"
+import { wsChannel } from "@/lib/pusher-channels"
 import { fireWebhooks } from "@/lib/webhooks/outgoing"
 import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 
@@ -230,7 +231,7 @@ export async function adjustStock(
 		}
 
 		// Single consolidated event with all data
-		await pusherServer.trigger("private-inventory", "inventory:updated", {
+		await pusherServer.trigger(wsChannel(workspace.id, "inventory"), "inventory:updated", {
 			id: inventoryId,
 			variantId: itemWithDetails.variantId,
 			quantity: newQuantity,

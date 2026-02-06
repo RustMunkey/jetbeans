@@ -105,7 +105,7 @@ function TimeDisplay({ date, label }: { date: Date | null; label: string }) {
 
 export function AuctionsTable({ auctions: initialAuctions, totalCount, view }: AuctionsTableProps) {
 	const router = useRouter()
-	const { pusher, isConnected } = usePusher()
+	const { pusher, isConnected, workspaceId } = usePusher()
 	const [auctions, setAuctions] = React.useState(initialAuctions)
 	const [deleteId, setDeleteId] = React.useState<string | null>(null)
 	const [cancelId, setCancelId] = React.useState<string | null>(null)
@@ -114,9 +114,10 @@ export function AuctionsTable({ auctions: initialAuctions, totalCount, view }: A
 
 	// Real-time updates
 	React.useEffect(() => {
-		if (!pusher || !isConnected) return
+		if (!pusher || !isConnected || !workspaceId) return
 
-		const channel = pusher.subscribe("private-auctions")
+		const channelName = `private-workspace-${workspaceId}-auctions`
+		const channel = pusher.subscribe(channelName)
 
 		channel.bind("auction:bid-placed", (data: { auctionId: string; amount: string; bidCount: number; reserveMet: boolean }) => {
 			setAuctions((prev) =>
@@ -141,9 +142,9 @@ export function AuctionsTable({ auctions: initialAuctions, totalCount, view }: A
 
 		return () => {
 			channel.unbind_all()
-			pusher.unsubscribe("private-auctions")
+			pusher.unsubscribe(channelName)
 		}
-	}, [pusher, isConnected, view, router])
+	}, [pusher, isConnected, workspaceId, view, router])
 
 	// Sync with server data
 	React.useEffect(() => {

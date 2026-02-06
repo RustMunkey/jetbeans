@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
 import { db } from "@jetbeans/db/client"
 import { eq, sql } from "@jetbeans/db/drizzle"
-import { inboxEmails, users, notifications, orders, shipmentTracking, shippingCarriers } from "@jetbeans/db/schema"
+import { inboxEmails, users, notifications, orders, shipmentTracking, shippingCarriers, workspaces } from "@jetbeans/db/schema"
 import { pusherServer } from "@/lib/pusher-server"
+import { wsChannel } from "@/lib/pusher-channels"
 import { isShippingEmail, parseShippingEmail } from "@/lib/tracking/parser"
 import { sendShippingNotification } from "@/lib/email/shipping-notifications"
 import { registerTracking, isTrackingServiceConfigured } from "@/lib/tracking/service"
@@ -137,17 +138,20 @@ export async function POST(request: Request) {
 			})
 			.returning()
 
-		// Broadcast to all admins via Pusher
+		// Broadcast to admins via Pusher (workspace-scoped)
 		if (pusherServer) {
-			await pusherServer.trigger("private-inbox", "new-email", {
-				id: email.id,
-				fromName,
-				fromEmail,
-				subject,
-				body: body.slice(0, 200), // Preview only
-				receivedAt: email.receivedAt.toISOString(),
-				status: "unread",
-			})
+			const [workspace] = await db.select({ id: workspaces.id }).from(workspaces).limit(1)
+			if (workspace) {
+				await pusherServer.trigger(wsChannel(workspace.id, "inbox"), "new-email", {
+					id: email.id,
+					fromName,
+					fromEmail,
+					subject,
+					body: body.slice(0, 200), // Preview only
+					receivedAt: email.receivedAt.toISOString(),
+					status: "unread",
+				})
+			}
 		}
 
 		// Create notifications for all admin users
@@ -317,14 +321,21 @@ export async function POST(request: Request) {
 
 						shippingProcessed = true
 
-						// Broadcast tracking update
+						// Broadcast tracking update (workspace-scoped)
 						if (pusherServer) {
-							await pusherServer.trigger("private-orders", "shipment:created", {
-								trackingId: newTracking.id,
-								orderId,
-								trackingNumber,
-								carrier: carrier?.code,
-							})
+							const [orderForWs] = await db
+								.select({ workspaceId: orders.workspaceId })
+								.from(orders)
+								.where(eq(orders.id, orderId))
+								.limit(1)
+							if (orderForWs?.workspaceId) {
+								await pusherServer.trigger(wsChannel(orderForWs.workspaceId, "orders"), "shipment:created", {
+									trackingId: newTracking.id,
+									orderId,
+									trackingNumber,
+									carrier: carrier?.code,
+								})
+							}
 						}
 					} else if (!existingTracking && !orderId) {
 						// Tracking found but no order match - log for manual review

@@ -1,8 +1,10 @@
 import { SignJWT, jwtVerify } from "jose"
 
-const JWT_SECRET = new TextEncoder().encode(
-	process.env.STOREFRONT_JWT_SECRET || process.env.BETTER_AUTH_SECRET || "fallback-secret-change-me"
-)
+const jwtSecretString = process.env.STOREFRONT_JWT_SECRET || process.env.BETTER_AUTH_SECRET
+if (!jwtSecretString) {
+	throw new Error("STOREFRONT_JWT_SECRET or BETTER_AUTH_SECRET must be configured")
+}
+const JWT_SECRET = new TextEncoder().encode(jwtSecretString)
 
 export type StorefrontCustomerToken = {
 	sub: string // user ID

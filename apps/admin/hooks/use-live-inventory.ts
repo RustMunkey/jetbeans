@@ -45,7 +45,7 @@ export function useLiveInventory({
 	onRestocked,
 	enabled = true,
 }: UseLiveInventoryOptions) {
-	const { pusher, isConnected } = usePusher()
+	const { pusher, isConnected, workspaceId } = usePusher()
 	const [items, setItems] = useState<LiveInventoryItem[]>(initialItems)
 	const initialItemsRef = useRef(initialItems)
 	const callbacksRef = useRef({ onLowStock, onOutOfStock, onRestocked })
@@ -64,9 +64,10 @@ export function useLiveInventory({
 	}, [initialItems])
 
 	useEffect(() => {
-		if (!pusher || !isConnected || !enabled) return
+		if (!pusher || !isConnected || !enabled || !workspaceId) return
 
-		const channel = pusher.subscribe("private-inventory")
+		const channelName = `private-workspace-${workspaceId}-inventory`
+		const channel = pusher.subscribe(channelName)
 
 		// Item updated - update in place
 		channel.bind("inventory:updated", (data: LiveInventoryItem) => {
@@ -102,9 +103,9 @@ export function useLiveInventory({
 
 		return () => {
 			channel.unbind_all()
-			pusher.unsubscribe("private-inventory")
+			pusher.unsubscribe(channelName)
 		}
-	}, [pusher, isConnected, enabled])
+	}, [pusher, isConnected, workspaceId, enabled])
 
 	return { items, isConnected }
 }

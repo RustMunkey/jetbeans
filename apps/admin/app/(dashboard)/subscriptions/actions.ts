@@ -5,6 +5,7 @@ import { db } from "@jetbeans/db/client"
 import { subscriptions, subscriptionItems, users, productVariants, products } from "@jetbeans/db/schema"
 import { logAudit } from "@/lib/audit"
 import { pusherServer } from "@/lib/pusher-server"
+import { wsChannel } from "@/lib/pusher-channels"
 import { fireWebhooks } from "@/lib/webhooks/outgoing"
 import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 
@@ -143,7 +144,7 @@ export async function updateSubscriptionStatus(id: string, status: string) {
 
 	// Broadcast update
 	if (pusherServer) {
-		await pusherServer.trigger("private-subscriptions", "subscription:updated", {
+		await pusherServer.trigger(wsChannel(workspace.id, "subscriptions"), "subscription:updated", {
 			id,
 			status,
 			...(status === "cancelled" && { cancelledAt: new Date().toISOString() }),
@@ -195,7 +196,7 @@ export async function cancelSubscription(id: string, reason: string) {
 
 	// Broadcast cancellation
 	if (pusherServer) {
-		await pusherServer.trigger("private-subscriptions", "subscription:canceled", {
+		await pusherServer.trigger(wsChannel(workspace.id, "subscriptions"), "subscription:canceled", {
 			id,
 			cancelledAt: cancelledAt.toISOString(),
 			reason,
@@ -236,7 +237,7 @@ export async function resumeSubscription(id: string) {
 
 	// Broadcast update
 	if (pusherServer) {
-		await pusherServer.trigger("private-subscriptions", "subscription:updated", {
+		await pusherServer.trigger(wsChannel(workspace.id, "subscriptions"), "subscription:updated", {
 			id,
 			status: "active",
 			cancelledAt: null,
@@ -270,7 +271,7 @@ export async function updateFrequency(id: string, frequency: string) {
 
 	// Broadcast update
 	if (pusherServer) {
-		await pusherServer.trigger("private-subscriptions", "subscription:updated", {
+		await pusherServer.trigger(wsChannel(workspace.id, "subscriptions"), "subscription:updated", {
 			id,
 			frequency,
 		})

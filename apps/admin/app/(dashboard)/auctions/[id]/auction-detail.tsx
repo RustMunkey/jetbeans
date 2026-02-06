@@ -121,7 +121,7 @@ function CountdownTimer({ endsAt }: { endsAt: Date }) {
 
 export function AuctionDetail({ auction: initialAuction, bidHistory: initialBidHistory, products }: AuctionDetailProps) {
 	const router = useRouter()
-	const { pusher, isConnected } = usePusher()
+	const { pusher, isConnected, workspaceId } = usePusher()
 
 	const [auction, setAuction] = React.useState(initialAuction)
 	const [bids, setBids] = React.useState(initialBidHistory)
@@ -133,9 +133,10 @@ export function AuctionDetail({ auction: initialAuction, bidHistory: initialBidH
 
 	// Real-time updates
 	React.useEffect(() => {
-		if (!pusher || !isConnected) return
+		if (!pusher || !isConnected || !workspaceId) return
 
-		const channel = pusher.subscribe("private-auctions")
+		const channelName = `private-workspace-${workspaceId}-auctions`
+		const channel = pusher.subscribe(channelName)
 
 		channel.bind("auction:bid-placed", (data: {
 			auctionId: string
@@ -195,9 +196,9 @@ export function AuctionDetail({ auction: initialAuction, bidHistory: initialBidH
 
 		return () => {
 			channel.unbind_all()
-			pusher.unsubscribe("private-auctions")
+			pusher.unsubscribe(channelName)
 		}
-	}, [pusher, isConnected, auction.id, router])
+	}, [pusher, isConnected, workspaceId, auction.id, router])
 
 	const handleCancel = async () => {
 		setLoading(true)

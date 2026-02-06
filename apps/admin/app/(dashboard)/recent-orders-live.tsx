@@ -43,7 +43,7 @@ interface RecentOrdersLiveProps {
 }
 
 export function RecentOrdersLive({ initialOrders }: RecentOrdersLiveProps) {
-  const { pusher, isConnected } = usePusher()
+  const { pusher, isConnected, workspaceId } = usePusher()
   const [orders, setOrders] = useState<RecentOrder[]>(
     initialOrders.map((o) => ({
       ...o,
@@ -64,9 +64,10 @@ export function RecentOrdersLive({ initialOrders }: RecentOrdersLiveProps) {
   }, [initialOrders])
 
   useEffect(() => {
-    if (!pusher || !isConnected) return
+    if (!pusher || !isConnected || !workspaceId) return
 
-    const channel = pusher.subscribe("private-orders")
+    const channelName = `private-workspace-${workspaceId}-orders`
+    const channel = pusher.subscribe(channelName)
 
     channel.bind("order:created", (data: RecentOrder) => {
       setOrders((prev) => {
@@ -91,9 +92,9 @@ export function RecentOrdersLive({ initialOrders }: RecentOrdersLiveProps) {
 
     return () => {
       channel.unbind_all()
-      pusher.unsubscribe("private-orders")
+      pusher.unsubscribe(channelName)
     }
-  }, [pusher, isConnected])
+  }, [pusher, isConnected, workspaceId])
 
   if (orders.length === 0) {
     return (

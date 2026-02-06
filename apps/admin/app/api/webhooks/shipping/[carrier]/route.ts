@@ -10,6 +10,7 @@ import {
 	orders,
 } from "@jetbeans/db/schema"
 import { pusherServer } from "@/lib/pusher-server"
+import { wsChannel } from "@/lib/pusher-channels"
 import { inngest } from "@/lib/inngest"
 import { sendShippingNotification, mapToNotificationStatus } from "@/lib/email/shipping-notifications"
 import crypto from "crypto"
@@ -510,17 +511,24 @@ export async function POST(
 			}
 		}
 
-		// Broadcast via Pusher
+		// Broadcast via Pusher (workspace-scoped)
 		if (pusherServer) {
-			await pusherServer.trigger("private-orders", "shipment:updated", {
-				trackingId: tracking.id,
-				orderId: tracking.orderId,
-				trackingNumber: normalized.trackingNumber,
-				status: normalized.status,
-				statusDetail: normalized.statusDetail,
-				location: normalized.location,
-				timestamp: normalized.timestamp,
-			})
+			const [orderForWs] = await db
+				.select({ workspaceId: orders.workspaceId })
+				.from(orders)
+				.where(eq(orders.id, tracking.orderId))
+				.limit(1)
+			if (orderForWs?.workspaceId) {
+				await pusherServer.trigger(wsChannel(orderForWs.workspaceId, "orders"), "shipment:updated", {
+					trackingId: tracking.id,
+					orderId: tracking.orderId,
+					trackingNumber: normalized.trackingNumber,
+					status: normalized.status,
+					statusDetail: normalized.statusDetail,
+					location: normalized.location,
+					timestamp: normalized.timestamp,
+				})
+			}
 		}
 	}
 

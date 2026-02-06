@@ -16,6 +16,26 @@ const KEY_PREFIX_LIVE = "jb_live_"
 const KEY_PREFIX_TEST = "jb_test_"
 const KEY_RANDOM_LENGTH = 40
 
+// Simple in-memory rate limiter (resets on cold start but protects during hot instances)
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+const DEFAULT_RATE_LIMIT = 1000 // requests per hour
+
+function checkRateLimit(keyId: string, limit: number = DEFAULT_RATE_LIMIT): boolean {
+	const now = Date.now()
+	const entry = rateLimitMap.get(keyId)
+
+	if (!entry || now > entry.resetAt) {
+		rateLimitMap.set(keyId, { count: 1, resetAt: now + 3600_000 }) // 1 hour window
+		return true
+	}
+
+	entry.count++
+	if (entry.count > limit) {
+		return false
+	}
+	return true
+}
+
 /**
  * Generate a new Admin API key
  * Returns the full key (only shown once) and the hash for storage
@@ -184,6 +204,21 @@ export async function authenticateAdminApi(
 					code: "INVALID_API_KEY",
 				},
 				{ status: 401 }
+			),
+		}
+	}
+
+	// Rate limiting
+	if (result.keyId && !checkRateLimit(result.keyId)) {
+		return {
+			success: false,
+			response: NextResponse.json(
+				{
+					error: "Rate limit exceeded",
+					message: "Too many requests. Please try again later.",
+					code: "RATE_LIMITED",
+				},
+				{ status: 429, headers: { "Retry-After": "60" } }
 			),
 		}
 	}

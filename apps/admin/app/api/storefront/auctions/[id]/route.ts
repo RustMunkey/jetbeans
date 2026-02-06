@@ -4,6 +4,7 @@ import { eq, and, desc } from "@jetbeans/db/drizzle"
 import { auctions, bids, products, users } from "@jetbeans/db/schema"
 import { withStorefrontAuth, storefrontError, handleCorsOptions, type StorefrontContext } from "@/lib/storefront-auth"
 import { pusherServer } from "@/lib/pusher-server"
+import { wsChannel } from "@/lib/pusher-channels"
 import { inngest } from "@/lib/inngest"
 
 // GET /api/storefront/auctions/[id] - Get auction details
@@ -258,12 +259,12 @@ async function handlePost(
 			reserveMet: updatedAuction.reserveMet,
 		}
 
-		await pusherServer.trigger("private-auctions", "auction:bid-placed", eventData).catch(console.error)
+		await pusherServer.trigger(wsChannel(storefront.workspaceId, "auctions"), "auction:bid-placed", eventData).catch(console.error)
 
 		// If auction was extended, broadcast that too
 		if (newEndsAt !== auction.endsAt) {
 			await pusherServer
-				.trigger("private-auctions", "auction:extended", {
+				.trigger(wsChannel(storefront.workspaceId, "auctions"), "auction:extended", {
 					auctionId,
 					newEndsAt: newEndsAt instanceof Date ? newEndsAt.toISOString() : newEndsAt,
 					reason: "Bid placed near end time",

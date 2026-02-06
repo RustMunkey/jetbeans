@@ -42,7 +42,7 @@ interface SubscriptionEvent {
  * Updates values in place when order/subscription events occur
  */
 export function useLiveStats({ initialStats }: UseLiveStatsOptions) {
-	const { pusher, isConnected } = usePusher()
+	const { pusher, isConnected, workspaceId } = usePusher()
 	const [stats, setStats] = useState<LiveStats>(initialStats)
 	const initialRef = useRef(initialStats)
 
@@ -117,9 +117,10 @@ export function useLiveStats({ initialStats }: UseLiveStatsOptions) {
 	}, [])
 
 	useEffect(() => {
-		if (!pusher || !isConnected) return
+		if (!pusher || !isConnected || !workspaceId) return
 
-		const channel = pusher.subscribe("private-orders")
+		const channelName = `private-workspace-${workspaceId}-orders`
+		const channel = pusher.subscribe(channelName)
 
 		channel.bind("order:created", handleOrderCreated)
 		channel.bind("order:updated", handleOrderUpdated)
@@ -131,9 +132,9 @@ export function useLiveStats({ initialStats }: UseLiveStatsOptions) {
 			channel.unbind("order:updated", handleOrderUpdated)
 			channel.unbind("subscription:created", handleSubscriptionCreated)
 			channel.unbind("subscription:canceled", handleSubscriptionCanceled)
-			pusher.unsubscribe("private-orders")
+			pusher.unsubscribe(channelName)
 		}
-	}, [pusher, isConnected, handleOrderCreated, handleOrderUpdated, handleSubscriptionCreated, handleSubscriptionCanceled])
+	}, [pusher, isConnected, workspaceId, handleOrderCreated, handleOrderUpdated, handleSubscriptionCreated, handleSubscriptionCanceled])
 
 	return { stats, isConnected }
 }

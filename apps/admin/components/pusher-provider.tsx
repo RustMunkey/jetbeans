@@ -10,6 +10,7 @@ type PusherContextType = {
 	isConnected: boolean
 	connectionState: ConnectionState
 	reconnect: () => void
+	workspaceId: string | null
 }
 
 const PusherContext = createContext<PusherContextType>({
@@ -17,15 +18,18 @@ const PusherContext = createContext<PusherContextType>({
 	isConnected: false,
 	connectionState: "disconnected",
 	reconnect: () => {},
+	workspaceId: null,
 })
 
 export function PusherProvider({
 	pusherKey,
 	pusherCluster,
+	workspaceId,
 	children,
 }: {
 	pusherKey?: string
 	pusherCluster?: string
+	workspaceId?: string | null
 	children: ReactNode
 }) {
 	const [pusher, setPusher] = useState<PusherClient | null>(null)
@@ -114,7 +118,7 @@ export function PusherProvider({
 	}, [pusherKey, pusherCluster])
 
 	return (
-		<PusherContext.Provider value={{ pusher, isConnected, connectionState, reconnect }}>
+		<PusherContext.Provider value={{ pusher, isConnected, connectionState, reconnect, workspaceId: workspaceId ?? null }}>
 			{children}
 		</PusherContext.Provider>
 	)

@@ -6,6 +6,7 @@ import { auctions, bids, auctionWatchers, users, products } from "@jetbeans/db/s
 import type { Auction, NewAuction, Bid } from "@jetbeans/db/schema"
 import { logAudit } from "@/lib/audit"
 import { pusherServer } from "@/lib/pusher-server"
+import { wsChannel } from "@/lib/pusher-channels"
 import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
@@ -357,7 +358,7 @@ export async function publishAuction(id: string) {
 
 	// Broadcast to real-time subscribers
 	if (pusherServer) {
-		await pusherServer.trigger("private-auctions", "auction:created", {
+		await pusherServer.trigger(wsChannel(workspace.id, "auctions"), "auction:created", {
 			auctionId: auction.id,
 			title: auction.title,
 			status: auction.status,
@@ -440,7 +441,7 @@ export async function cancelAuction(id: string, reason?: string) {
 
 	// Broadcast cancellation
 	if (pusherServer) {
-		await pusherServer.trigger("private-auctions", "auction:ended", {
+		await pusherServer.trigger(wsChannel(workspace.id, "auctions"), "auction:ended", {
 			auctionId: auction.id,
 			status: "cancelled",
 			reason,
@@ -537,7 +538,7 @@ export async function endAuction(id: string) {
 
 	// Broadcast end
 	if (pusherServer) {
-		await pusherServer.trigger("private-auctions", "auction:ended", {
+		await pusherServer.trigger(wsChannel(workspace.id, "auctions"), "auction:ended", {
 			auctionId: auction.id,
 			status: finalStatus,
 			winnerId,
@@ -665,11 +666,11 @@ export async function placeBid(data: PlaceBidData) {
 			reserveMet: updatedAuction.reserveMet,
 		}
 
-		await pusherServer.trigger("private-auctions", "auction:bid-placed", eventData).catch(console.error)
+		await pusherServer.trigger(wsChannel(workspace.id, "auctions"), "auction:bid-placed", eventData).catch(console.error)
 
 		// If auction was extended, broadcast that too
 		if (newEndsAt !== auction.endsAt) {
-			await pusherServer.trigger("private-auctions", "auction:extended", {
+			await pusherServer.trigger(wsChannel(workspace.id, "auctions"), "auction:extended", {
 				auctionId: data.auctionId,
 				newEndsAt: newEndsAt?.toISOString(),
 				reason: "Bid placed near end time",
@@ -820,7 +821,7 @@ export async function startScheduledAuction(id: string) {
 		.returning()
 
 	if (auction && pusherServer) {
-		await pusherServer.trigger("private-auctions", "auction:created", {
+		await pusherServer.trigger(wsChannel(auction.workspaceId, "auctions"), "auction:created", {
 			auctionId: auction.id,
 			title: auction.title,
 			status: "active",
@@ -887,7 +888,7 @@ export async function endAuctionAutomatically(id: string) {
 	}
 
 	if (pusherServer) {
-		await pusherServer.trigger("private-auctions", "auction:ended", {
+		await pusherServer.trigger(wsChannel(auction.workspaceId, "auctions"), "auction:ended", {
 			auctionId: auction.id,
 			status: finalStatus,
 			winnerId,

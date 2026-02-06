@@ -103,41 +103,48 @@ export function checkStorefrontPermission(
 }
 
 /**
- * CORS headers for storefront API
+ * Build CORS headers, optionally scoped to a storefront's domain
  */
-const corsHeaders = {
-	"Access-Control-Allow-Origin": "*",
-	"Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-	"Access-Control-Allow-Headers": "Content-Type, X-Storefront-Key, Authorization",
+function buildCorsHeaders(origin?: string | null): Record<string, string> {
+	return {
+		"Access-Control-Allow-Origin": origin || "*",
+		"Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+		"Access-Control-Allow-Headers": "Content-Type, X-Storefront-Key, Authorization",
+		...(origin ? { "Vary": "Origin" } : {}),
+	}
 }
+
+// Default CORS headers (used for error responses before storefront is resolved)
+const defaultCorsHeaders = buildCorsHeaders()
 
 /**
  * Helper to create error responses with CORS
  */
 export function storefrontError(message: string, status: number) {
-	return Response.json({ error: message }, { status, headers: corsHeaders })
+	return Response.json({ error: message }, { status, headers: defaultCorsHeaders })
 }
 
 /**
  * Helper to create JSON responses with CORS
  */
 export function storefrontJson(data: unknown, status = 200) {
-	return Response.json(data, { status, headers: corsHeaders })
+	return Response.json(data, { status, headers: defaultCorsHeaders })
 }
 
 /**
  * Handle CORS preflight requests
  */
 export function handleCorsOptions() {
-	return new Response(null, { status: 204, headers: corsHeaders })
+	return new Response(null, { status: 204, headers: defaultCorsHeaders })
 }
 
 /**
- * Add CORS headers to a response
+ * Add CORS headers to a response, scoped to the storefront domain if available
  */
-function addCorsHeaders(response: Response): Response {
+function addCorsHeaders(response: Response, origin?: string | null): Response {
+	const headers = buildCorsHeaders(origin)
 	const newHeaders = new Headers(response.headers)
-	Object.entries(corsHeaders).forEach(([key, value]) => {
+	Object.entries(headers).forEach(([key, value]) => {
 		newHeaders.set(key, value)
 	})
 	return new Response(response.body, {
@@ -182,7 +189,12 @@ export function withStorefrontAuth(
 			}
 		}
 
+		// Scope CORS to the storefront's registered domain
+		const allowedOrigin = authResult.storefront.domain
+			? `https://${authResult.storefront.domain}`
+			: request.headers.get("origin")
+
 		const response = await handler(request, authResult.storefront)
-		return addCorsHeaders(response)
+		return addCorsHeaders(response, allowedOrigin)
 	}
 }

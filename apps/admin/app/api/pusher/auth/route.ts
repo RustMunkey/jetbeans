@@ -2,18 +2,23 @@ import { headers } from "next/headers"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { pusherServer } from "@/lib/pusher-server"
+import { getActiveWorkspace } from "@/lib/workspace"
+import { parseWorkspaceChannel } from "@/lib/pusher-channels"
+import { db } from "@jetbeans/db/client"
+import { workspaceMembers } from "@jetbeans/db/schema"
+import { eq, and } from "@jetbeans/db/drizzle"
 
-// Channels that all authenticated admins can access
-const SHARED_PRIVATE_CHANNELS = [
-	"private-orders",
-	"private-inventory",
-	"private-analytics",
-	"private-products",
-	"private-customers",
-	"private-subscriptions",
-	"private-inbox",
-	"private-auctions",
-]
+// Base channel names that require workspace scoping
+const WORKSPACE_CHANNELS = new Set([
+	"orders",
+	"inventory",
+	"analytics",
+	"products",
+	"customers",
+	"subscriptions",
+	"inbox",
+	"auctions",
+])
 
 export async function POST(request: Request) {
 	if (!pusherServer) {
@@ -37,8 +42,25 @@ export async function POST(request: Request) {
 		}
 	}
 
-	// Shared private channels - all admins can access
-	if (SHARED_PRIVATE_CHANNELS.includes(channel)) {
+	// Workspace-scoped channels: private-workspace-{workspaceId}-{channel}
+	const parsed = parseWorkspaceChannel(channel)
+	if (parsed && WORKSPACE_CHANNELS.has(parsed.channel)) {
+		// Verify user is a member of this workspace
+		const [membership] = await db
+			.select({ id: workspaceMembers.id })
+			.from(workspaceMembers)
+			.where(
+				and(
+					eq(workspaceMembers.workspaceId, parsed.workspaceId),
+					eq(workspaceMembers.userId, session.user.id)
+				)
+			)
+			.limit(1)
+
+		if (!membership) {
+			return NextResponse.json({ error: "Not a member of this workspace" }, { status: 403 })
+		}
+
 		const authResponse = pusherServer.authorizeChannel(socketId, channel)
 		return NextResponse.json(authResponse)
 	}
