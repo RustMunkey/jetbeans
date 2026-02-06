@@ -12,6 +12,7 @@ import {
 	CallEnd01Icon,
 	Maximize02Icon,
 	Minimize02Icon,
+	Message01Icon,
 } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
 
@@ -25,11 +26,13 @@ export function CallControls({ variant = "floating", className }: CallControlsPr
 		localAudioEnabled,
 		localVideoEnabled,
 		isScreenSharing,
-		isFullscreen,
+		viewMode,
+		showChat,
+		setViewMode,
+		toggleChat,
 		toggleAudio,
 		toggleVideo,
 		toggleScreenShare,
-		toggleFullscreen,
 		hangUp,
 	} = useCall()
 
@@ -80,19 +83,33 @@ export function CallControls({ variant = "floating", className }: CallControlsPr
 				<span className="sr-only">{isScreenSharing ? "Stop sharing" : "Share screen"}</span>
 			</Button>
 
-			{/* Fullscreen toggle */}
+			{/* Chat toggle (only in fullscreen) */}
+			{viewMode === "fullscreen" && (
+				<Button
+					variant={showChat ? "default" : "secondary"}
+					size="icon"
+					className={cn("rounded-full", buttonSize)}
+					onClick={toggleChat}
+					title={showChat ? "Hide chat" : "Show chat"}
+				>
+					<HugeiconsIcon icon={Message01Icon} size={iconSize} />
+					<span className="sr-only">{showChat ? "Hide chat" : "Show chat"}</span>
+				</Button>
+			)}
+
+			{/* View mode: PIP / Fullscreen toggle */}
 			<Button
 				variant="secondary"
 				size="icon"
 				className={cn("rounded-full", buttonSize)}
-				onClick={toggleFullscreen}
-				title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+				onClick={() => setViewMode(viewMode === "fullscreen" ? "floating" : "fullscreen")}
+				title={viewMode === "fullscreen" ? "Picture-in-picture" : "Fullscreen"}
 			>
 				<HugeiconsIcon
-					icon={isFullscreen ? Minimize02Icon : Maximize02Icon}
+					icon={viewMode === "fullscreen" ? Minimize02Icon : Maximize02Icon}
 					size={iconSize}
 				/>
-				<span className="sr-only">{isFullscreen ? "Exit fullscreen" : "Fullscreen"}</span>
+				<span className="sr-only">{viewMode === "fullscreen" ? "Picture-in-picture" : "Fullscreen"}</span>
 			</Button>
 
 			{/* End call */}

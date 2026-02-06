@@ -30,11 +30,13 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { StatusDot, StatusIndicator, type PresenceStatus } from "@/components/presence/status-indicator"
+import { StatusDot, StatusIndicator } from "@/components/presence/status-indicator"
+import type { UserStatusMode } from "@/hooks/use-user-status"
 
-const STATUS_OPTIONS: { value: PresenceStatus; label: string }[] = [
+const STATUS_OPTIONS: { value: UserStatusMode; label: string }[] = [
+  { value: "auto", label: "Auto" },
   { value: "online", label: "Online" },
-  { value: "idle", label: "Sleep" },
+  { value: "idle", label: "Idle" },
   { value: "dnd", label: "Do Not Disturb" },
   { value: "offline", label: "Invisible" },
 ]
@@ -51,7 +53,7 @@ export function NavUser({
   const { isMobile, state } = useSidebar()
   const router = useRouter()
   const { isConnected } = usePresence()
-  const { status, setStatus } = useUserStatus()
+  const { status, mode, setMode } = useUserStatus()
 
   const handleSignOut = async () => {
     await logSignOut()
@@ -72,12 +74,12 @@ export function NavUser({
     .slice(0, 2)
 
   const isCollapsed = state === "collapsed"
-  const currentStatusOption = STATUS_OPTIONS.find(s => s.value === status) || STATUS_OPTIONS[0]
+  const currentStatusOption = STATUS_OPTIONS.find(s => s.value === mode) || STATUS_OPTIONS[0]
 
   const cycleStatus = () => {
-    const currentIndex = STATUS_OPTIONS.findIndex(s => s.value === status)
+    const currentIndex = STATUS_OPTIONS.findIndex(s => s.value === mode)
     const nextIndex = (currentIndex + 1) % STATUS_OPTIONS.length
-    setStatus(STATUS_OPTIONS[nextIndex].value)
+    setMode(STATUS_OPTIONS[nextIndex].value)
   }
 
   return (

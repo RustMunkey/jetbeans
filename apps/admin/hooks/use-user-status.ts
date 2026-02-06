@@ -4,10 +4,14 @@ import { useState, useEffect, useCallback, createContext, useContext } from "rea
 import type { PresenceStatus } from "@/components/presence/status-indicator"
 
 const STORAGE_KEY = "jetbeans-user-status"
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
+
+export type UserStatusMode = "auto" | "online" | "idle" | "dnd" | "offline"
 
 interface UserStatusContextType {
 	status: PresenceStatus
-	setStatus: (status: PresenceStatus) => void
+	mode: UserStatusMode
+	setMode: (mode: UserStatusMode) => void
 	isManuallySet: boolean
 	clearManualStatus: () => void
 }
@@ -23,16 +27,17 @@ export function useUserStatus() {
 }
 
 export function useUserStatusProvider(isConnected: boolean) {
-	const [manualStatus, setManualStatus] = useState<PresenceStatus | null>(null)
+	const [mode, setModeState] = useState<UserStatusMode>("auto")
+	const [isTabIdle, setIsTabIdle] = useState(false)
 
-	// Load from localStorage on mount
+	// Load saved mode from localStorage on mount
 	useEffect(() => {
 		try {
 			const stored = localStorage.getItem(STORAGE_KEY)
 			if (stored) {
 				const parsed = JSON.parse(stored)
-				if (parsed.status && parsed.expiresAt > Date.now()) {
-					setManualStatus(parsed.status)
+				if (parsed.mode && parsed.expiresAt > Date.now()) {
+					setModeState(parsed.mode)
 				} else {
 					localStorage.removeItem(STORAGE_KEY)
 				}
@@ -42,45 +47,76 @@ export function useUserStatusProvider(isConnected: boolean) {
 		}
 	}, [])
 
-	const setStatus = useCallback((status: PresenceStatus) => {
-		setManualStatus(status)
-		try {
-			// Store with 24h expiration
-			localStorage.setItem(STORAGE_KEY, JSON.stringify({
-				status,
-				expiresAt: Date.now() + 24 * 60 * 60 * 1000,
-			}))
-		} catch (e) {
-			console.error("Failed to save user status:", e)
+	// Idle detection via Page Visibility API (only in auto mode)
+	useEffect(() => {
+		if (mode !== "auto") {
+			setIsTabIdle(false)
+			return
+		}
+
+		let idleTimer: ReturnType<typeof setTimeout>
+
+		const handleVisibility = () => {
+			if (document.visibilityState === "hidden") {
+				idleTimer = setTimeout(() => setIsTabIdle(true), IDLE_TIMEOUT_MS)
+			} else {
+				clearTimeout(idleTimer)
+				setIsTabIdle(false)
+			}
+		}
+
+		document.addEventListener("visibilitychange", handleVisibility)
+		return () => {
+			document.removeEventListener("visibilitychange", handleVisibility)
+			clearTimeout(idleTimer)
+		}
+	}, [mode])
+
+	// Compute effective visible status from mode + connection + idle state
+	const status: PresenceStatus = (() => {
+		if (mode === "auto") {
+			if (!isConnected) return "offline"
+			if (isTabIdle) return "idle"
+			return "online"
+		}
+		if (mode === "dnd") return "dnd"
+		if (mode === "idle") return "idle"
+		if (mode === "offline") return "offline"
+		// mode === "online"
+		if (!isConnected) return "offline"
+		return "online"
+	})()
+
+	const setMode = useCallback((newMode: UserStatusMode) => {
+		setModeState(newMode)
+		if (newMode === "auto") {
+			try {
+				localStorage.removeItem(STORAGE_KEY)
+			} catch {}
+		} else {
+			try {
+				localStorage.setItem(STORAGE_KEY, JSON.stringify({
+					mode: newMode,
+					expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+				}))
+			} catch (e) {
+				console.error("Failed to save user status:", e)
+			}
 		}
 	}, [])
 
 	const clearManualStatus = useCallback(() => {
-		setManualStatus(null)
+		setModeState("auto")
 		try {
 			localStorage.removeItem(STORAGE_KEY)
-		} catch (e) {
-			console.error("Failed to clear user status:", e)
-		}
+		} catch {}
 	}, [])
 
-	// Compute effective status
-	// If manually set to DND or idle, use that
-	// If manually set to online, but disconnected, show offline
-	// If no manual status, use connection state
-	const effectiveStatus: PresenceStatus = (() => {
-		if (manualStatus === "dnd") return "dnd"
-		if (manualStatus === "idle") return "idle"
-		if (manualStatus === "offline") return "offline"
-		if (!isConnected) return "offline"
-		if (manualStatus === "online") return "online"
-		return "online"
-	})()
-
 	return {
-		status: effectiveStatus,
-		setStatus,
-		isManuallySet: manualStatus !== null,
+		status,
+		mode,
+		setMode,
+		isManuallySet: mode !== "auto",
 		clearManualStatus,
 	}
 }

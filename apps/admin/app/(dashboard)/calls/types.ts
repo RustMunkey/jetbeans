@@ -51,6 +51,7 @@ export type IncomingCallEvent = {
 	}
 	type: CallType
 	isGroup: boolean
+	chatChannel: string | null
 	participants: Array<{
 		id: string
 		name: string

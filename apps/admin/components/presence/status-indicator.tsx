@@ -17,7 +17,7 @@ const statusConfig: Record<PresenceStatus, { label: string; dotClass: string }> 
 		dotClass: "bg-green-500",
 	},
 	idle: {
-		label: "Sleep",
+		label: "Idle",
 		dotClass: "bg-yellow-500",
 	},
 	dnd: {

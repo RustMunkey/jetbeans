@@ -244,6 +244,14 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 		}
 	}, [])
 
+	// Set intended audio/video state before room connects (used by call type: voice vs video)
+	const setMediaIntents = useCallback((audio: boolean, video: boolean) => {
+		intendedAudioRef.current = audio
+		intendedVideoRef.current = video
+		setLocalAudioEnabled(audio)
+		setLocalVideoEnabled(video)
+	}, [])
+
 	const toggleScreenShare = useCallback(async () => {
 		if (!roomRef.current) return
 		const local = roomRef.current.localParticipant
@@ -273,6 +281,7 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 		toggleAudio,
 		toggleVideo,
 		toggleScreenShare,
+		setMediaIntents,
 		disconnect,
 	}
 }

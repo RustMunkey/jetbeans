@@ -223,6 +223,7 @@ export async function initiateCall(data: {
 			},
 			type,
 			isGroup,
+			chatChannel: chatChannel || null,
 			participants: participantUsers.map((p) => ({
 				id: p.id,
 				name: p.name || "Unknown",

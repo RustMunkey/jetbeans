@@ -1,50 +1,82 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { usePresence } from "@/hooks/use-presence"
+import { usePusher } from "@/components/pusher-provider"
 import type { PresenceStatus } from "@/components/presence/status-indicator"
 
 /**
- * Hook to get presence status for team members
- * Uses the presence-admin channel to determine who's online
+ * Hook to get presence status for team members and friends.
+ * Uses the presence-admin channel to determine who's online,
+ * and listens for client-status-change events to get actual
+ * status (online, idle, dnd, invisible).
  */
 export function useTeamPresence() {
 	const { members, me, isConnected } = usePresence()
+	const { pusher } = usePusher()
+	const [broadcastStatuses, setBroadcastStatuses] = useState<Map<string, PresenceStatus>>(new Map())
 
-	// Create a map of user IDs to their online status
-	const memberStatuses = useMemo(() => {
-		const statusMap = new Map<string, PresenceStatus>()
+	// Listen for status broadcasts from other users
+	useEffect(() => {
+		if (!pusher || !isConnected) return
 
-		for (const member of members) {
-			// For now, if they're in the presence channel, they're online
-			// In the future, we could sync manual status via presence info
-			statusMap.set(member.id, "online")
+		const channel = pusher.channel("presence-admin")
+		if (!channel) return
+
+		const handleStatusChange = (data: { userId: string; status: PresenceStatus }) => {
+			setBroadcastStatuses((prev) => {
+				const next = new Map(prev)
+				next.set(data.userId, data.status)
+				return next
+			})
 		}
 
-		return statusMap
+		// Clean up when a member leaves - remove their broadcast status
+		const handleMemberRemoved = (member: { id: string }) => {
+			setBroadcastStatuses((prev) => {
+				const next = new Map(prev)
+				next.delete(member.id)
+				return next
+			})
+		}
+
+		channel.bind("client-status-change", handleStatusChange)
+		channel.bind("pusher:member_removed", handleMemberRemoved)
+
+		return () => {
+			channel.unbind("client-status-change", handleStatusChange)
+			channel.unbind("pusher:member_removed", handleMemberRemoved)
+		}
+	}, [pusher, isConnected])
+
+	// Build a set of connected member IDs for fast lookup
+	const connectedIds = useMemo(() => {
+		return new Set(members.map((m) => m.id))
 	}, [members])
 
 	/**
-	 * Get the presence status for a specific user
+	 * Get the presence status for a specific user.
+	 * Priority: broadcast status > presence channel membership > offline
 	 */
 	const getStatus = (userId: string): PresenceStatus => {
-		// If we're not connected, assume offline
 		if (!isConnected) return "offline"
 
-		// If user is in the presence channel, they're online
-		if (memberStatuses.has(userId)) {
-			return memberStatuses.get(userId) || "online"
-		}
+		// Not in the presence channel = truly offline
+		if (!connectedIds.has(userId)) return "offline"
 
-		// Otherwise they're offline
-		return "offline"
+		// Check if they've broadcast a specific status
+		const broadcast = broadcastStatuses.get(userId)
+		if (broadcast) return broadcast
+
+		// In presence channel with no broadcast = online (auto mode)
+		return "online"
 	}
 
 	/**
-	 * Check if a specific user is online
+	 * Check if a specific user is online (connected to presence channel)
 	 */
 	const isOnline = (userId: string): boolean => {
-		return memberStatuses.has(userId)
+		return connectedIds.has(userId)
 	}
 
 	return {

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import {
   CommandDialog,
@@ -12,6 +12,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command"
+import { globalSearch, searchFriends, type SearchResult } from "@/app/(dashboard)/search-actions"
 
 const pages = [
   { title: "Dashboard", url: "/" },
@@ -19,6 +20,7 @@ const pages = [
   { title: "Sales Reports", url: "/analytics/sales" },
   { title: "Traffic", url: "/analytics/traffic" },
   { title: "Customer Insights", url: "/analytics/customers" },
+  { title: "Subscription Analytics", url: "/analytics/subscriptions" },
   { title: "Orders", url: "/orders" },
   { title: "Returns & Refunds", url: "/orders/returns" },
   { title: "Fulfillment", url: "/orders/fulfillment" },
@@ -49,30 +51,58 @@ const pages = [
   { title: "Campaigns", url: "/marketing/campaigns" },
   { title: "Referrals", url: "/marketing/referrals" },
   { title: "SEO", url: "/marketing/seo" },
+  { title: "Email Templates", url: "/marketing/email-templates" },
   { title: "Content", url: "/content" },
   { title: "Pages", url: "/content/pages" },
   { title: "Media Library", url: "/content/media" },
+  { title: "Auctions", url: "/auctions" },
+  { title: "Messages", url: "/messages" },
+  { title: "Discover People", url: "/discover" },
   { title: "Notifications", url: "/notifications" },
   { title: "Notification Alerts", url: "/notifications/alerts" },
   { title: "Activity Log", url: "/activity-log" },
+  { title: "Automation", url: "/automation" },
+  { title: "Automation Triggers", url: "/automation/triggers" },
+  { title: "Automation History", url: "/automation/history" },
+  { title: "Sales Pipeline", url: "/sales/pipeline" },
+  { title: "Sales Contacts", url: "/sales/contacts" },
+  { title: "Sales Companies", url: "/sales/companies" },
+  { title: "Sales Deals", url: "/sales/deals" },
+  { title: "Sales Tasks", url: "/sales/tasks" },
+  { title: "Sales Calls", url: "/sales/calls" },
+  { title: "Billing", url: "/billing" },
+  { title: "Developer Notes", url: "/developers/notes" },
+  { title: "API Keys", url: "/developers/api-keys" },
+  { title: "Webhooks", url: "/developers/webhooks" },
   { title: "Settings", url: "/settings" },
   { title: "Account", url: "/settings/account" },
   { title: "Notification Preferences", url: "/settings/notifications" },
   { title: "Team & Permissions", url: "/settings/team" },
   { title: "Payments", url: "/settings/payments" },
   { title: "Tax", url: "/settings/tax" },
+  { title: "Shipping Settings", url: "/settings/shipping" },
   { title: "Integrations", url: "/settings/integrations" },
+  { title: "Storefronts", url: "/settings/storefronts" },
+  { title: "Sessions", url: "/settings/sessions" },
+  { title: "Data Exports", url: "/settings/exports" },
 ]
-
-// Placeholder data — replace with real API calls later
-const products: { title: string; url: string }[] = []
-const orders: { title: string; url: string }[] = []
-const customers: { title: string; url: string }[] = []
 
 export function CommandMenu() {
   const [open, setOpen] = React.useState(false)
+  const [query, setQuery] = React.useState("")
+  const [results, setResults] = React.useState<{
+    products: SearchResult[]
+    orders: SearchResult[]
+    customers: SearchResult[]
+  }>({ products: [], orders: [], customers: [] })
+  const [friends, setFriends] = React.useState<SearchResult[]>([])
+  const [searching, setSearching] = React.useState(false)
   const router = useRouter()
+  const pathname = usePathname()
   const { setTheme } = useTheme()
+  const debounceRef = React.useRef<ReturnType<typeof setTimeout>>(null)
+
+  const isMessagesPage = pathname?.startsWith("/messages")
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -90,6 +120,46 @@ export function CommandMenu() {
     }
   }, [])
 
+  // Reset state when dialog closes
+  React.useEffect(() => {
+    if (!open) {
+      setQuery("")
+      setResults({ products: [], orders: [], customers: [] })
+      setFriends([])
+    }
+  }, [open])
+
+  // Debounced search
+  React.useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    if (!query || query.length < 2) {
+      setResults({ products: [], orders: [], customers: [] })
+      setFriends([])
+      return
+    }
+
+    setSearching(true)
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const [searchResults, friendResults] = await Promise.all([
+          globalSearch(query),
+          isMessagesPage ? searchFriends(query) : Promise.resolve([]),
+        ])
+        setResults(searchResults)
+        setFriends(friendResults)
+      } catch {
+        // Ignore search errors
+      } finally {
+        setSearching(false)
+      }
+    }, 250)
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [query, isMessagesPage])
+
   const runCommand = React.useCallback((command: () => void) => {
     setOpen(false)
     command()
@@ -97,15 +167,45 @@ export function CommandMenu() {
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Search pages, products, orders, customers..." />
+      <CommandInput
+        placeholder={isMessagesPage ? "Search messages, friends, pages..." : "Search products, orders, customers, pages..."}
+        value={query}
+        onValueChange={setQuery}
+      />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
-        {products.length > 0 && (
+        <CommandEmpty>
+          {searching ? "Searching..." : "No results found."}
+        </CommandEmpty>
+
+        {/* Friends - contextual to messages page */}
+        {friends.length > 0 && (
+          <>
+            <CommandGroup heading="Friends">
+              {friends.map((item) => (
+                <CommandItem
+                  key={item.id}
+                  value={`friend-${item.title}-${item.subtitle || ""}`}
+                  onSelect={() => runCommand(() => router.push(item.url))}
+                >
+                  <span>{item.title}</span>
+                  {item.subtitle && (
+                    <span className="ml-2 text-xs text-muted-foreground">{item.subtitle}</span>
+                  )}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandSeparator />
+          </>
+        )}
+
+        {/* Products */}
+        {results.products.length > 0 && (
           <>
             <CommandGroup heading="Products">
-              {products.map((item) => (
+              {results.products.map((item) => (
                 <CommandItem
-                  key={item.url}
+                  key={item.id}
+                  value={`product-${item.title}`}
                   onSelect={() => runCommand(() => router.push(item.url))}
                 >
                   {item.title}
@@ -115,40 +215,55 @@ export function CommandMenu() {
             <CommandSeparator />
           </>
         )}
-        {orders.length > 0 && (
+
+        {/* Orders */}
+        {results.orders.length > 0 && (
           <>
             <CommandGroup heading="Orders">
-              {orders.map((item) => (
+              {results.orders.map((item) => (
                 <CommandItem
-                  key={item.url}
+                  key={item.id}
+                  value={`order-${item.title}`}
                   onSelect={() => runCommand(() => router.push(item.url))}
                 >
-                  {item.title}
+                  <span>{item.title}</span>
+                  {item.subtitle && (
+                    <span className="ml-2 text-xs text-muted-foreground capitalize">{item.subtitle}</span>
+                  )}
                 </CommandItem>
               ))}
             </CommandGroup>
             <CommandSeparator />
           </>
         )}
-        {customers.length > 0 && (
+
+        {/* Customers / Team */}
+        {results.customers.length > 0 && (
           <>
-            <CommandGroup heading="Customers">
-              {customers.map((item) => (
+            <CommandGroup heading="People">
+              {results.customers.map((item) => (
                 <CommandItem
-                  key={item.url}
+                  key={item.id}
+                  value={`person-${item.title}-${item.subtitle || ""}`}
                   onSelect={() => runCommand(() => router.push(item.url))}
                 >
-                  {item.title}
+                  <span>{item.title}</span>
+                  {item.subtitle && (
+                    <span className="ml-2 text-xs text-muted-foreground">{item.subtitle}</span>
+                  )}
                 </CommandItem>
               ))}
             </CommandGroup>
             <CommandSeparator />
           </>
         )}
+
+        {/* Pages - always show, filtered by cmdk */}
         <CommandGroup heading="Pages">
           {pages.map((page) => (
             <CommandItem
               key={page.url}
+              value={`page-${page.title}`}
               onSelect={() => runCommand(() => router.push(page.url))}
             >
               {page.title}
@@ -156,36 +271,43 @@ export function CommandMenu() {
           ))}
         </CommandGroup>
         <CommandSeparator />
+
+        {/* Actions */}
         <CommandGroup heading="Actions">
           <CommandItem
+            value="action-create-product"
             onSelect={() => runCommand(() => router.push("/products?new=true"))}
           >
             Create Product
           </CommandItem>
           <CommandItem
+            value="action-create-order"
             onSelect={() => runCommand(() => router.push("/orders?new=true"))}
           >
             Create Order
           </CommandItem>
           <CommandItem
+            value="action-create-customer"
             onSelect={() => runCommand(() => router.push("/customers?new=true"))}
           >
             Create Customer
           </CommandItem>
           <CommandItem
-            onSelect={() =>
-              runCommand(() => window.open("http://localhost:3000", "_blank"))
-            }
+            value="action-light-mode"
+            onSelect={() => runCommand(() => setTheme("light"))}
           >
-            View Store
-          </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => setTheme("light"))}>
             Light Mode
           </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => setTheme("dark"))}>
+          <CommandItem
+            value="action-dark-mode"
+            onSelect={() => runCommand(() => setTheme("dark"))}
+          >
             Dark Mode
           </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => setTheme("system"))}>
+          <CommandItem
+            value="action-system-theme"
+            onSelect={() => runCommand(() => setTheme("system"))}
+          >
             System Theme
           </CommandItem>
         </CommandGroup>

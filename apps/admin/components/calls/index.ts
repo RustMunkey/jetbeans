@@ -1,4 +1,4 @@
-export { CallProvider, useCall, useCallOptional } from "./call-provider"
+export { CallProvider, useCall, useCallOptional, type ViewMode } from "./call-provider"
 export { IncomingCallModal } from "./incoming-call-modal"
 export { CallInterface } from "./call-interface"
 export { CallControls } from "./call-controls"

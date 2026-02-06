@@ -14,7 +14,7 @@ export function ActiveCallIndicator() {
 	}
 
 	// Don't show if call interface is already visible (not minimized)
-	if (!call.isMinimized) {
+	if (call.viewMode !== "minimized") {
 		return null
 	}
 
@@ -23,7 +23,7 @@ export function ActiveCallIndicator() {
 			variant="ghost"
 			size="icon"
 			className="relative size-8"
-			onClick={call.toggleMinimize}
+			onClick={() => call.setViewMode("floating")}
 		>
 			<HugeiconsIcon icon={Call02Icon} size={16} className="text-green-500" />
 			<span className="absolute -top-0.5 -right-0.5 flex size-2">

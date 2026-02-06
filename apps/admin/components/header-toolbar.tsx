@@ -35,6 +35,7 @@ import {
 import { useCommandMenu } from "@/components/command-menu"
 import { updateSetting } from "@/app/(dashboard)/settings/actions"
 import { toast } from "sonner"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ActiveCallIndicator } from "@/components/calls"
 import { FriendRequestsPopover } from "@/components/friend-requests-popover"
 import { useToolbar } from "@/components/toolbar"
@@ -97,29 +98,43 @@ export function HeaderToolbar({ storefrontUrl, initialMaintenanceMode }: { store
 
       {/* Store Menu - hide in messages mode */}
       {!isMessagesMode && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className={`size-8 relative ${!storeOnline ? "text-destructive" : ""}`}>
-              <HugeiconsIcon icon={Store01Icon} size={16} />
-              {!storeOnline && <span className="absolute top-1 right-1 size-2 rounded-full bg-destructive" />}
-              <span className="sr-only">Store</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <a href={storefrontUrl && storefrontUrl.startsWith("http") ? storefrontUrl : storefrontUrl ? `https://${storefrontUrl}` : "https://jetbeans.cafe"} target="_blank" rel="noopener noreferrer">
-                View Store
-              </a>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => setConfirmOpen(true)}
-              className={storeOnline ? "text-destructive focus:text-destructive" : ""}
-            >
-              {storeOnline ? "Turn Off (Maintenance)" : "Bring Back Online"}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        storefrontUrl ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className={`size-8 relative ${!storeOnline ? "text-destructive" : ""}`}>
+                <HugeiconsIcon icon={Store01Icon} size={16} />
+                {!storeOnline && <span className="absolute top-1 right-1 size-2 rounded-full bg-destructive" />}
+                <span className="sr-only">Store</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <a href={storefrontUrl.startsWith("http") ? storefrontUrl : `https://${storefrontUrl}`} target="_blank" rel="noopener noreferrer">
+                  View Store
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setConfirmOpen(true)}
+                className={storeOnline ? "text-destructive focus:text-destructive" : ""}
+              >
+                {storeOnline ? "Turn Off (Maintenance)" : "Bring Back Online"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="size-8 text-muted-foreground/50 cursor-default">
+                <HugeiconsIcon icon={Store01Icon} size={16} />
+                <span className="sr-only">Store</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Set your domain in Settings &gt; Storefronts</p>
+            </TooltipContent>
+          </Tooltip>
+        )
       )}
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>

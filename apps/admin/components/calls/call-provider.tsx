@@ -27,6 +27,8 @@ import type {
 
 type CallClientStatus = "idle" | "ringing-incoming" | "ringing-outgoing" | "connecting" | "connected"
 
+export type ViewMode = "fullscreen" | "floating" | "minimized"
+
 type CallState = {
 	status: CallClientStatus
 	call: CallWithParticipants | null
@@ -40,8 +42,10 @@ type CallState = {
 	isScreenSharing: boolean
 	connectionState: string
 	callDuration: number
-	isFullscreen: boolean
-	isMinimized: boolean
+	viewMode: ViewMode
+	showChat: boolean
+	callType: CallType | null
+	chatChannel: string | null
 }
 
 type CallContextType = CallState & {
@@ -52,6 +56,11 @@ type CallContextType = CallState & {
 	toggleAudio: () => void
 	toggleVideo: () => void
 	toggleScreenShare: () => Promise<void>
+	setViewMode: (mode: ViewMode) => void
+	toggleChat: () => void
+	// Backwards compat
+	isFullscreen: boolean
+	isMinimized: boolean
 	toggleFullscreen: () => void
 	toggleMinimize: () => void
 }
@@ -98,8 +107,10 @@ export function CallProvider({
 	const [token, setToken] = useState<string | null>(null)
 	const [wsUrl, setWsUrl] = useState<string | null>(null)
 	const [callDuration, setCallDuration] = useState(0)
-	const [isFullscreen, setIsFullscreen] = useState(false)
-	const [isMinimized, setIsMinimized] = useState(false)
+	const [viewMode, setViewModeState] = useState<ViewMode>("fullscreen")
+	const [showChat, setShowChat] = useState(false)
+	const [callType, setCallType] = useState<CallType | null>(null)
+	const [chatChannel, setChatChannel] = useState<string | null>(null)
 	const [ringTimeout, setRingTimeout] = useState<NodeJS.Timeout | null>(null)
 
 	// LiveKit room hook
@@ -113,6 +124,7 @@ export function CallProvider({
 		toggleAudio,
 		toggleVideo,
 		toggleScreenShare,
+		setMediaIntents,
 		disconnect,
 	} = useLiveKitRoom(token, wsUrl)
 
@@ -137,9 +149,6 @@ export function CallProvider({
 		return () => clearInterval(interval)
 	}, [status])
 
-	// Update status based on connection state (moved after resetCallState definition)
-	// See useEffect below after resetCallState is defined
-
 	// Clear ring timeout on cleanup
 	useEffect(() => {
 		return () => {
@@ -159,6 +168,8 @@ export function CallProvider({
 
 			setIncomingCall(event)
 			setStatus("ringing-incoming")
+			setCallType(event.type)
+			setChatChannel(event.chatChannel || null)
 
 			// Play ringtone
 			try {
@@ -264,8 +275,10 @@ export function CallProvider({
 		setToken(null)
 		setWsUrl(null)
 		setCallDuration(0)
-		setIsFullscreen(false)
-		setIsMinimized(false)
+		setViewModeState("fullscreen")
+		setShowChat(false)
+		setCallType(null)
+		setChatChannel(null)
 		stopRingtone()
 		stopDialtone()
 		if (ringTimeout) {
@@ -280,6 +293,7 @@ export function CallProvider({
 	}, [resetCallState])
 
 	// Update status based on connection state and participants
+	// Auto-fullscreen when call connects
 	useEffect(() => {
 		// Only transition to "connected" once LiveKit is connected AND there's at least one remote participant
 		const hasRemoteParticipants = participants.filter(p => !p.isLocal).length > 0
@@ -287,6 +301,8 @@ export function CallProvider({
 			console.log("[Call] LiveKit connected with remote participants, transitioning to connected status")
 			setStatus("connected")
 			stopDialtone()
+			// Auto-fullscreen when call connects
+			setViewModeState("fullscreen")
 			// Clear any ringing timeout since we're now connected
 			if (ringTimeout) {
 				clearTimeout(ringTimeout)
@@ -301,16 +317,24 @@ export function CallProvider({
 	}, [connectionState, status, participants, resetCallState, ringTimeout])
 
 	const startCall = useCallback(
-		async (participantIds: string[], type: CallType, chatChannel?: string) => {
+		async (participantIds: string[], type: CallType, channel?: string) => {
 			if (status !== "idle") {
 				throw new Error("Already in a call")
 			}
+
+			setCallType(type)
+			setChatChannel(channel || null)
+
+			// Set media intents based on call type:
+			// Voice call: mic on, camera off
+			// Video call: mic on, camera on
+			setMediaIntents(true, type === "video")
 
 			setStatus("ringing-outgoing")
 			playDialtone()
 
 			try {
-				const result = await initiateCall({ participantIds, type, chatChannel })
+				const result = await initiateCall({ participantIds, type, chatChannel: channel })
 				setActiveCallId(result.callId)
 				setToken(result.token)
 				setWsUrl(result.wsUrl)
@@ -331,7 +355,7 @@ export function CallProvider({
 				throw err
 			}
 		},
-		[status, resetCallState]
+		[status, resetCallState, setMediaIntents]
 	)
 
 	const answerCall = useCallback(async () => {
@@ -342,6 +366,11 @@ export function CallProvider({
 			clearTimeout(ringTimeout)
 			setRingTimeout(null)
 		}
+
+		// Set media intents based on incoming call type
+		const type = incomingCall.type || "video"
+		setCallType(type)
+		setMediaIntents(true, type === "video")
 
 		setStatus("connecting")
 		setActiveCallId(incomingCall.callId)
@@ -354,7 +383,7 @@ export function CallProvider({
 			resetCallState()
 			throw err
 		}
-	}, [incomingCall, ringTimeout, resetCallState])
+	}, [incomingCall, ringTimeout, resetCallState, setMediaIntents])
 
 	const rejectCall = useCallback(async () => {
 		if (!incomingCall) return
@@ -382,14 +411,21 @@ export function CallProvider({
 		resetCallState()
 	}, [activeCallId, call, incomingCall, resetCallState])
 
+	const setViewMode = useCallback((mode: ViewMode) => {
+		setViewModeState(mode)
+	}, [])
+
+	const toggleChat = useCallback(() => {
+		setShowChat((c) => !c)
+	}, [])
+
+	// Backwards compat helpers
 	const toggleFullscreen = useCallback(() => {
-		setIsFullscreen((f) => !f)
-		setIsMinimized(false)
+		setViewModeState((m) => m === "fullscreen" ? "floating" : "fullscreen")
 	}, [])
 
 	const toggleMinimize = useCallback(() => {
-		setIsMinimized((m) => !m)
-		setIsFullscreen(false)
+		setViewModeState((m) => m === "minimized" ? "floating" : "minimized")
 	}, [])
 
 	return (
@@ -407,8 +443,10 @@ export function CallProvider({
 				isScreenSharing,
 				connectionState,
 				callDuration,
-				isFullscreen,
-				isMinimized,
+				viewMode,
+				showChat,
+				callType,
+				chatChannel,
 				startCall,
 				answerCall,
 				rejectCall,
@@ -416,6 +454,11 @@ export function CallProvider({
 				toggleAudio,
 				toggleVideo,
 				toggleScreenShare,
+				setViewMode,
+				toggleChat,
+				// Backwards compat
+				isFullscreen: viewMode === "fullscreen",
+				isMinimized: viewMode === "minimized",
 				toggleFullscreen,
 				toggleMinimize,
 			}}
