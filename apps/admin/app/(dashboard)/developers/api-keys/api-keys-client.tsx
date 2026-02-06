@@ -64,9 +64,8 @@ import {
 	updateAdminApiKey,
 	deleteAdminApiKey,
 	regenerateAdminApiKey,
-	DEFAULT_API_KEY_PERMISSIONS,
-	type ApiKeyPermissions,
 } from "./actions"
+import { DEFAULT_API_KEY_PERMISSIONS, type ApiKeyPermissions } from "./shared"
 import { toast } from "sonner"
 
 type Storefront = {

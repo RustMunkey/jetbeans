@@ -2,7 +2,8 @@
 
 import { eq, desc, and } from "@jetbeans/db/drizzle"
 import { db } from "@jetbeans/db/client"
-import { adminApiKeys, DEFAULT_API_KEY_PERMISSIONS, type ApiKeyPermissions } from "@jetbeans/db/schema"
+import { adminApiKeys } from "@jetbeans/db/schema"
+import { DEFAULT_API_KEY_PERMISSIONS, type ApiKeyPermissions } from "./shared"
 import { requireWorkspace, checkWorkspacePermission } from "@/lib/workspace"
 import { generateApiKey } from "@/lib/admin-api"
 import { headers } from "next/headers"
@@ -196,6 +197,3 @@ export async function regenerateAdminApiKey(id: string) {
 	return { fullKey, keyPrefix }
 }
 
-// Re-export for convenience
-export { DEFAULT_API_KEY_PERMISSIONS }
-export type { ApiKeyPermissions }
