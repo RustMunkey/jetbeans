@@ -3,7 +3,7 @@
 import { headers } from "next/headers"
 import { db } from "@jetbeans/db/client"
 import { users, friendships, directMessages, dmConversations, developerNotes } from "@jetbeans/db/schema"
-import { eq, ne, and, or, like, isNotNull, desc, asc, sql } from "@jetbeans/db/drizzle"
+import { eq, ne, and, or, like, isNotNull, desc, asc, sql, inArray } from "@jetbeans/db/drizzle"
 import { auth } from "@/lib/auth"
 import { pusherServer } from "@/lib/pusher-server"
 
@@ -212,7 +212,7 @@ export async function getFriends() {
 			bio: users.bio,
 		})
 		.from(users)
-		.where(sql`${users.id} IN ${friendIds}`)
+		.where(inArray(users.id, friendIds))
 
 	return friends
 }

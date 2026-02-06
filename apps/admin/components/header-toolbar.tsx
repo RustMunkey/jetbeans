@@ -7,9 +7,7 @@ import {
   Search01Icon,
   Add01Icon,
   Store01Icon,
-  Call02Icon,
   ComputerTerminal02Icon,
-  Video01Icon,
   InboxIcon,
   GridIcon,
   UserIcon,
@@ -36,7 +34,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useCommandMenu } from "@/components/command-menu"
-import { ActiveCallIndicator, useCall } from "@/components/calls"
+import { ActiveCallIndicator } from "@/components/calls"
 import { useToolbar } from "@/components/toolbar"
 import { useRightSidebar } from "@/components/ui/right-sidebar"
 import { NotificationBell } from "@/components/notifications"
@@ -52,29 +50,7 @@ export function HeaderToolbar() {
   const { toggleSidebar: toggleRightSidebar } = useRightSidebar()
   const { mode } = useSidebarMode()
   const isMessagesMode = mode === "messages"
-  const { viewMode, toggleViewMode, active } = useChat()
-  const { startCall, status: callStatus } = useCall()
-
-  // Check if we can call the current conversation (only DMs, not channels)
-  const canCall = isMessagesMode && active.type === "dm" && active.id && callStatus === "idle"
-
-  const handleAudioCall = async () => {
-    if (!canCall || !active.id) return
-    try {
-      await startCall([active.id], "voice")
-    } catch (err) {
-      console.error("Failed to start audio call:", err)
-    }
-  }
-
-  const handleVideoCall = async () => {
-    if (!canCall || !active.id) return
-    try {
-      await startCall([active.id], "video")
-    } catch (err) {
-      console.error("Failed to start video call:", err)
-    }
-  }
+  const { viewMode, toggleViewMode } = useChat()
 
   return (
     <div className="flex items-center gap-2 px-4">
@@ -123,33 +99,6 @@ export function HeaderToolbar() {
         </Button>
       )}
 
-      {/* Video Call - only in messages mode */}
-      {isMessagesMode && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          onClick={handleVideoCall}
-          disabled={!canCall}
-          title={canCall ? `Video call ${active.label}` : "Select a DM to call"}
-        >
-          <HugeiconsIcon icon={Video01Icon} size={16} />
-          <span className="sr-only">Start video call</span>
-        </Button>
-      )}
-
-      {/* Calls - in messages mode with DM, start audio call; otherwise go to calls page */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-8"
-        onClick={isMessagesMode && canCall ? handleAudioCall : () => router.push("/calls")}
-        disabled={isMessagesMode && !canCall && active.type === "dm"}
-        title={isMessagesMode && canCall ? `Call ${active.label}` : "Calls"}
-      >
-        <HugeiconsIcon icon={Call02Icon} size={16} />
-        <span className="sr-only">{isMessagesMode && canCall ? "Start audio call" : "Calls"}</span>
-      </Button>
       <ActiveCallIndicator />
 
       {/* Notifications Bell - hide in messages mode */}

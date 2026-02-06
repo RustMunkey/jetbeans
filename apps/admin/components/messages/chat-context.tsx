@@ -4,6 +4,7 @@ import * as React from "react"
 import type { TeamMessage, TeamMember, Conversation } from "@/app/(dashboard)/notifications/messages/types"
 
 const CHAT_STATE_KEY = "jetbeans_chat_state"
+const VIEW_MODE_KEY = "jetbeans_messages_view_mode"
 
 function loadChatState(): Conversation | null {
 	if (typeof window === "undefined") return null
@@ -19,6 +20,24 @@ function saveChatState(conversation: Conversation) {
 	if (typeof window === "undefined") return
 	try {
 		localStorage.setItem(CHAT_STATE_KEY, JSON.stringify(conversation))
+	} catch {}
+}
+
+function loadViewMode(): ViewMode {
+	if (typeof window === "undefined") return "friends"
+	try {
+		const stored = localStorage.getItem(VIEW_MODE_KEY)
+		if (stored && ["chat", "inbox", "friends"].includes(stored)) {
+			return stored as ViewMode
+		}
+	} catch {}
+	return "friends" // Default to friends
+}
+
+function saveViewMode(mode: ViewMode) {
+	if (typeof window === "undefined") return
+	try {
+		localStorage.setItem(VIEW_MODE_KEY, mode)
 	} catch {}
 }
 
@@ -55,14 +74,20 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 	const [active, setActiveState] = React.useState<Conversation>({ type: "channel", id: "general", label: "#general" })
 	const [hydrated, setHydrated] = React.useState(false)
 	const [isInitialized, setIsInitialized] = React.useState(false)
-	const [viewMode, setViewMode] = React.useState<ViewMode>("chat")
+	const [viewMode, setViewModeState] = React.useState<ViewMode>("friends")
 	const [mobileShowChat, setMobileShowChat] = React.useState(false)
 
+	// Wrap setViewMode to also persist to localStorage
+	const setViewMode = React.useCallback((mode: ViewMode) => {
+		setViewModeState(mode)
+		saveViewMode(mode)
+	}, [])
+
 	const toggleViewMode = React.useCallback(() => {
-		setViewMode((prev) => {
-			if (prev === "chat") return "friends"
-			if (prev === "friends") return "inbox"
-			return "chat"
+		setViewModeState((prev) => {
+			const next = prev === "chat" ? "friends" : prev === "friends" ? "inbox" : "chat"
+			saveViewMode(next)
+			return next
 		})
 	}, [])
 
@@ -78,10 +103,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 		setMobileShowChat(false)
 	}, [])
 
-	// Load saved chat state after hydration
+	// Load saved chat state and view mode after hydration
 	React.useEffect(() => {
 		const saved = loadChatState()
 		if (saved) setActiveState(saved)
+		const savedViewMode = loadViewMode()
+		setViewModeState(savedViewMode)
 		setHydrated(true)
 	}, [])
 

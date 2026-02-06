@@ -382,6 +382,19 @@ const data = {
       ],
     },
   ],
+  navBilling: [
+    {
+      title: "Billing",
+      url: "/billing",
+      icon: CreditCardIcon,
+      items: [
+        { title: "Overview", url: "/billing" },
+        { title: "Invoices", url: "/billing/invoices" },
+        { title: "Payment Methods", url: "/billing/payment-methods" },
+        { title: "Usage", url: "/billing/usage" },
+      ],
+    },
+  ],
 }
 
 type UserData = {
@@ -934,6 +947,7 @@ function NormalSidebarContent({
       <NavMain label="Sales" items={data.navSales} />
       <NavMain label="Operations" items={data.navOperations} />
       <NavMain label="Growth" items={data.navGrowth} />
+      <NavMain label="Billing" items={data.navBilling} />
       <NavMain label="System" items={navSystem} />
       <NavMain label="Developers" items={data.navDevelopers} />
     </>
