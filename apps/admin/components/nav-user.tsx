@@ -89,9 +89,9 @@ export function NavUser({
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="!overflow-visible data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="overflow-visible! data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <div className="relative !overflow-visible">
+              <div className="relative overflow-visible!">
                 <Avatar className="h-8 w-8 rounded-lg">
                   {user.avatar && <AvatarImage src={user.avatar} alt={user.name} />}
                   <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>

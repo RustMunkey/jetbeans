@@ -2,8 +2,8 @@ import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { db } from "@jetbeans/db/client"
-import { eq, and, inArray } from "@jetbeans/db/drizzle"
-import { users, storeSettings } from "@jetbeans/db/schema"
+import { eq, and, inArray, asc } from "@jetbeans/db/drizzle"
+import { users, storeSettings, contentCollections } from "@jetbeans/db/schema"
 import { DynamicFavicon } from "@/components/dynamic-favicon"
 import { AppSidebar } from "@/components/app-sidebar"
 import { BreadcrumbNav } from "@/components/breadcrumb-nav"
@@ -107,6 +107,25 @@ export default async function DashboardLayout({
     }
   }
 
+  // Fetch workspace content collections for sidebar
+  let collections: { slug: string; name: string; icon: string | null }[] = []
+  if (activeWorkspace?.id) {
+    collections = await db
+      .select({
+        slug: contentCollections.slug,
+        name: contentCollections.name,
+        icon: contentCollections.icon,
+      })
+      .from(contentCollections)
+      .where(
+        and(
+          eq(contentCollections.workspaceId, activeWorkspace.id),
+          eq(contentCollections.isActive, true)
+        )
+      )
+      .orderBy(asc(contentCollections.sortOrder))
+  }
+
   const cookieStore = await cookies()
   const sidebarOpen = cookieStore.get("sidebar_state")?.value !== "false"
   const rightSidebarOpen = cookieStore.get("right_sidebar_state")?.value === "true"
@@ -158,6 +177,7 @@ export default async function DashboardLayout({
                       } : null}
                       workspaces={workspaces}
                       activeWorkspaceId={activeWorkspace?.id ?? null}
+                      collections={collections}
                     />
                     <SidebarSwipe />
                     <SidebarInset className="md:flex md:flex-col">

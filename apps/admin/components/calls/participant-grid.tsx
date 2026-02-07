@@ -70,7 +70,7 @@ export function ParticipantGrid({ participants, dominantSpeaker, className, hide
 						participant={local}
 						isSpeaker={local.identity === dominantSpeaker}
 						className={cn(
-							"min-h-[120px]",
+							"min-h-30",
 							// Mobile: put local at bottom (order-2), Desktop: left (order-1)
 							"order-2 md:order-1"
 						)}
@@ -80,7 +80,7 @@ export function ParticipantGrid({ participants, dominantSpeaker, className, hide
 						participant={remote}
 						isSpeaker={remote.identity === dominantSpeaker}
 						className={cn(
-							"min-h-[120px]",
+							"min-h-30",
 							// Mobile: put remote at top (order-1), Desktop: right (order-2)
 							"order-1 md:order-2"
 						)}
@@ -108,7 +108,7 @@ export function ParticipantGrid({ participants, dominantSpeaker, className, hide
 					key={p.identity}
 					participant={p}
 					isSpeaker={p.identity === dominantSpeaker}
-					className="min-h-[120px]"
+					className="min-h-30"
 				/>
 			))}
 		</div>

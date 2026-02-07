@@ -330,9 +330,7 @@ const data = {
       items: [
         { title: "Blog Posts", url: "/content" },
         { title: "Pages", url: "/content/pages" },
-        { title: "FAQ", url: "/content/faq" },
-        { title: "Testimonials", url: "/content/testimonials" },
-        { title: "Stats", url: "/content/stats" },
+        { title: "All Collections", url: "/content/collections" },
         { title: "Site Content", url: "/content/site-content" },
         { title: "Media Library", url: "/content/media" },
       ],
@@ -480,7 +478,7 @@ function NormalHeader({ openCommandMenu, workspace }: { openCommandMenu: () => v
           <SidebarMenuButton size="lg" asChild>
             <Link href="/">
               <div className="grid flex-1 text-left leading-tight">
-                <span className="truncate font-[family-name:var(--font-rubik-mono)] text-base">
+                <span className="truncate font-(family-name:--font-rubik-mono) text-base">
                   {workspace?.name ?? "Workspace"}
                 </span>
                 <span className="truncate font-sans text-xs text-muted-foreground">
@@ -932,9 +930,11 @@ function WorkflowSidebarContent() {
 
 function NormalSidebarContent({
   navSystem,
+  navGrowth,
   sidebarState
 }: {
   navSystem: typeof data.navSystem
+  navGrowth: typeof data.navGrowth
   sidebarState: ReturnType<typeof useSidebarStateProvider>
 }) {
   return (
@@ -954,7 +954,7 @@ function NormalSidebarContent({
       <NavMain label="Store" labelIcon={Building03Icon} items={data.navStore} />
       <NavMain label="Sales" labelIcon={SaleTag01Icon} items={data.navSales} />
       <NavMain label="Operations" labelIcon={Layers01Icon} items={data.navOperations} />
-      <NavMain label="Growth" labelIcon={RocketIcon} items={data.navGrowth} />
+      <NavMain label="Growth" labelIcon={RocketIcon} items={navGrowth} />
       <NavMain label="Billing" labelIcon={Invoice02Icon} items={data.navBilling} />
       <NavMain label="System" labelIcon={Settings02Icon} items={navSystem} />
       <NavMain label="Developers" labelIcon={SourceCodeIcon} items={data.navDevelopers} />
@@ -962,17 +962,25 @@ function NormalSidebarContent({
   )
 }
 
+type CollectionNavItem = {
+  slug: string
+  name: string
+  icon: string | null
+}
+
 export function AppSidebar({
   user,
   workspace,
   workspaces = [],
   activeWorkspaceId = null,
+  collections = [],
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
   user: UserData
   workspace: WorkspaceData | null
   workspaces?: WorkspaceWithRole[]
   activeWorkspaceId?: string | null
+  collections?: CollectionNavItem[]
 }) {
   const { open: openCommandMenu } = useCommandMenu()
   const sidebarState = useSidebarStateProvider()
@@ -984,6 +992,28 @@ export function AppSidebar({
   // On mobile: collapsible (sheet behavior)
   // On desktop: fixed sidebar (no collapse) - same as messages layout
   const collapsible = isMobile ? "icon" : "none"
+
+  // Build dynamic Content nav items from collections
+  const navGrowth = React.useMemo(() => {
+    const contentItems = [
+      { title: "Blog Posts", url: "/content" },
+      { title: "Pages", url: "/content/pages" },
+      ...collections.map((c) => ({
+        title: c.name,
+        url: `/content/collections/${c.slug}`,
+      })),
+      { title: "All Collections", url: "/content/collections" },
+      { title: "Site Content", url: "/content/site-content" },
+      { title: "Media Library", url: "/content/media" },
+    ]
+
+    return data.navGrowth.map((item) => {
+      if (item.title === "Content") {
+        return { ...item, items: contentItems }
+      }
+      return item
+    })
+  }, [collections])
 
   // Filter out Integrations link for non-owners
   const navSystem = React.useMemo(() => {
@@ -1036,7 +1066,7 @@ export function AppSidebar({
                 ) : isWorkflowMode ? (
                   <WorkflowSidebarContent />
                 ) : (
-                  <NormalSidebarContent navSystem={navSystem} sidebarState={sidebarState} />
+                  <NormalSidebarContent navSystem={navSystem} navGrowth={navGrowth} sidebarState={sidebarState} />
                 )}
               </SidebarContent>
               <SidebarFooter>
@@ -1064,7 +1094,7 @@ export function AppSidebar({
               ) : isWorkflowMode ? (
                 <WorkflowSidebarContent />
               ) : (
-                <NormalSidebarContent navSystem={navSystem} sidebarState={sidebarState} />
+                <NormalSidebarContent navSystem={navSystem} navGrowth={navGrowth} sidebarState={sidebarState} />
               )}
             </SidebarContent>
             <SidebarFooter>

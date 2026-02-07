@@ -187,7 +187,7 @@ export function DataTable<T>({
 			)}
 
 			<div className="rounded-lg border overflow-x-auto">
-				<Table className="min-w-[600px]">
+				<Table className="min-w-150">
 					<TableHeader>
 						<TableRow>
 							{selectable && (
