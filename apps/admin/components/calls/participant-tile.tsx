@@ -22,7 +22,6 @@ export function ParticipantTile({
 	className,
 }: ParticipantTileProps) {
 	const videoRef = useRef<HTMLVideoElement>(null)
-	const audioRef = useRef<HTMLAudioElement>(null)
 
 	const initials = participant.name
 		.split(" ")
@@ -31,14 +30,15 @@ export function ParticipantTile({
 		.toUpperCase()
 		.slice(0, 2)
 
-	// Attach video track - include participant.identity to re-run when participant changes
-	useEffect(() => {
-		const track = showScreenShare ? participant.screenTrack : participant.videoTrack
-		const videoEl = videoRef.current
+	// Attach video track — uses trackSid as dependency to avoid unnecessary re-attachments
+	// The track object reference may change on participant rebuilds, but the SID stays
+	// stable as long as it's the same underlying track
+	const trackSid = showScreenShare ? participant.screenTrackSid : participant.videoTrackSid
+	const track = showScreenShare ? participant.screenTrack : participant.videoTrack
 
-		if (!track || !videoEl) {
-			return
-		}
+	useEffect(() => {
+		const videoEl = videoRef.current
+		if (!track || !videoEl) return
 
 		try {
 			track.attach(videoEl)
@@ -53,31 +53,7 @@ export function ParticipantTile({
 				// Ignore detach errors
 			}
 		}
-	}, [participant.identity, participant.videoTrack, participant.screenTrack, participant.name, showScreenShare])
-
-	// Attach audio track (only for remote participants) - include participant.identity
-	useEffect(() => {
-		const audioEl = audioRef.current
-
-		if (participant.isLocal) return
-		if (!participant.audioTrack || !audioEl) {
-			return
-		}
-
-		try {
-			participant.audioTrack.attach(audioEl)
-		} catch (err) {
-			console.error("[ParticipantTile] Failed to attach audio:", err)
-		}
-
-		return () => {
-			try {
-				participant.audioTrack?.detach(audioEl)
-			} catch {
-				// Ignore detach errors
-			}
-		}
-	}, [participant.identity, participant.audioTrack, participant.isLocal, participant.name])
+	}, [participant.identity, trackSid]) // trackSid is stable — only re-runs when actual track changes
 
 	const showVideo = showScreenShare
 		? participant.isScreenSharing && participant.screenTrack
@@ -110,8 +86,8 @@ export function ParticipantTile({
 				</div>
 			)}
 
-			{/* Audio element for remote participants */}
-			{!participant.isLocal && <audio ref={audioRef} autoPlay />}
+			{/* Audio is handled by RemoteAudioRenderer in call-interface.tsx — not here.
+			    This prevents duplicate audio attachments that cause crackling over time. */}
 
 			{/* Overlay with name and indicators */}
 			<div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3">

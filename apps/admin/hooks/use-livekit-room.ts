@@ -18,6 +18,10 @@ export type Participant = {
 	videoTrack: Track | null
 	audioTrack: Track | null
 	screenTrack: Track | null
+	// Stable track SIDs for dependency tracking (avoids re-attaching same track)
+	videoTrackSid: string | null
+	audioTrackSid: string | null
+	screenTrackSid: string | null
 }
 
 // Lazy load livekit-client
@@ -42,21 +46,25 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 	const intendedAudioRef = useRef(true)
 	const intendedVideoRef = useRef(true)
 
+	// Throttle active speaker updates to prevent excessive re-renders
+	const speakerThrottleRef = useRef<NodeJS.Timeout | null>(null)
+	const pendingSpeakerUpdateRef = useRef(false)
+
 	const updateParticipants = useCallback(async (room: Room) => {
 		const lk = await getLiveKit()
 		const allParticipants: Participant[] = []
 
 		// Add local participant
 		const local = room.localParticipant
-		const localVideoTrack = Array.from(local.videoTrackPublications.values()).find(
+		const localVideoPub = Array.from(local.videoTrackPublications.values()).find(
 			(p) => p.track && p.source === lk.Track.Source.Camera
-		)?.track
-		const localAudioTrack = Array.from(local.audioTrackPublications.values()).find(
+		)
+		const localAudioPub = Array.from(local.audioTrackPublications.values()).find(
 			(p) => p.track && p.source === lk.Track.Source.Microphone
-		)?.track
-		const localScreenTrack = Array.from(local.videoTrackPublications.values()).find(
+		)
+		const localScreenPub = Array.from(local.videoTrackPublications.values()).find(
 			(p) => p.track && p.source === lk.Track.Source.ScreenShare
-		)?.track
+		)
 
 		allParticipants.push({
 			identity: local.identity,
@@ -66,22 +74,25 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 			isVideoEnabled: local.isCameraEnabled,
 			isScreenSharing: local.isScreenShareEnabled,
 			isLocal: true,
-			videoTrack: localVideoTrack || null,
-			audioTrack: localAudioTrack || null,
-			screenTrack: localScreenTrack || null,
+			videoTrack: localVideoPub?.track || null,
+			audioTrack: localAudioPub?.track || null,
+			screenTrack: localScreenPub?.track || null,
+			videoTrackSid: localVideoPub?.trackSid || null,
+			audioTrackSid: localAudioPub?.trackSid || null,
+			screenTrackSid: localScreenPub?.trackSid || null,
 		})
 
 		// Add remote participants
 		room.remoteParticipants.forEach((remote) => {
-			const videoTrack = Array.from(remote.videoTrackPublications.values()).find(
+			const videoPub = Array.from(remote.videoTrackPublications.values()).find(
 				(p) => p.track && p.source === lk.Track.Source.Camera
-			)?.track
-			const audioTrack = Array.from(remote.audioTrackPublications.values()).find(
+			)
+			const audioPub = Array.from(remote.audioTrackPublications.values()).find(
 				(p) => p.track && p.source === lk.Track.Source.Microphone
-			)?.track
-			const screenTrack = Array.from(remote.videoTrackPublications.values()).find(
+			)
+			const screenPub = Array.from(remote.videoTrackPublications.values()).find(
 				(p) => p.track && p.source === lk.Track.Source.ScreenShare
-			)?.track
+			)
 
 			allParticipants.push({
 				identity: remote.identity,
@@ -91,9 +102,12 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 				isVideoEnabled: remote.isCameraEnabled,
 				isScreenSharing: remote.isScreenShareEnabled,
 				isLocal: false,
-				videoTrack: videoTrack || null,
-				audioTrack: audioTrack || null,
-				screenTrack: screenTrack || null,
+				videoTrack: videoPub?.track || null,
+				audioTrack: audioPub?.track || null,
+				screenTrack: screenPub?.track || null,
+				videoTrackSid: videoPub?.trackSid || null,
+				audioTrackSid: audioPub?.trackSid || null,
+				screenTrackSid: screenPub?.trackSid || null,
 			})
 		})
 
@@ -114,13 +128,33 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 			newRoom = new lk.Room({
 				adaptiveStream: true,
 				dynacast: true,
+				// Audio capture defaults — critical for long call quality
+				audioCaptureDefaults: {
+					echoCancellation: true,
+					noiseSuppression: true,
+					autoGainControl: true,
+					// channelCount: 1 is mono — better for voice calls, less processing
+					channelCount: 1,
+				},
+				// Video capture defaults
+				videoCaptureDefaults: {
+					resolution: { width: 1280, height: 720, frameRate: 24 },
+				},
+				// Publish defaults — Opus DTX saves bandwidth when not speaking
+				publishDefaults: {
+					dtx: true, // Discontinuous transmission — reduces bandwidth during silence
+					red: true, // Redundant encoding — helps packet loss recovery
+					audioPreset: lk.AudioPresets.speech, // Optimized for voice
+				},
+				// Reconnect policy
 				reconnectPolicy: {
 					nextRetryDelayInMs: (context) => {
-						// Retry up to 5 times with increasing delays
-						if (context.retryCount > 5) return null // stop retrying
-						return Math.min(1000 * Math.pow(2, context.retryCount), 10000)
+						if (context.retryCount > 7) return null
+						return Math.min(1000 * Math.pow(2, context.retryCount), 15000)
 					},
 				},
+				// Disconnect on slow network rather than degrading
+				disconnectOnPageLeave: true,
 			})
 
 			roomRef.current = newRoom
@@ -132,8 +166,7 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 			}
 
 			const handleParticipantConnected = (participant: { identity: string; sid: string }) => {
-				console.log("[LiveKit] Participant connected:", participant.identity, "SID:", participant.sid)
-				console.log("[LiveKit] Total remote participants now:", newRoom!.remoteParticipants.size)
+				console.log("[LiveKit] Participant connected:", participant.identity)
 				updateParticipants(newRoom!)
 			}
 			const handleParticipantDisconnected = (participant: { identity: string; sid: string }) => {
@@ -155,11 +188,37 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 			const handleTrackUnmuted = syncLocalState
 			const handleLocalTrackPublished = syncLocalState
 			const handleLocalTrackUnpublished = syncLocalState
+
+			// Throttled speaker handler — fires at most every 500ms
+			// ActiveSpeakersChanged fires VERY frequently (every ~100ms) and was
+			// causing thousands of full participant rebuilds over a 30min call
 			const handleActiveSpeakersChanged = (speakers: { identity: string }[]) => {
 				if (speakers.length > 0) {
 					setDominantSpeaker(speakers[0].identity)
 				}
+
+				// Throttle participant updates for speaker changes
+				if (speakerThrottleRef.current) {
+					pendingSpeakerUpdateRef.current = true
+					return
+				}
+
 				updateParticipants(newRoom!)
+				speakerThrottleRef.current = setTimeout(() => {
+					speakerThrottleRef.current = null
+					if (pendingSpeakerUpdateRef.current) {
+						pendingSpeakerUpdateRef.current = false
+						updateParticipants(newRoom!)
+					}
+				}, 500)
+			}
+
+			// Handle media quality changes for monitoring
+			const handleSignalReconnecting = () => {
+				console.warn("[LiveKit] Signal reconnecting...")
+			}
+			const handleMediaDevicesError = (err: Error) => {
+				console.error("[LiveKit] Media device error:", err)
 			}
 
 			newRoom.on(lk.RoomEvent.ConnectionStateChanged, handleConnectionStateChanged)
@@ -172,11 +231,11 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 			newRoom.on(lk.RoomEvent.LocalTrackPublished, handleLocalTrackPublished)
 			newRoom.on(lk.RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished)
 			newRoom.on(lk.RoomEvent.ActiveSpeakersChanged, handleActiveSpeakersChanged)
+			newRoom.on(lk.RoomEvent.SignalReconnecting, handleSignalReconnecting)
+			newRoom.on(lk.RoomEvent.MediaDevicesError, handleMediaDevicesError)
 
 			try {
 				console.log("[LiveKit] Connecting to room...")
-				console.log("[LiveKit] URL:", wsUrl)
-				console.log("[LiveKit] Token length:", token?.length)
 
 				// Add connection timeout
 				const connectPromise = newRoom.connect(wsUrl!, token!)
@@ -186,24 +245,14 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 
 				await Promise.race([connectPromise, timeoutPromise])
 
-				console.log("[LiveKit] Connected successfully!")
-				console.log("[LiveKit] Room name:", newRoom.name)
-				console.log("[LiveKit] Room state:", newRoom.state)
-				console.log("[LiveKit] Local participant:", newRoom.localParticipant.identity)
-				console.log("[LiveKit] Local participant SID:", newRoom.localParticipant.sid)
-				console.log("[LiveKit] Remote participants:", newRoom.remoteParticipants.size)
-				// Log remote participant details if any
-				newRoom.remoteParticipants.forEach((p) => {
-					console.log("[LiveKit] Remote participant:", p.identity, "SID:", p.sid)
-				})
+				console.log("[LiveKit] Connected successfully! Room:", newRoom.name)
 
 				// Enable camera and mic independently — one failing shouldn't block the other
 				const local = newRoom.localParticipant
 
-				// Publish audio track
+				// Publish audio track with quality settings
 				try {
 					await local.setMicrophoneEnabled(intendedAudioRef.current)
-					console.log("[LiveKit] Microphone enabled:", intendedAudioRef.current)
 				} catch (audioErr) {
 					console.error("[LiveKit] Failed to enable microphone:", audioErr)
 				}
@@ -211,7 +260,6 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 				// Publish video track
 				try {
 					await local.setCameraEnabled(intendedVideoRef.current)
-					console.log("[LiveKit] Camera enabled:", intendedVideoRef.current)
 				} catch (videoErr) {
 					console.error("[LiveKit] Failed to enable camera:", videoErr)
 				}
@@ -222,13 +270,6 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 				updateParticipants(newRoom)
 			} catch (err) {
 				console.error("[LiveKit] Failed to connect to room:", err)
-				console.error("[LiveKit] Error details:", {
-					wsUrl,
-					tokenLength: token?.length,
-					errorMessage: err instanceof Error ? err.message : String(err),
-					errorStack: err instanceof Error ? err.stack : undefined,
-				})
-				// Signal connection error
 				setConnectionState("failed")
 			}
 		}
@@ -237,6 +278,11 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 
 		return () => {
 			mounted = false
+			// Clean up throttle timer
+			if (speakerThrottleRef.current) {
+				clearTimeout(speakerThrottleRef.current)
+				speakerThrottleRef.current = null
+			}
 			if (newRoom) {
 				newRoom.disconnect()
 				roomRef.current = null

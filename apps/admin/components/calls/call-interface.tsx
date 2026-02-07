@@ -37,23 +37,28 @@ function RemoteAudioRenderer({ participants }: { participants: Participant[] }) 
 
 function RemoteAudio({ participant }: { participant: Participant }) {
 	const audioRef = useRef<HTMLAudioElement>(null)
+	// Keep a ref to the current track so the cleanup can access it even after re-render
+	const trackRef = useRef(participant.audioTrack)
+	trackRef.current = participant.audioTrack
 
+	// Use audioTrackSid as dependency — stable identifier that doesn't change on re-renders
 	useEffect(() => {
 		const audioEl = audioRef.current
-		if (!participant.audioTrack || !audioEl) return
+		const audioTrack = trackRef.current
+		if (!audioTrack || !audioEl) return
 
 		try {
-			participant.audioTrack.attach(audioEl)
+			audioTrack.attach(audioEl)
 		} catch (err) {
 			console.error("[RemoteAudio] Failed to attach audio:", err)
 		}
 
 		return () => {
 			try {
-				participant.audioTrack?.detach(audioEl)
+				audioTrack.detach(audioEl)
 			} catch {}
 		}
-	}, [participant.identity, participant.audioTrack])
+	}, [participant.identity, participant.audioTrackSid])
 
 	return <audio ref={audioRef} autoPlay />
 }
@@ -358,7 +363,11 @@ export function CallInterface() {
 	const isConnecting = connectionState !== ConnectionState.Connected
 	const remoteParticipants = participants.filter((p) => !p.isLocal)
 
-	// Minimized view (just a small pill) — RemoteAudioRenderer keeps audio playing
+	// RemoteAudioRenderer is ALWAYS rendered to keep audio playing across all view modes.
+	// ParticipantTile only handles video — audio lives here exclusively to prevent
+	// duplicate attachments that cause crackling/static over long calls.
+
+	// Minimized view (just a small pill)
 	if (viewMode === "minimized") {
 		return (
 			<>
@@ -389,6 +398,8 @@ export function CallInterface() {
 	// Fullscreen view (with optional chat panel)
 	if (viewMode === "fullscreen") {
 		return (
+			<>
+			<RemoteAudioRenderer participants={participants} />
 			<motion.div
 				initial={{ opacity: 0 }}
 				animate={{ opacity: 1 }}
@@ -442,11 +453,14 @@ export function CallInterface() {
 					)}
 				</div>
 			</motion.div>
+			</>
 		)
 	}
 
 	// Floating view (PiP style) — only show remote participant(s)
 	return (
+		<>
+		<RemoteAudioRenderer participants={participants} />
 		<AnimatePresence>
 			<motion.div
 				initial={{ scale: 0.8, opacity: 0, y: 20 }}
@@ -503,5 +517,6 @@ export function CallInterface() {
 				</div>
 			</motion.div>
 		</AnimatePresence>
+		</>
 	)
 }
