@@ -190,10 +190,25 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 					console.log("[LiveKit] Remote participant:", p.identity, "SID:", p.sid)
 				})
 
-				// Enable camera and mic based on intended state (user may have toggled before connect)
+				// Enable camera and mic independently — one failing shouldn't block the other
 				const local = newRoom.localParticipant
-				await local.setCameraEnabled(intendedVideoRef.current)
-				await local.setMicrophoneEnabled(intendedAudioRef.current)
+
+				// Publish audio track
+				try {
+					await local.setMicrophoneEnabled(intendedAudioRef.current)
+					console.log("[LiveKit] Microphone enabled:", intendedAudioRef.current)
+				} catch (audioErr) {
+					console.error("[LiveKit] Failed to enable microphone:", audioErr)
+				}
+
+				// Publish video track
+				try {
+					await local.setCameraEnabled(intendedVideoRef.current)
+					console.log("[LiveKit] Camera enabled:", intendedVideoRef.current)
+				} catch (videoErr) {
+					console.error("[LiveKit] Failed to enable camera:", videoErr)
+				}
+
 				// Sync local state with actual room state
 				setLocalAudioEnabled(local.isMicrophoneEnabled)
 				setLocalVideoEnabled(local.isCameraEnabled)
@@ -227,9 +242,13 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 		intendedAudioRef.current = newEnabled
 		setLocalAudioEnabled(newEnabled)
 
-		// Apply to room if connected
 		if (roomRef.current) {
-			roomRef.current.localParticipant.setMicrophoneEnabled(newEnabled).catch(() => {})
+			roomRef.current.localParticipant.setMicrophoneEnabled(newEnabled).catch((err) => {
+				console.error("[LiveKit] Failed to toggle microphone:", err)
+				// Revert UI state on failure
+				intendedAudioRef.current = !newEnabled
+				setLocalAudioEnabled(!newEnabled)
+			})
 		}
 	}, [])
 
@@ -238,9 +257,13 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 		intendedVideoRef.current = newEnabled
 		setLocalVideoEnabled(newEnabled)
 
-		// Apply to room if connected
 		if (roomRef.current) {
-			roomRef.current.localParticipant.setCameraEnabled(newEnabled).catch(() => {})
+			roomRef.current.localParticipant.setCameraEnabled(newEnabled).catch((err) => {
+				console.error("[LiveKit] Failed to toggle camera:", err)
+				// Revert UI state on failure
+				intendedVideoRef.current = !newEnabled
+				setLocalVideoEnabled(!newEnabled)
+			})
 		}
 	}, [])
 

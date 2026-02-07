@@ -10,8 +10,8 @@ import {
 	VideoOffIcon,
 	ComputerIcon,
 	CallEnd01Icon,
-	Maximize02Icon,
-	Minimize02Icon,
+	ArrowExpandIcon,
+	ArrowShrinkIcon,
 	Message01Icon,
 } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
@@ -106,7 +106,7 @@ export function CallControls({ variant = "floating", className }: CallControlsPr
 				title={viewMode === "fullscreen" ? "Picture-in-picture" : "Fullscreen"}
 			>
 				<HugeiconsIcon
-					icon={viewMode === "fullscreen" ? Minimize02Icon : Maximize02Icon}
+					icon={viewMode === "fullscreen" ? ArrowShrinkIcon : ArrowExpandIcon}
 					size={iconSize}
 				/>
 				<span className="sr-only">{viewMode === "fullscreen" ? "Picture-in-picture" : "Fullscreen"}</span>

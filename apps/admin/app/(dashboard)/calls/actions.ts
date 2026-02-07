@@ -133,13 +133,17 @@ async function createCallMessage(data: {
 						.where(eq(users.id, senderId))
 						.limit(1)
 
-					pusherServer.trigger(`private-user-${recipientId}`, "new-dm", {
+					pusherServer.trigger(`private-user-${recipientId}`, "dm-received", {
 						conversationId: conv.id,
-						senderId,
-						senderName: sender?.name || "Unknown",
-						senderImage: sender?.image || null,
-						body,
-						createdAt: new Date().toISOString(),
+						message: {
+							id: `call-${callId}-${recipientId}`,
+							senderId,
+							senderName: sender?.name || "Unknown",
+							senderImage: sender?.image || null,
+							body,
+							attachments: [],
+							createdAt: new Date().toISOString(),
+						},
 					}).catch(console.error)
 				}
 			}

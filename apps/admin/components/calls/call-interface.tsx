@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { ArrowShrinkIcon, ArrowAllDirectionIcon, SentIcon } from "@hugeicons/core-free-icons"
+import { ArrowShrinkIcon, ArrowExpandIcon, SentIcon } from "@hugeicons/core-free-icons"
 // ConnectionState string values matching livekit-client
 const ConnectionState = { Connected: "connected" } as const
 import { motion, AnimatePresence } from "framer-motion"
@@ -430,7 +430,7 @@ export function CallInterface() {
 
 					<div className="flex items-center gap-1">
 						<Button variant="ghost" size="icon" className="size-7" onClick={() => setViewMode("fullscreen")}>
-							<HugeiconsIcon icon={ArrowAllDirectionIcon} size={14} />
+							<HugeiconsIcon icon={ArrowExpandIcon} size={14} />
 						</Button>
 						<Button variant="ghost" size="icon" className="size-7" onClick={() => setViewMode("minimized")}>
 							<HugeiconsIcon icon={ArrowShrinkIcon} size={14} />

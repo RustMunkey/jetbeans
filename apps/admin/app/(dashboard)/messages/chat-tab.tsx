@@ -388,15 +388,10 @@ export function ChatTab({
 				return [...prev, data]
 			})
 
-			// Play notification sound only if not viewing this channel/DM
-			const current = activeRef.current
-			const isViewing = (current.type === "channel" && data.channel === current.id) ||
-				(current.type === "dm" && data.senderId === current.id)
-			if (!isViewing) {
-				const audio = new Audio("/sounds/message.mp3")
-				audio.volume = 0.5
-				audio.play().catch(() => {})
-			}
+			// Play notification sound for incoming messages
+			const audio = new Audio("/sounds/message.mp3")
+			audio.volume = 0.5
+			audio.play().catch(() => {})
 		}
 
 		// Typing indicator
@@ -485,6 +480,15 @@ export function ChatTab({
 		hasScrolledRef.current = false
 		setIsAtBottom(true)
 	}, [active])
+
+	// Scroll to bottom when typing indicator appears
+	useEffect(() => {
+		if (Object.keys(typingUsers).length > 0 && isAtBottom) {
+			requestAnimationFrame(() => {
+				messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+			})
+		}
+	}, [typingUsers, isAtBottom])
 
 	const filteredMessages = messages.filter((m) => {
 		if (active.type === "channel") return m.channel === active.id

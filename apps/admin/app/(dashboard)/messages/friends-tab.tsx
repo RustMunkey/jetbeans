@@ -333,12 +333,10 @@ export function FriendsTab({
 				setIsTyping(false)
 			}
 
-			// Play notification sound only if not viewing this conversation
-			if (selectedConversation?.id !== data.conversationId) {
-				const audio = new Audio("/sounds/message.mp3")
-				audio.volume = 0.5
-				audio.play().catch(() => {})
-			}
+			// Play notification sound for incoming messages
+			const audio = new Audio("/sounds/message.mp3")
+			audio.volume = 0.5
+			audio.play().catch(() => {})
 		}
 
 		// Typing indicator
@@ -408,6 +406,15 @@ export function FriendsTab({
 		hasScrolledRef.current = false
 		setIsAtBottom(true)
 	}, [selectedConversation?.id])
+
+	// Scroll to bottom when typing indicator appears
+	useEffect(() => {
+		if (isTyping && isAtBottom) {
+			requestAnimationFrame(() => {
+				messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+			})
+		}
+	}, [isTyping, isAtBottom])
 
 	// IntersectionObserver: mark messages as read only when they're visible on screen
 	const readQueueRef = useRef<Set<string>>(new Set())
