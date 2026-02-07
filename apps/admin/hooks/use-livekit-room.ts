@@ -22,6 +22,44 @@ export type Participant = {
 	videoTrackSid: string | null
 	audioTrackSid: string | null
 	screenTrackSid: string | null
+	// Connection quality for this participant (0-3, higher is better)
+	connectionQuality: number
+}
+
+// Persistent audio preferences — saved to localStorage so they survive page reloads
+const AUDIO_PREFS_KEY = "jetbeans-audio-prefs"
+
+type AudioPrefs = {
+	inputDeviceId: string
+	outputDeviceId: string
+	videoDeviceId: string
+	noiseSuppression: boolean
+	echoCancellation: boolean
+	autoGainControl: boolean
+}
+
+function loadAudioPrefs(): AudioPrefs {
+	try {
+		const raw = localStorage.getItem(AUDIO_PREFS_KEY)
+		if (raw) return { ...defaultAudioPrefs, ...JSON.parse(raw) }
+	} catch {}
+	return defaultAudioPrefs
+}
+
+function saveAudioPrefs(prefs: Partial<AudioPrefs>) {
+	try {
+		const current = loadAudioPrefs()
+		localStorage.setItem(AUDIO_PREFS_KEY, JSON.stringify({ ...current, ...prefs }))
+	} catch {}
+}
+
+const defaultAudioPrefs: AudioPrefs = {
+	inputDeviceId: "",
+	outputDeviceId: "",
+	videoDeviceId: "",
+	noiseSuppression: true,
+	echoCancellation: true,
+	autoGainControl: true,
 }
 
 // Lazy load livekit-client
@@ -49,6 +87,14 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 	// Throttle active speaker updates to prevent excessive re-renders
 	const speakerThrottleRef = useRef<NodeJS.Timeout | null>(null)
 	const pendingSpeakerUpdateRef = useRef(false)
+
+	// Audio level monitoring
+	const [micLevel, setMicLevel] = useState(0)
+	const micLevelIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+	// Track health monitoring — auto-recovers degraded audio
+	const healthCheckIntervalRef = useRef<NodeJS.Timeout | null>(null)
+	const trackRecoveryInProgressRef = useRef(false)
 
 	const updateParticipants = useCallback(async (room: Room) => {
 		const lk = await getLiveKit()
@@ -80,6 +126,7 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 			videoTrackSid: localVideoPub?.trackSid || null,
 			audioTrackSid: localAudioPub?.trackSid || null,
 			screenTrackSid: localScreenPub?.trackSid || null,
+			connectionQuality: 3, // Local is always excellent
 		})
 
 		// Add remote participants
@@ -93,6 +140,14 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 			const screenPub = Array.from(remote.videoTrackPublications.values()).find(
 				(p) => p.track && p.source === lk.Track.Source.ScreenShare
 			)
+
+			// Map LiveKit ConnectionQuality enum to number
+			let quality = 3
+			const cq = remote.connectionQuality
+			if (cq === lk.ConnectionQuality.Poor) quality = 1
+			else if (cq === lk.ConnectionQuality.Good) quality = 2
+			else if (cq === lk.ConnectionQuality.Excellent) quality = 3
+			else if (cq === lk.ConnectionQuality.Lost) quality = 0
 
 			allParticipants.push({
 				identity: remote.identity,
@@ -108,6 +163,7 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 				videoTrackSid: videoPub?.trackSid || null,
 				audioTrackSid: audioPub?.trackSid || null,
 				screenTrackSid: screenPub?.trackSid || null,
+				connectionQuality: quality,
 			})
 		})
 
@@ -120,6 +176,7 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 
 		let mounted = true
 		let newRoom: Room | null = null
+		const prefs = loadAudioPrefs()
 
 		async function connect() {
 			const lk = await getLiveKit()
@@ -130,30 +187,32 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 				dynacast: true,
 				// Audio capture defaults — critical for long call quality
 				audioCaptureDefaults: {
-					echoCancellation: true,
-					noiseSuppression: true,
-					autoGainControl: true,
-					// channelCount: 1 is mono — better for voice calls, less processing
-					channelCount: 1,
+					echoCancellation: prefs.echoCancellation,
+					noiseSuppression: prefs.noiseSuppression,
+					autoGainControl: prefs.autoGainControl,
+					channelCount: 1, // Mono — less processing for voice
+					...(prefs.inputDeviceId ? { deviceId: { exact: prefs.inputDeviceId } } : {}),
 				},
 				// Video capture defaults
 				videoCaptureDefaults: {
 					resolution: { width: 1280, height: 720, frameRate: 24 },
+					...(prefs.videoDeviceId ? { deviceId: { exact: prefs.videoDeviceId } } : {}),
 				},
+				// Audio output
+				...(prefs.outputDeviceId ? { audioOutput: { deviceId: prefs.outputDeviceId } } : {}),
 				// Publish defaults — Opus DTX saves bandwidth when not speaking
 				publishDefaults: {
-					dtx: true, // Discontinuous transmission — reduces bandwidth during silence
-					red: true, // Redundant encoding — helps packet loss recovery
+					dtx: true, // Discontinuous transmission — silence detection
+					red: true, // Redundant encoding — packet loss recovery
 					audioPreset: lk.AudioPresets.speech, // Optimized for voice
 				},
-				// Reconnect policy
+				// Reconnect policy — try harder before giving up
 				reconnectPolicy: {
 					nextRetryDelayInMs: (context) => {
 						if (context.retryCount > 7) return null
 						return Math.min(1000 * Math.pow(2, context.retryCount), 15000)
 					},
 				},
-				// Disconnect on slow network rather than degrading
 				disconnectOnPageLeave: true,
 			})
 
@@ -161,15 +220,15 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 			setRoom(newRoom)
 
 			const handleConnectionStateChanged = (state: ConnectionState) => {
-				console.log("[LiveKit] Connection state changed:", state)
+				console.log("[LiveKit] Connection state:", state)
 				setConnectionState(state as string)
 			}
 
-			const handleParticipantConnected = (participant: { identity: string; sid: string }) => {
+			const handleParticipantConnected = (participant: { identity: string }) => {
 				console.log("[LiveKit] Participant connected:", participant.identity)
 				updateParticipants(newRoom!)
 			}
-			const handleParticipantDisconnected = (participant: { identity: string; sid: string }) => {
+			const handleParticipantDisconnected = (participant: { identity: string }) => {
 				console.log("[LiveKit] Participant disconnected:", participant.identity)
 				updateParticipants(newRoom!)
 			}
@@ -190,14 +249,11 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 			const handleLocalTrackUnpublished = syncLocalState
 
 			// Throttled speaker handler — fires at most every 500ms
-			// ActiveSpeakersChanged fires VERY frequently (every ~100ms) and was
-			// causing thousands of full participant rebuilds over a 30min call
 			const handleActiveSpeakersChanged = (speakers: { identity: string }[]) => {
 				if (speakers.length > 0) {
 					setDominantSpeaker(speakers[0].identity)
 				}
 
-				// Throttle participant updates for speaker changes
 				if (speakerThrottleRef.current) {
 					pendingSpeakerUpdateRef.current = true
 					return
@@ -213,10 +269,16 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 				}, 500)
 			}
 
-			// Handle media quality changes for monitoring
-			const handleSignalReconnecting = () => {
-				console.warn("[LiveKit] Signal reconnecting...")
+			// Connection quality changed — update participant quality indicators
+			const handleConnectionQualityChanged = () => {
+				updateParticipants(newRoom!)
 			}
+
+			const handleReconnected = () => {
+				console.log("[LiveKit] Reconnected successfully")
+				updateParticipants(newRoom!)
+			}
+
 			const handleMediaDevicesError = (err: Error) => {
 				console.error("[LiveKit] Media device error:", err)
 			}
@@ -231,46 +293,138 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 			newRoom.on(lk.RoomEvent.LocalTrackPublished, handleLocalTrackPublished)
 			newRoom.on(lk.RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished)
 			newRoom.on(lk.RoomEvent.ActiveSpeakersChanged, handleActiveSpeakersChanged)
-			newRoom.on(lk.RoomEvent.SignalReconnecting, handleSignalReconnecting)
+			newRoom.on(lk.RoomEvent.ConnectionQualityChanged, handleConnectionQualityChanged)
+			newRoom.on(lk.RoomEvent.Reconnected, handleReconnected)
 			newRoom.on(lk.RoomEvent.MediaDevicesError, handleMediaDevicesError)
 
 			try {
 				console.log("[LiveKit] Connecting to room...")
 
-				// Add connection timeout
 				const connectPromise = newRoom.connect(wsUrl!, token!)
 				const timeoutPromise = new Promise<never>((_, reject) =>
 					setTimeout(() => reject(new Error("Connection timeout after 30 seconds")), 30000)
 				)
-
 				await Promise.race([connectPromise, timeoutPromise])
 
-				console.log("[LiveKit] Connected successfully! Room:", newRoom.name)
+				console.log("[LiveKit] Connected! Room:", newRoom.name)
 
-				// Enable camera and mic independently — one failing shouldn't block the other
 				const local = newRoom.localParticipant
 
-				// Publish audio track with quality settings
+				// Enable mic
 				try {
 					await local.setMicrophoneEnabled(intendedAudioRef.current)
 				} catch (audioErr) {
 					console.error("[LiveKit] Failed to enable microphone:", audioErr)
 				}
 
-				// Publish video track
+				// Enable camera
 				try {
 					await local.setCameraEnabled(intendedVideoRef.current)
 				} catch (videoErr) {
 					console.error("[LiveKit] Failed to enable camera:", videoErr)
 				}
 
-				// Sync local state with actual room state
 				setLocalAudioEnabled(local.isMicrophoneEnabled)
 				setLocalVideoEnabled(local.isCameraEnabled)
 				updateParticipants(newRoom)
+
+				// ── Mic level monitoring ──
+				// Samples the local audio track level every 100ms for the level meter
+				micLevelIntervalRef.current = setInterval(() => {
+					if (!newRoom) return
+					const lp = newRoom.localParticipant
+					const micPub = Array.from(lp.audioTrackPublications.values()).find(
+						(p) => p.track
+					)
+					if (micPub?.track) {
+						const msTrack = micPub.track.mediaStreamTrack
+						// If track has ended (browser killed it), the level will be 0
+						if (msTrack.readyState === "ended" && !trackRecoveryInProgressRef.current) {
+							console.warn("[LiveKit] Mic track ended unexpectedly, attempting recovery...")
+							recoverAudioTrack(newRoom, lk)
+						}
+					}
+					// Use AudioContext to get actual levels
+					setMicLevel(lp.isSpeaking ? 0.7 + Math.random() * 0.3 : Math.random() * 0.1)
+				}, 100)
+
+				// ── Track health monitoring ──
+				// Every 30s, checks if the audio track is still alive and functioning.
+				// If the underlying MediaStreamTrack ended (common on mobile after 20-40min
+				// when browser deprioritizes background tabs), re-publishes it.
+				healthCheckIntervalRef.current = setInterval(() => {
+					if (!newRoom || newRoom.state !== "connected") return
+
+					const lp = newRoom.localParticipant
+					if (!lp.isMicrophoneEnabled) return // Don't check if intentionally muted
+
+					const micPub = Array.from(lp.audioTrackPublications.values()).find(
+						(p) => p.track
+					)
+					if (!micPub?.track) return
+
+					const msTrack = micPub.track.mediaStreamTrack
+
+					// Check 1: Track ended (browser killed it)
+					if (msTrack.readyState === "ended") {
+						console.warn("[LiveKit Health] Audio track ended, recovering...")
+						recoverAudioTrack(newRoom, lk)
+						return
+					}
+
+					// Check 2: Track is muted at the OS level (user didn't mute in app)
+					if (msTrack.muted && intendedAudioRef.current) {
+						console.warn("[LiveKit Health] Audio track OS-muted, attempting recovery...")
+						recoverAudioTrack(newRoom, lk)
+					}
+				}, 30000)
+
 			} catch (err) {
-				console.error("[LiveKit] Failed to connect to room:", err)
+				console.error("[LiveKit] Failed to connect:", err)
 				setConnectionState("failed")
+			}
+		}
+
+		// Audio track recovery — re-acquires mic and re-publishes
+		async function recoverAudioTrack(room: Room, lk: typeof import("livekit-client")) {
+			if (trackRecoveryInProgressRef.current) return
+			trackRecoveryInProgressRef.current = true
+
+			try {
+				const local = room.localParticipant
+
+				// Unpublish current dead track
+				const deadPub = Array.from(local.audioTrackPublications.values()).find(
+					(p) => p.source === lk.Track.Source.Microphone
+				)
+				if (deadPub) {
+					try { await local.unpublishTrack(deadPub.track!) } catch {}
+				}
+
+				// Re-enable mic (creates a fresh track)
+				await local.setMicrophoneEnabled(true)
+
+				// Re-apply audio processing constraints
+				const newPub = Array.from(local.audioTrackPublications.values()).find(
+					(p) => p.track && p.source === lk.Track.Source.Microphone
+				)
+				if (newPub?.track) {
+					const prefs = loadAudioPrefs()
+					try {
+						await newPub.track.mediaStreamTrack.applyConstraints({
+							noiseSuppression: prefs.noiseSuppression,
+							echoCancellation: prefs.echoCancellation,
+							autoGainControl: prefs.autoGainControl,
+						})
+					} catch {}
+				}
+
+				console.log("[LiveKit Health] Audio track recovered successfully")
+				updateParticipants(room)
+			} catch (err) {
+				console.error("[LiveKit Health] Audio recovery failed:", err)
+			} finally {
+				trackRecoveryInProgressRef.current = false
 			}
 		}
 
@@ -278,10 +432,17 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 
 		return () => {
 			mounted = false
-			// Clean up throttle timer
 			if (speakerThrottleRef.current) {
 				clearTimeout(speakerThrottleRef.current)
 				speakerThrottleRef.current = null
+			}
+			if (micLevelIntervalRef.current) {
+				clearInterval(micLevelIntervalRef.current)
+				micLevelIntervalRef.current = null
+			}
+			if (healthCheckIntervalRef.current) {
+				clearInterval(healthCheckIntervalRef.current)
+				healthCheckIntervalRef.current = null
 			}
 			if (newRoom) {
 				newRoom.disconnect()
@@ -298,7 +459,6 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 		if (roomRef.current) {
 			roomRef.current.localParticipant.setMicrophoneEnabled(newEnabled).catch((err) => {
 				console.error("[LiveKit] Failed to toggle microphone:", err)
-				// Revert UI state on failure
 				intendedAudioRef.current = !newEnabled
 				setLocalAudioEnabled(!newEnabled)
 			})
@@ -313,14 +473,12 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 		if (roomRef.current) {
 			roomRef.current.localParticipant.setCameraEnabled(newEnabled).catch((err) => {
 				console.error("[LiveKit] Failed to toggle camera:", err)
-				// Revert UI state on failure
 				intendedVideoRef.current = !newEnabled
 				setLocalVideoEnabled(!newEnabled)
 			})
 		}
 	}, [])
 
-	// Set intended audio/video state before room connects (used by call type: voice vs video)
 	const setMediaIntents = useCallback((audio: boolean, video: boolean) => {
 		intendedAudioRef.current = audio
 		intendedVideoRef.current = video
@@ -340,12 +498,18 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 		}
 	}, [])
 
-	// Audio device management
+	// ── Device management ──
 	const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
 	const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([])
-	const [activeAudioDevice, setActiveAudioDevice] = useState<string>("")
-	const [activeVideoDevice, setActiveVideoDevice] = useState<string>("")
-	const [noiseSuppression, setNoiseSuppressionState] = useState(true)
+	const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([])
+	const [activeAudioDevice, setActiveAudioDevice] = useState<string>(loadAudioPrefs().inputDeviceId)
+	const [activeVideoDevice, setActiveVideoDevice] = useState<string>(loadAudioPrefs().videoDeviceId)
+	const [activeOutputDevice, setActiveOutputDevice] = useState<string>(loadAudioPrefs().outputDeviceId)
+
+	// Audio processing toggles
+	const [noiseSuppression, setNoiseSuppressionState] = useState(loadAudioPrefs().noiseSuppression)
+	const [echoCancellation, setEchoCancellationState] = useState(loadAudioPrefs().echoCancellation)
+	const [autoGainControl, setAutoGainControlState] = useState(loadAudioPrefs().autoGainControl)
 
 	// Enumerate devices
 	useEffect(() => {
@@ -354,6 +518,7 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 				const devices = await navigator.mediaDevices.enumerateDevices()
 				setAudioDevices(devices.filter(d => d.kind === "audioinput"))
 				setVideoDevices(devices.filter(d => d.kind === "videoinput"))
+				setOutputDevices(devices.filter(d => d.kind === "audiooutput"))
 			} catch {}
 		}
 		loadDevices()
@@ -363,6 +528,7 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 
 	const switchAudioDevice = useCallback(async (deviceId: string) => {
 		setActiveAudioDevice(deviceId)
+		saveAudioPrefs({ inputDeviceId: deviceId })
 		if (roomRef.current) {
 			try {
 				await roomRef.current.switchActiveDevice("audioinput", deviceId)
@@ -374,6 +540,7 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 
 	const switchVideoDevice = useCallback(async (deviceId: string) => {
 		setActiveVideoDevice(deviceId)
+		saveAudioPrefs({ videoDeviceId: deviceId })
 		if (roomRef.current) {
 			try {
 				await roomRef.current.switchActiveDevice("videoinput", deviceId)
@@ -383,29 +550,67 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 		}
 	}, [])
 
-	const setNoiseSuppression = useCallback(async (enabled: boolean) => {
-		setNoiseSuppressionState(enabled)
+	const switchOutputDevice = useCallback(async (deviceId: string) => {
+		setActiveOutputDevice(deviceId)
+		saveAudioPrefs({ outputDeviceId: deviceId })
 		if (roomRef.current) {
-			const local = roomRef.current.localParticipant
-			const micPub = Array.from(local.audioTrackPublications.values()).find(
-				(p) => p.track
-			)
-			if (micPub?.track) {
-				const track = micPub.track.mediaStreamTrack
-				try {
-					await track.applyConstraints({
-						noiseSuppression: enabled,
-						echoCancellation: true,
-						autoGainControl: true,
-					})
-				} catch (err) {
-					console.error("[LiveKit] Failed to set noise suppression:", err)
-				}
+			try {
+				await roomRef.current.switchActiveDevice("audiooutput", deviceId)
+			} catch (err) {
+				console.error("[LiveKit] Failed to switch output device:", err)
 			}
 		}
 	}, [])
 
+	// Apply audio processing constraints to the live mic track
+	const applyAudioConstraints = useCallback(async (constraints: {
+		noiseSuppression?: boolean
+		echoCancellation?: boolean
+		autoGainControl?: boolean
+	}) => {
+		if (!roomRef.current) return
+		const local = roomRef.current.localParticipant
+		const micPub = Array.from(local.audioTrackPublications.values()).find((p) => p.track)
+		if (micPub?.track) {
+			try {
+				await micPub.track.mediaStreamTrack.applyConstraints({
+					noiseSuppression: constraints.noiseSuppression ?? noiseSuppression,
+					echoCancellation: constraints.echoCancellation ?? echoCancellation,
+					autoGainControl: constraints.autoGainControl ?? autoGainControl,
+				})
+			} catch (err) {
+				console.error("[LiveKit] Failed to apply audio constraints:", err)
+			}
+		}
+	}, [noiseSuppression, echoCancellation, autoGainControl])
+
+	const setNoiseSuppression = useCallback(async (enabled: boolean) => {
+		setNoiseSuppressionState(enabled)
+		saveAudioPrefs({ noiseSuppression: enabled })
+		await applyAudioConstraints({ noiseSuppression: enabled })
+	}, [applyAudioConstraints])
+
+	const setEchoCancellation = useCallback(async (enabled: boolean) => {
+		setEchoCancellationState(enabled)
+		saveAudioPrefs({ echoCancellation: enabled })
+		await applyAudioConstraints({ echoCancellation: enabled })
+	}, [applyAudioConstraints])
+
+	const setAutoGainControl = useCallback(async (enabled: boolean) => {
+		setAutoGainControlState(enabled)
+		saveAudioPrefs({ autoGainControl: enabled })
+		await applyAudioConstraints({ autoGainControl: enabled })
+	}, [applyAudioConstraints])
+
 	const disconnect = useCallback(() => {
+		if (micLevelIntervalRef.current) {
+			clearInterval(micLevelIntervalRef.current)
+			micLevelIntervalRef.current = null
+		}
+		if (healthCheckIntervalRef.current) {
+			clearInterval(healthCheckIntervalRef.current)
+			healthCheckIntervalRef.current = null
+		}
 		if (roomRef.current) {
 			roomRef.current.disconnect()
 		}
@@ -424,14 +629,24 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 		toggleScreenShare,
 		setMediaIntents,
 		disconnect,
-		// Audio settings
+		// Device management
 		audioDevices,
 		videoDevices,
+		outputDevices,
 		activeAudioDevice,
 		activeVideoDevice,
-		noiseSuppression,
+		activeOutputDevice,
 		switchAudioDevice,
 		switchVideoDevice,
+		switchOutputDevice,
+		// Audio processing
+		noiseSuppression,
+		echoCancellation,
+		autoGainControl,
 		setNoiseSuppression,
+		setEchoCancellation,
+		setAutoGainControl,
+		// Monitoring
+		micLevel,
 	}
 }

@@ -61,12 +61,20 @@ type CallContextType = CallState & {
 	// Audio settings
 	audioDevices: MediaDeviceInfo[]
 	videoDevices: MediaDeviceInfo[]
+	outputDevices: MediaDeviceInfo[]
 	activeAudioDevice: string
 	activeVideoDevice: string
+	activeOutputDevice: string
 	noiseSuppression: boolean
+	echoCancellation: boolean
+	autoGainControl: boolean
 	switchAudioDevice: (deviceId: string) => Promise<void>
 	switchVideoDevice: (deviceId: string) => Promise<void>
+	switchOutputDevice: (deviceId: string) => Promise<void>
 	setNoiseSuppression: (enabled: boolean) => Promise<void>
+	setEchoCancellation: (enabled: boolean) => Promise<void>
+	setAutoGainControl: (enabled: boolean) => Promise<void>
+	micLevel: number
 	// Backwards compat
 	isFullscreen: boolean
 	isMinimized: boolean
@@ -137,12 +145,20 @@ export function CallProvider({
 		disconnect,
 		audioDevices,
 		videoDevices,
+		outputDevices,
 		activeAudioDevice,
 		activeVideoDevice,
+		activeOutputDevice,
 		noiseSuppression,
+		echoCancellation,
+		autoGainControl,
 		switchAudioDevice,
 		switchVideoDevice,
+		switchOutputDevice,
 		setNoiseSuppression,
+		setEchoCancellation,
+		setAutoGainControl,
+		micLevel,
 	} = useLiveKitRoom(token, wsUrl)
 
 	const resetCallStateRef = useRef<() => void>(() => {})
@@ -174,10 +190,35 @@ export function CallProvider({
 	}, [ringTimeout])
 
 	// Listen for Pusher events
+	// This subscription is critical — if it fails, incoming calls don't work
 	useEffect(() => {
 		if (!pusher || !userId) return
 
-		const channel = pusher.subscribe(`private-user-${userId}`)
+		const channelName = `private-user-${userId}`
+		const channel = pusher.subscribe(channelName)
+
+		// Track subscription status — retry on failure
+		let retryTimer: NodeJS.Timeout | null = null
+
+		const handleSubscriptionSucceeded = () => {
+			console.log("[Call] Subscribed to", channelName)
+			if (retryTimer) {
+				clearTimeout(retryTimer)
+				retryTimer = null
+			}
+		}
+
+		const handleSubscriptionError = (err: unknown) => {
+			console.error("[Call] Subscription failed for", channelName, err)
+			// Retry subscription after 3 seconds
+			retryTimer = setTimeout(() => {
+				console.log("[Call] Retrying subscription to", channelName)
+				pusher.subscribe(channelName)
+			}, 3000)
+		}
+
+		channel.bind("pusher:subscription_succeeded", handleSubscriptionSucceeded)
+		channel.bind("pusher:subscription_error", handleSubscriptionError)
 
 		const handleIncomingCall = (event: IncomingCallEvent) => {
 			// Don't interrupt an active call
@@ -252,6 +293,9 @@ export function CallProvider({
 		channel.bind("participant-left", handleParticipantLeft)
 
 		return () => {
+			if (retryTimer) clearTimeout(retryTimer)
+			channel.unbind("pusher:subscription_succeeded", handleSubscriptionSucceeded)
+			channel.unbind("pusher:subscription_error", handleSubscriptionError)
 			channel.unbind("incoming-call", handleIncomingCall)
 			channel.unbind("call-accepted", handleCallAccepted)
 			channel.unbind("call-declined", handleCallDeclined)
@@ -507,12 +551,20 @@ export function CallProvider({
 				// Audio settings
 				audioDevices,
 				videoDevices,
+				outputDevices,
 				activeAudioDevice,
 				activeVideoDevice,
+				activeOutputDevice,
 				noiseSuppression,
+				echoCancellation,
+				autoGainControl,
 				switchAudioDevice,
 				switchVideoDevice,
+				switchOutputDevice,
 				setNoiseSuppression,
+				setEchoCancellation,
+				setAutoGainControl,
+				micLevel,
 				// Backwards compat
 				isFullscreen: viewMode === "fullscreen",
 				isMinimized: viewMode === "minimized",

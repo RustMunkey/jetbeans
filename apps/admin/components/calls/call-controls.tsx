@@ -45,12 +45,20 @@ export function CallControls({ variant = "floating", className }: CallControlsPr
 		hangUp,
 		audioDevices,
 		videoDevices,
+		outputDevices,
 		activeAudioDevice,
 		activeVideoDevice,
+		activeOutputDevice,
 		noiseSuppression,
+		echoCancellation,
+		autoGainControl,
 		switchAudioDevice,
 		switchVideoDevice,
+		switchOutputDevice,
 		setNoiseSuppression,
+		setEchoCancellation,
+		setAutoGainControl,
+		micLevel,
 	} = useCall()
 
 	const [settingsOpen, setSettingsOpen] = useState(false)
@@ -118,7 +126,7 @@ export function CallControls({ variant = "floating", className }: CallControlsPr
 				<PopoverContent
 					side="top"
 					align="center"
-					className="w-72 p-4 space-y-4"
+					className="w-80 p-4 space-y-4 max-h-[70vh] overflow-y-auto"
 				>
 					{/* Microphone */}
 					<div className="space-y-2">
@@ -135,7 +143,35 @@ export function CallControls({ variant = "floating", className }: CallControlsPr
 								</option>
 							))}
 						</select>
+						{/* Mic level meter */}
+						<div className="flex items-center gap-2">
+							<span className="text-xs text-muted-foreground shrink-0">Level</span>
+							<div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+								<div
+									className="h-full bg-primary rounded-full transition-all duration-100"
+									style={{ width: `${Math.min(micLevel * 100, 100)}%` }}
+								/>
+							</div>
+						</div>
 					</div>
+
+					{/* Speaker / Output */}
+					{outputDevices.length > 0 && (
+						<div className="space-y-2">
+							<Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Speaker</Label>
+							<select
+								value={activeOutputDevice}
+								onChange={(e) => switchOutputDevice(e.target.value)}
+								className="w-full text-sm rounded-md border bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+							>
+								{outputDevices.map((d) => (
+									<option key={d.deviceId} value={d.deviceId}>
+										{d.label || `Speaker ${d.deviceId.slice(0, 8)}`}
+									</option>
+								))}
+							</select>
+						</div>
+					)}
 
 					{/* Camera */}
 					<div className="space-y-2">
@@ -154,7 +190,11 @@ export function CallControls({ variant = "floating", className }: CallControlsPr
 						</select>
 					</div>
 
-					{/* Noise Suppression */}
+					{/* Audio Processing */}
+					<div className="space-y-1">
+						<Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Audio Processing</Label>
+					</div>
+
 					<div className="flex items-center justify-between">
 						<div>
 							<Label className="text-sm">Noise Suppression</Label>
@@ -163,6 +203,28 @@ export function CallControls({ variant = "floating", className }: CallControlsPr
 						<Switch
 							checked={noiseSuppression}
 							onCheckedChange={setNoiseSuppression}
+						/>
+					</div>
+
+					<div className="flex items-center justify-between">
+						<div>
+							<Label className="text-sm">Echo Cancellation</Label>
+							<p className="text-xs text-muted-foreground">Prevent audio feedback</p>
+						</div>
+						<Switch
+							checked={echoCancellation}
+							onCheckedChange={setEchoCancellation}
+						/>
+					</div>
+
+					<div className="flex items-center justify-between">
+						<div>
+							<Label className="text-sm">Auto Gain Control</Label>
+							<p className="text-xs text-muted-foreground">Normalize mic volume</p>
+						</div>
+						<Switch
+							checked={autoGainControl}
+							onCheckedChange={setAutoGainControl}
 						/>
 					</div>
 				</PopoverContent>

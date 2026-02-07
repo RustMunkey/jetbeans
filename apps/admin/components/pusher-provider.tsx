@@ -54,8 +54,8 @@ export function PusherProvider({
 		const client = new PusherClient(pusherKey, {
 			cluster: pusherCluster,
 			authEndpoint: "/api/pusher/auth",
-			// Enable automatic reconnection
-			enabledTransports: ["ws", "wss"],
+			// Allow all transports — if WebSocket fails (proxy/firewall),
+			// Pusher falls back to HTTP streaming/polling so events still arrive
 		})
 
 		// Handle all connection states
@@ -111,7 +111,17 @@ export function PusherProvider({
 		}
 		document.addEventListener("visibilitychange", handleVisibilityChange)
 
+		// Periodic health check — detect silent disconnections every 30s
+		const healthCheck = setInterval(() => {
+			const state = client.connection.state
+			if (state !== "connected" && state !== "connecting") {
+				console.log("[Pusher] Health check: not connected (state:", state, "), reconnecting...")
+				client.connect()
+			}
+		}, 30000)
+
 		return () => {
+			clearInterval(healthCheck)
 			document.removeEventListener("visibilitychange", handleVisibilityChange)
 			client.disconnect()
 		}
