@@ -533,7 +533,7 @@ export function FriendsTab({
 			body: messageBody,
 			attachments,
 			isEdited: false,
-			readAt: new Date(),
+			readAt: null,
 			createdAt: new Date(),
 			senderName: userName,
 			senderImage: userImage,
