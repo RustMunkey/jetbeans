@@ -7,6 +7,8 @@ const AUTH_IMAGES: string[] = [
 	"/images/FullSizeRender.jpg",
 	"/images/FullSizeRender 2.jpg",
 	"/images/IMG_6070.jpg",
+	"/images/calgary.jpg",
+	"/images/camp.jpg",
 ]
 
 const FADE_INTERVAL = 8000 // 8 seconds per image

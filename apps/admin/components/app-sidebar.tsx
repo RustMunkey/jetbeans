@@ -167,11 +167,6 @@ const data = {
         { title: "Customer Insights", url: "/analytics/customers" },
       ],
     },
-    {
-      title: "Scheduling",
-      url: "/scheduling",
-      icon: Calendar01Icon,
-    },
   ],
   navStore: [
     {
@@ -226,7 +221,7 @@ const data = {
       ],
     },
   ],
-  navSales: [
+  navCRM: [
     {
       title: "Contacts",
       url: "/sales/contacts",
@@ -254,6 +249,11 @@ const data = {
       title: "Calls",
       url: "/sales/calls",
       icon: Call02Icon,
+    },
+    {
+      title: "Scheduling",
+      url: "/scheduling",
+      icon: Calendar01Icon,
     },
   ],
   navOperations: [
@@ -952,9 +952,9 @@ function NormalSidebarContent({
       <NavRecent />
       <NavMain label="Overview" labelIcon={Home01Icon} items={data.navOverview} />
       <NavMain label="Store" labelIcon={Building03Icon} items={data.navStore} />
-      <NavMain label="Sales" labelIcon={SaleTag01Icon} items={data.navSales} />
       <NavMain label="Operations" labelIcon={Layers01Icon} items={data.navOperations} />
       <NavMain label="Growth" labelIcon={RocketIcon} items={navGrowth} />
+      <NavMain label="CRM" labelIcon={SaleTag01Icon} items={data.navCRM} />
       <NavMain label="Billing" labelIcon={Invoice02Icon} items={data.navBilling} />
       <NavMain label="System" labelIcon={Settings02Icon} items={navSystem} />
       <NavMain label="Developers" labelIcon={SourceCodeIcon} items={data.navDevelopers} />

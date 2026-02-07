@@ -647,7 +647,7 @@ function CreateAdminApiKeyDialog({ children, onCreated }: { children: React.Reac
 							<div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-3">
 								{[
 									{ key: "fullAccess" as const, label: "Full Access", desc: "Override all permissions" },
-									{ key: "readProducts" as const, label: "Read Products", desc: "View products and variants" },
+									{ key: "readProducts" as const, label: "Read Products", desc: "Products, categories, variants" },
 									{ key: "writeProducts" as const, label: "Write Products", desc: "Create/update/delete products" },
 									{ key: "readOrders" as const, label: "Read Orders", desc: "View orders" },
 									{ key: "writeOrders" as const, label: "Write Orders", desc: "Update order status" },
@@ -655,6 +655,18 @@ function CreateAdminApiKeyDialog({ children, onCreated }: { children: React.Reac
 									{ key: "writeCustomers" as const, label: "Write Customers", desc: "Update customer data" },
 									{ key: "readInventory" as const, label: "Read Inventory", desc: "View stock levels" },
 									{ key: "writeInventory" as const, label: "Write Inventory", desc: "Update stock levels" },
+									{ key: "readContent" as const, label: "Read Content", desc: "Collections, blog, pages, media" },
+									{ key: "writeContent" as const, label: "Write Content", desc: "Create/update/delete content" },
+									{ key: "readMarketing" as const, label: "Read Marketing", desc: "Discounts and campaigns" },
+									{ key: "writeMarketing" as const, label: "Write Marketing", desc: "Manage discounts" },
+									{ key: "readReviews" as const, label: "Read Reviews", desc: "View product reviews" },
+									{ key: "writeReviews" as const, label: "Write Reviews", desc: "Moderate reviews" },
+									{ key: "readShipping" as const, label: "Read Shipping", desc: "Zones and rates" },
+									{ key: "writeShipping" as const, label: "Write Shipping", desc: "Manage shipping zones" },
+									{ key: "readSubscriptions" as const, label: "Read Subscriptions", desc: "View subscriptions" },
+									{ key: "writeSubscriptions" as const, label: "Write Subscriptions", desc: "Manage subscriptions" },
+									{ key: "readAuctions" as const, label: "Read Auctions", desc: "View auctions and bids" },
+									{ key: "writeAuctions" as const, label: "Write Auctions", desc: "Create/manage auctions" },
 									{ key: "readWebhooks" as const, label: "Read Webhooks", desc: "View webhook configs" },
 									{ key: "writeWebhooks" as const, label: "Write Webhooks", desc: "Manage webhooks" },
 									{ key: "readAnalytics" as const, label: "Read Analytics", desc: "View analytics data" },
@@ -809,48 +821,111 @@ const ADMIN_API_ENDPOINTS = [
 	{
 		method: "GET",
 		path: "/api/v1/products",
-		description: "List all products with pagination",
-		example: `curl -H "Authorization: Bearer jb_live_xxxxx" \\
-  https://admin.jetbeans.app/api/v1/products?page=1&limit=50`,
-	},
-	{
-		method: "GET",
-		path: "/api/v1/products/:id",
-		description: "Get a single product with variants",
-		example: `curl -H "Authorization: Bearer jb_live_xxxxx" \\
-  https://admin.jetbeans.app/api/v1/products/abc123`,
+		description: "List all products with pagination, search, category filter",
+		example: `curl -H "X-API-Key: jb_live_xxxxx" \\
+  https://app.jetbeans.cafe/api/v1/products?page=1&limit=50`,
 	},
 	{
 		method: "POST",
 		path: "/api/v1/products",
 		description: "Create a new product",
-		example: `curl -X POST -H "Authorization: Bearer jb_live_xxxxx" \\
+		example: `curl -X POST -H "X-API-Key: jb_live_xxxxx" \\
   -H "Content-Type: application/json" \\
   -d '{"name": "Blue Sapphire", "price": 299.99}' \\
-  https://admin.jetbeans.app/api/v1/products`,
+  https://app.jetbeans.cafe/api/v1/products`,
+	},
+	{
+		method: "GET",
+		path: "/api/v1/categories",
+		description: "List categories with product counts",
+		example: `curl -H "X-API-Key: jb_live_xxxxx" \\
+  https://app.jetbeans.cafe/api/v1/categories`,
 	},
 	{
 		method: "GET",
 		path: "/api/v1/orders",
-		description: "List orders with filters",
-		example: `curl -H "Authorization: Bearer jb_live_xxxxx" \\
-  https://admin.jetbeans.app/api/v1/orders?status=pending`,
+		description: "List orders with status, date, and customer filters",
+		example: `curl -H "X-API-Key: jb_live_xxxxx" \\
+  https://app.jetbeans.cafe/api/v1/orders?status=pending`,
 	},
 	{
 		method: "PATCH",
 		path: "/api/v1/orders/:id",
-		description: "Update order status",
-		example: `curl -X PATCH -H "Authorization: Bearer jb_live_xxxxx" \\
+		description: "Update order status and tracking info",
+		example: `curl -X PATCH -H "X-API-Key: jb_live_xxxxx" \\
   -H "Content-Type: application/json" \\
   -d '{"status": "shipped", "trackingNumber": "1Z999..."}' \\
-  https://admin.jetbeans.app/api/v1/orders/abc123`,
+  https://app.jetbeans.cafe/api/v1/orders/abc123`,
 	},
 	{
 		method: "GET",
 		path: "/api/v1/customers",
 		description: "List customers with order stats",
-		example: `curl -H "Authorization: Bearer jb_live_xxxxx" \\
-  https://admin.jetbeans.app/api/v1/customers`,
+		example: `curl -H "X-API-Key: jb_live_xxxxx" \\
+  https://app.jetbeans.cafe/api/v1/customers`,
+	},
+	{
+		method: "GET",
+		path: "/api/v1/inventory",
+		description: "List inventory levels, filter by low/out of stock",
+		example: `curl -H "X-API-Key: jb_live_xxxxx" \\
+  https://app.jetbeans.cafe/api/v1/inventory?status=low_stock`,
+	},
+	{
+		method: "GET",
+		path: "/api/v1/collections",
+		description: "List content collections with entry counts",
+		example: `curl -H "X-API-Key: jb_live_xxxxx" \\
+  https://app.jetbeans.cafe/api/v1/collections`,
+	},
+	{
+		method: "GET",
+		path: "/api/v1/blog",
+		description: "List blog posts with status and search filters",
+		example: `curl -H "X-API-Key: jb_live_xxxxx" \\
+  https://app.jetbeans.cafe/api/v1/blog?status=published`,
+	},
+	{
+		method: "GET",
+		path: "/api/v1/pages",
+		description: "List site pages",
+		example: `curl -H "X-API-Key: jb_live_xxxxx" \\
+  https://app.jetbeans.cafe/api/v1/pages`,
+	},
+	{
+		method: "GET",
+		path: "/api/v1/reviews",
+		description: "List product reviews with moderation status filter",
+		example: `curl -H "X-API-Key: jb_live_xxxxx" \\
+  https://app.jetbeans.cafe/api/v1/reviews?status=pending`,
+	},
+	{
+		method: "GET",
+		path: "/api/v1/discounts",
+		description: "List discount codes and promotions",
+		example: `curl -H "X-API-Key: jb_live_xxxxx" \\
+  https://app.jetbeans.cafe/api/v1/discounts`,
+	},
+	{
+		method: "GET",
+		path: "/api/v1/auctions",
+		description: "List auctions with status and type filters",
+		example: `curl -H "X-API-Key: jb_live_xxxxx" \\
+  https://app.jetbeans.cafe/api/v1/auctions?status=active`,
+	},
+	{
+		method: "GET",
+		path: "/api/v1/shipping/zones",
+		description: "List shipping zones with associated rates",
+		example: `curl -H "X-API-Key: jb_live_xxxxx" \\
+  https://app.jetbeans.cafe/api/v1/shipping/zones`,
+	},
+	{
+		method: "GET",
+		path: "/api/v1/subscriptions",
+		description: "List subscriptions with status filter",
+		example: `curl -H "X-API-Key: jb_live_xxxxx" \\
+  https://app.jetbeans.cafe/api/v1/subscriptions`,
 	},
 ]
 
