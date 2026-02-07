@@ -401,10 +401,8 @@ export async function fetchLinkPreview(url: string): Promise<{
 
 // --- INBOX ---
 import { inboxEmails, inboxReplies } from "@jetbeans/db/schema"
-import { Resend } from "resend"
+import { getWorkspaceResend, getWorkspaceEmailConfig as getWsEmailConfig } from "@/lib/resend"
 import type { InboxEmail } from "./types"
-
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
 export async function getInboxEmails(): Promise<InboxEmail[]> {
 	const workspace = await requireWorkspace()
@@ -496,16 +494,23 @@ export async function sendInboxReply(data: { emailId: string; body: string }) {
 		.where(eq(users.id, session.user.id))
 		.limit(1)
 
-	const senderName = sender?.name || session.user.name || "JetBeans Support"
+	const senderName = sender?.name || session.user.name || "Support"
 
-	// Send email via Resend
+	// Get workspace-specific Resend instance and email config (BYOK)
+	const resend = await getWorkspaceResend(workspace.id)
+	const emailConfig = await getWsEmailConfig(workspace.id)
+
+	// Send email via Resend (uses workspace's own API key if configured)
 	let resendId: string | undefined
 	if (resend) {
 		try {
+			const fromAddress = emailConfig.fromName
+				? `${senderName} <${emailConfig.fromEmail}>`
+				: `${senderName} <${emailConfig.fromEmail}>`
 			const result = await resend.emails.send({
-				from: `${senderName} <support@jetbeans.cafe>`,
+				from: fromAddress,
 				to: email.fromEmail,
-				replyTo: "support@jetbeans.cafe",
+				replyTo: emailConfig.replyTo || emailConfig.fromEmail,
 				subject: `Re: ${email.subject}`,
 				text: data.body,
 				html: `<div style="font-family: sans-serif; font-size: 14px; line-height: 1.6;">
@@ -513,7 +518,6 @@ export async function sendInboxReply(data: { emailId: string; body: string }) {
 					<hr style="border: none; border-top: 1px solid #e5e5e5; margin: 24px 0;">
 					<p style="color: #666; font-size: 12px;">
 						${senderName}<br>
-						JetBeans Support<br>
 						<a href="https://jetbeans.cafe">jetbeans.cafe</a>
 					</p>
 				</div>`,
@@ -685,6 +689,17 @@ export async function getAllMessagesForList() {
 	// Sort by date descending
 	items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 	return items
+}
+
+export async function broadcastTyping(recipientId: string) {
+	const session = await auth.api.getSession({ headers: await headers() })
+	if (!session) return
+	if (pusherServer) {
+		await pusherServer.trigger(`private-user-${recipientId}`, "typing", {
+			userId: session.user.id,
+			userName: session.user.name,
+		}).catch(() => {})
+	}
 }
 
 export async function getInboxUnreadCount() {

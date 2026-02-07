@@ -9,7 +9,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { usePusher } from "@/components/pusher-provider"
 import { useChat } from "@/components/messages"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { sendTeamMessage, markMessageRead, getMessageReadStatus, getTeamMessages, uploadChatImage, fetchLinkPreview } from "./actions"
+import { sendTeamMessage, markMessageRead, getMessageReadStatus, getTeamMessages, uploadChatImage, fetchLinkPreview, broadcastTyping } from "./actions"
 import type { TeamMessage, MessageAttachment, CallMessageData } from "./types"
 
 // URL regex for detecting links in messages
@@ -233,6 +233,9 @@ export function ChatTab({
 	const [pendingAttachments, setPendingAttachments] = useState<MessageAttachment[]>([])
 	const [isDragOver, setIsDragOver] = useState(false)
 	const [uploadingImage, setUploadingImage] = useState(false)
+	const [typingUsers, setTypingUsers] = useState<Record<string, { name: string; timeout: NodeJS.Timeout }>>({})
+	const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+	const lastTypingBroadcast = useRef(0)
 	const messagesEndRef = useRef<HTMLDivElement>(null)
 	const messagesContainerRef = useRef<HTMLDivElement>(null)
 	const fileInputRef = useRef<HTMLInputElement>(null)
@@ -385,18 +388,29 @@ export function ChatTab({
 				return [...prev, data]
 			})
 
-			// Play notification sound if message is from different conversation
-			// Use ref to get current active without causing re-subscription
-			const currentActive = activeRef.current
-			const isFromCurrentConversation =
-				(currentActive.type === "channel" && data.channel === currentActive.id) ||
-				(currentActive.type === "dm" && data.channel === "dm" && data.senderId === currentActive.id)
+			// Play notification sound for all incoming messages
+			const audio = new Audio("/sounds/message.mp3")
+			audio.volume = 0.5
+			audio.play().catch(() => {})
+		}
 
-			if (!isFromCurrentConversation) {
-				const audio = new Audio("/sounds/message.mp3")
-				audio.volume = 0.5
-				audio.play().catch(() => {})
-			}
+		// Typing indicator
+		const handleTyping = (data: { userId: string; userName: string }) => {
+			setTypingUsers((prev) => {
+				// Clear existing timeout for this user
+				if (prev[data.userId]?.timeout) {
+					clearTimeout(prev[data.userId].timeout)
+				}
+				// Set a timeout to remove typing state after 3s
+				const timeout = setTimeout(() => {
+					setTypingUsers((p) => {
+						const next = { ...p }
+						delete next[data.userId]
+						return next
+					})
+				}, 3000)
+				return { ...prev, [data.userId]: { name: data.userName, timeout } }
+			})
 		}
 
 		// Real-time read receipts
@@ -426,6 +440,7 @@ export function ChatTab({
 
 		ch.bind("new-message", handleNewMessage)
 		ch.bind("message-read", handleMessageRead)
+		ch.bind("typing", handleTyping)
 
 		return () => {
 			console.log(`[Chat] Unbinding handlers for ${channelName}`)
@@ -433,22 +448,34 @@ export function ChatTab({
 			// HeaderToolbar also uses this channel for notifications
 			ch.unbind("new-message", handleNewMessage)
 			ch.unbind("message-read", handleMessageRead)
+			ch.unbind("typing", handleTyping)
 			ch.unbind("pusher:subscription_succeeded")
 			ch.unbind("pusher:subscription_error")
 		}
 		// Note: active is accessed via activeRef to avoid re-subscription on conversation switch
 	}, [pusher, userId])
 
-	// Auto-scroll to bottom only if user is already at bottom
+	// Auto-scroll on new messages (smooth) or initial load (instant)
+	const hasScrolledRef = useRef(false)
 	useEffect(() => {
-		if (isAtBottom) {
+		if (messages.length === 0) {
+			hasScrolledRef.current = false
+			return
+		}
+		if (!hasScrolledRef.current) {
+			// First load — instant scroll to bottom
+			messagesEndRef.current?.scrollIntoView({ behavior: "auto" })
+			setIsAtBottom(true)
+			hasScrolledRef.current = true
+		} else if (isAtBottom) {
+			// New messages while at bottom — smooth scroll
 			messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
 		}
 	}, [messages, isAtBottom])
 
-	// Scroll to bottom when switching conversations
+	// Reset scroll flag on conversation switch
 	useEffect(() => {
-		messagesEndRef.current?.scrollIntoView({ behavior: "auto" })
+		hasScrolledRef.current = false
 		setIsAtBottom(true)
 	}, [active])
 
@@ -554,6 +581,21 @@ export function ChatTab({
 		}
 	}
 
+	// Broadcast typing indicator (debounced to 2s intervals)
+	function handleTypingBroadcast() {
+		const now = Date.now()
+		if (now - lastTypingBroadcast.current < 2000) return
+		lastTypingBroadcast.current = now
+		if (active.type === "dm") {
+			broadcastTyping(active.id).catch(() => {})
+		} else if (active.type === "channel") {
+			// For channels, broadcast to all team members
+			teamMembers.forEach((m) => {
+				if (m.id !== userId) broadcastTyping(m.id).catch(() => {})
+			})
+		}
+	}
+
 
 	// Mark message as read when it scrolls into view
 	const observerRef = useRef<IntersectionObserver | null>(null)
@@ -639,12 +681,10 @@ export function ChatTab({
 						let readStatus = null
 						if (isOwn && receipt && isLastOwnMessage) {
 							if (active.type === "dm") {
-								// DM: show "Read" when recipient read it
 								if (receipt.allRead) {
 									readStatus = "Read"
 								}
 							} else {
-								// Channel: show "Read by all" or nothing
 								if (receipt.allRead && receipt.totalRecipients > 0) {
 									readStatus = "Read by all"
 								} else if (receipt.readCount > 0) {
@@ -655,6 +695,15 @@ export function ChatTab({
 
 						const isUnread = !isOwn && !msg.readAt
 						const isHighlighted = msg.id === highlightedId
+
+						// Message grouping: check if next message is from same sender (for 1-on-1 DMs)
+						const nextMsg = filteredMessages[idx + 1]
+						const isDm = active.type === "dm"
+						const isSameSenderAsNext = nextMsg && nextMsg.senderId === msg.senderId
+						const isGroupedMessage = isDm && isSameSenderAsNext && nextMsg.contentType !== "call"
+						const prevMsg = filteredMessages[idx - 1]
+						const isSameSenderAsPrev = prevMsg && prevMsg.senderId === msg.senderId
+						const isFirstInGroup = isDm && (!isSameSenderAsPrev || prevMsg?.contentType === "call")
 
 						// Render call messages with special styling
 						if (msg.contentType === "call" && msg.callData) {
@@ -681,12 +730,18 @@ export function ChatTab({
 								key={msg.id}
 								ref={(el) => observeMessage(el, msg.id, isUnread)}
 								data-message-id={msg.id}
-								className={`group flex gap-2.5 items-start rounded-lg ${isOwn ? "flex-row-reverse" : ""} ${isHighlighted ? "animate-[pulse-highlight_0.6s_ease-out] relative z-[9999]" : ""}`}
+								className={`group flex gap-2.5 items-start rounded-lg ${isOwn ? "flex-row-reverse" : ""} ${isHighlighted ? "animate-[pulse-highlight_0.6s_ease-out] relative z-[9999]" : ""} ${isGroupedMessage && isDm ? "mb-0.5" : ""}`}
+								style={isGroupedMessage && isDm ? { marginBottom: "2px" } : undefined}
 							>
-								<Avatar className="h-9 w-9 shrink-0">
-									{msg.senderImage && <AvatarImage src={msg.senderImage} alt={msg.senderName} />}
-									<AvatarFallback className="text-xs">{getInitials(msg.senderName)}</AvatarFallback>
-								</Avatar>
+								{/* Avatar: show for channels always, for DMs only on first of group */}
+								{(!isDm || isFirstInGroup) ? (
+									<Avatar className="h-9 w-9 shrink-0">
+										{msg.senderImage && <AvatarImage src={msg.senderImage} alt={msg.senderName} />}
+										<AvatarFallback className="text-xs">{getInitials(msg.senderName)}</AvatarFallback>
+									</Avatar>
+								) : (
+									<div className="w-9 shrink-0" /> /* spacer to maintain alignment */
+								)}
 								<div className={`max-w-[70%] flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
 									{/* Attachments (images) */}
 									{msg.attachments && msg.attachments.length > 0 && (
@@ -708,7 +763,7 @@ export function ChatTab({
 											))}
 										</div>
 									)}
-									{/* Message bubble - hide if message is only a URL (link preview will show instead) */}
+									{/* Message bubble */}
 									{msg.body && !isOnlyUrl(msg.body) && (
 										<div className={`flex items-end gap-1 ${isOwn ? "flex-row-reverse" : ""}`}>
 											<div className={`px-3 py-2 text-sm whitespace-pre-wrap break-words ${
@@ -738,27 +793,49 @@ export function ChatTab({
 									{msg.body && getFirstUrl(msg.body) && (
 										<LinkPreview url={getFirstUrl(msg.body)!} />
 									)}
-									<div className={`flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground ${isOwn ? "flex-row-reverse" : ""}`}>
-										<span className="font-medium">{isOwn ? "You" : msg.senderName.split(" ")[0]}</span>
-										<span className="text-muted-foreground/50">·</span>
-										<span>{timeAgo(msg.createdAt)}</span>
-										{readStatus && (
-											<>
-												<span className="text-muted-foreground/50">·</span>
-												<span className="flex items-center gap-0.5">
-													<svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-														<path d="M2 8.5l3.5 3.5L14 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-													</svg>
-													{readStatus}
-												</span>
-											</>
-										)}
-									</div>
+									{/* Name/timestamp: show always in channels, only on last in group for DMs */}
+									{(!isDm || !isGroupedMessage) && (
+										<div className={`flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground ${isOwn ? "flex-row-reverse" : ""}`}>
+											<span className="font-medium">{isOwn ? "You" : msg.senderName.split(" ")[0]}</span>
+											<span className="text-muted-foreground/50">·</span>
+											<span>{timeAgo(msg.createdAt)}</span>
+											{readStatus && (
+												<>
+													<span className="text-muted-foreground/50">·</span>
+													<span className="flex items-center gap-0.5 text-primary/70">
+														<svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+															<path d="M2 8.5l3.5 3.5L14 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+														</svg>
+														{readStatus}
+													</span>
+												</>
+											)}
+										</div>
+									)}
 								</div>
 							</div>
 						)
 					})
 				)}
+				{/* Typing indicator */}
+				{Object.keys(typingUsers).length > 0 && (() => {
+					const names = Object.values(typingUsers).map(u => u.name.split(" ")[0])
+					const label = names.length === 1
+						? `${names[0]} is typing`
+						: `${names.join(", ")} are typing`
+					return (
+						<div className="flex items-center gap-2 px-1">
+							<div className="flex gap-1 items-center px-3 py-2 rounded-lg bg-muted">
+								<span className="flex gap-0.5">
+									<span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "0ms" }} />
+									<span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "150ms" }} />
+									<span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "300ms" }} />
+								</span>
+							</div>
+							<span className="text-[10px] text-muted-foreground">{label}</span>
+						</div>
+					)
+				})()}
 				<div ref={messagesEndRef} />
 			</div>
 
@@ -814,7 +891,10 @@ export function ChatTab({
 					</button>
 					<textarea
 						value={body}
-						onChange={(e) => setBody(e.target.value)}
+						onChange={(e) => {
+							setBody(e.target.value)
+							if (e.target.value.trim()) handleTypingBroadcast()
+						}}
 						onKeyDown={handleKeyDown}
 						placeholder={isDragOver ? "Drop images here..." : placeholder}
 						className="flex-1 bg-transparent border-0 resize-none text-sm min-h-[24px] max-h-32 py-1 focus:outline-none placeholder:text-muted-foreground"

@@ -2,7 +2,7 @@
 
 import { headers } from "next/headers"
 import { db } from "@jetbeans/db/client"
-import { users, friendships, directMessages, dmConversations } from "@jetbeans/db/schema"
+import { users, friendships, directMessages, dmConversations, notifications } from "@jetbeans/db/schema"
 import { eq, ne, and, or, like, isNotNull, desc, asc, sql, inArray } from "@jetbeans/db/drizzle"
 import { auth } from "@/lib/auth"
 import { pusherServer } from "@/lib/pusher-server"
@@ -91,6 +91,10 @@ export async function sendFriendRequest(addresseeId: string) {
 		if (status === "accepted") throw new Error("Already friends")
 		if (status === "pending") throw new Error("Request already pending")
 		if (status === "blocked") throw new Error("Cannot send request")
+		// If declined, remove old record so they can re-add
+		if (status === "declined") {
+			await db.delete(friendships).where(eq(friendships.id, existing[0].id))
+		}
 	}
 
 	await db.insert(friendships).values({
@@ -99,17 +103,28 @@ export async function sendFriendRequest(addresseeId: string) {
 		status: "pending",
 	})
 
-	// Notify the addressee via Pusher
-	if (pusherServer) {
-		const [requester] = await db
-			.select({ name: users.name, image: users.image })
-			.from(users)
-			.where(eq(users.id, user.id))
-			.limit(1)
+	// Get requester info for notification + Pusher
+	const [requester] = await db
+		.select({ name: users.name, image: users.image })
+		.from(users)
+		.where(eq(users.id, user.id))
+		.limit(1)
 
+	// Create a persistent DB notification for the addressee
+	await db.insert(notifications).values({
+		userId: addresseeId,
+		type: "friend_request",
+		title: "New friend request",
+		body: `${requester?.name || "Someone"} sent you a friend request.`,
+		link: "/discover",
+		metadata: { fromUserId: user.id, fromUserName: requester?.name, fromUserImage: requester?.image },
+	})
+
+	// Notify the addressee via Pusher for real-time
+	if (pusherServer) {
 		await pusherServer.trigger(`private-user-${addresseeId}`, "friend-request", {
 			from: { id: user.id, name: requester?.name, image: requester?.image },
-		})
+		}).catch(() => {})
 	}
 
 	return { success: true }
@@ -129,11 +144,28 @@ export async function acceptFriendRequest(requesterId: string) {
 			)
 		)
 
-	// Notify the requester
+	// Get accepter info for notification
+	const [accepter] = await db
+		.select({ name: users.name, image: users.image })
+		.from(users)
+		.where(eq(users.id, user.id))
+		.limit(1)
+
+	// Create a DB notification for the requester
+	await db.insert(notifications).values({
+		userId: requesterId,
+		type: "friend_accepted",
+		title: "Friend request accepted",
+		body: `${accepter?.name || "Someone"} accepted your friend request.`,
+		link: "/discover",
+		metadata: { fromUserId: user.id, fromUserName: accepter?.name, fromUserImage: accepter?.image },
+	})
+
+	// Notify the requester via Pusher for real-time
 	if (pusherServer) {
 		await pusherServer.trigger(`private-user-${requesterId}`, "friend-accepted", {
 			userId: user.id,
-		})
+		}).catch(() => {})
 	}
 
 	return { success: true }
@@ -286,6 +318,50 @@ export async function getFriendshipStatus(otherUserId: string) {
 	}
 }
 
+export async function getMutualFriends(otherUserId: string) {
+	const user = await getCurrentUser()
+
+	// Get current user's friend IDs
+	const myFriendships = await db
+		.select({ requesterId: friendships.requesterId, addresseeId: friendships.addresseeId })
+		.from(friendships)
+		.where(
+			and(
+				or(eq(friendships.requesterId, user.id), eq(friendships.addresseeId, user.id)),
+				eq(friendships.status, "accepted")
+			)
+		)
+
+	const myFriendIds = new Set(
+		myFriendships.map(f => f.requesterId === user.id ? f.addresseeId : f.requesterId)
+	)
+
+	// Get other user's friend IDs
+	const theirFriendships = await db
+		.select({ requesterId: friendships.requesterId, addresseeId: friendships.addresseeId })
+		.from(friendships)
+		.where(
+			and(
+				or(eq(friendships.requesterId, otherUserId), eq(friendships.addresseeId, otherUserId)),
+				eq(friendships.status, "accepted")
+			)
+		)
+
+	const theirFriendIds = new Set(
+		theirFriendships.map(f => f.requesterId === otherUserId ? f.addresseeId : f.requesterId)
+	)
+
+	// Find intersection
+	const mutualIds = [...myFriendIds].filter(id => theirFriendIds.has(id))
+	if (mutualIds.length === 0) return []
+
+	return db
+		.select({ id: users.id, name: users.name, image: users.image })
+		.from(users)
+		.where(inArray(users.id, mutualIds))
+		.limit(10)
+}
+
 // ============ DIRECT MESSAGES ============
 
 export async function getOrCreateConversation(otherUserId: string) {
@@ -373,7 +449,7 @@ export async function getConversations() {
 	return result
 }
 
-export async function getDirectMessages(conversationId: string, limit = 50) {
+export async function getDirectMessages(conversationId: string, limit = 200) {
 	const user = await getCurrentUser()
 
 	// Verify user is part of conversation
@@ -393,6 +469,7 @@ export async function getDirectMessages(conversationId: string, limit = 50) {
 
 	if (!conv) throw new Error("Conversation not found")
 
+	// Fetch latest messages (desc) then reverse so they display oldest-first
 	const messages = await db
 		.select({
 			id: directMessages.id,
@@ -408,10 +485,10 @@ export async function getDirectMessages(conversationId: string, limit = 50) {
 		.from(directMessages)
 		.innerJoin(users, eq(users.id, directMessages.senderId))
 		.where(eq(directMessages.conversationId, conversationId))
-		.orderBy(asc(directMessages.createdAt))
+		.orderBy(desc(directMessages.createdAt))
 		.limit(limit)
 
-	return messages
+	return messages.reverse()
 }
 
 export async function sendDirectMessage(conversationId: string, body: string, attachments?: any[]) {
@@ -518,6 +595,7 @@ export async function getUserProfile(userId: string) {
 			bio: users.bio,
 			location: users.location,
 			website: users.website,
+			occupation: users.occupation,
 			socials: users.socials,
 			createdAt: users.createdAt,
 		})

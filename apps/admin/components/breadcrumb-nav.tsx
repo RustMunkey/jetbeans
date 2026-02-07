@@ -87,6 +87,8 @@ const labels: Record<string, string> = {
   webhooks: "Webhooks",
   test: "Test Page",
   new: "New",
+  scheduling: "Scheduling",
+  profile: "Profile",
 }
 
 function toTitleCase(str: string) {

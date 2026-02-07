@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { AddTeamIcon, Tick01Icon, Cancel01Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
@@ -151,16 +152,18 @@ export function FriendRequestsPopover() {
             <div className="divide-y">
               {incoming.map((request) => (
                 <div key={request.requesterId} className="flex items-center gap-3 px-4 py-3">
-                  <Avatar size="sm">
-                    {request.requesterImage && (
-                      <AvatarImage src={request.requesterImage} alt={request.requesterName || ""} />
-                    )}
-                    <AvatarFallback>
-                      {(request.requesterName || "?").charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
+                  <Link href={`/profile/${request.requesterId}`} className="shrink-0">
+                    <Avatar size="sm">
+                      {request.requesterImage && (
+                        <AvatarImage src={request.requesterImage} alt={request.requesterName || ""} />
+                      )}
+                      <AvatarFallback>
+                        {(request.requesterName || "?").charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Link>
+                  <Link href={`/profile/${request.requesterId}`} className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate hover:underline">
                       {request.requesterName || "Unknown"}
                     </p>
                     {request.requesterUsername && (
@@ -168,7 +171,7 @@ export function FriendRequestsPopover() {
                         @{request.requesterUsername}
                       </p>
                     )}
-                  </div>
+                  </Link>
                   <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"

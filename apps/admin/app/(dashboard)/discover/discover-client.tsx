@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Search01Icon, Cancel01Icon, UserGroupIcon } from "@hugeicons/core-free-icons"
 import { Loader2 } from "lucide-react"
+import Link from "next/link"
 import { useDebounce } from "@/hooks/use-debounce"
 import {
 	searchAllUsers,
@@ -157,6 +158,11 @@ export function DiscoverClient({
 		try {
 			await removeFriend(friendId)
 			setFriends(prev => prev.filter(f => f.id !== friendId))
+			// Also clear from outgoing in case of stale state
+			setPendingRequests(prev => ({
+				...prev,
+				outgoing: prev.outgoing.filter(r => r.addresseeId !== friendId),
+			}))
 		} finally {
 			setLoadingAction(null)
 		}
@@ -222,16 +228,16 @@ export function DiscoverClient({
 									key={user.id}
 									className="flex items-center gap-3 px-4 py-2.5 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
 								>
-									<div className="relative overflow-visible">
+									<Link href={`/profile/${user.id}`} className="relative overflow-visible shrink-0">
 										<Avatar className="size-8">
 											{user.image && <AvatarImage src={user.image} alt={user.name} />}
 											<AvatarFallback>{getInitials(user.name)}</AvatarFallback>
 										</Avatar>
 										<StatusDot status={getStatus(user.id)} size="sm" />
-									</div>
-									<div className="flex-1 min-w-0">
+									</Link>
+									<Link href={`/profile/${user.id}`} className="flex-1 min-w-0">
 										<div className="flex items-center gap-2">
-											<span className="text-sm font-medium">{user.name}</span>
+											<span className="text-sm font-medium hover:underline">{user.name}</span>
 											{user.username && (
 												<span className="text-xs text-muted-foreground">@{user.username}</span>
 											)}
@@ -239,7 +245,7 @@ export function DiscoverClient({
 										{user.bio && (
 											<p className="text-xs text-muted-foreground truncate">{user.bio}</p>
 										)}
-									</div>
+									</Link>
 									{isFriend(user.id) ? (
 										<Badge variant="outline" className="text-[10px]">Friends</Badge>
 									) : isPendingOutgoing(user.id) ? (
@@ -298,19 +304,19 @@ export function DiscoverClient({
 									key={req.requesterId}
 									className="flex items-center gap-3 px-4 py-2.5 rounded-lg border bg-card"
 								>
-									<div className="relative overflow-visible">
+									<Link href={`/profile/${req.requesterId}`} className="relative overflow-visible shrink-0">
 										<Avatar className="size-8">
 											{req.requesterImage && <AvatarImage src={req.requesterImage} alt={req.requesterName} />}
 											<AvatarFallback>{getInitials(req.requesterName)}</AvatarFallback>
 										</Avatar>
 										<StatusDot status={getStatus(req.requesterId)} size="sm" />
-									</div>
-									<div className="flex-1 min-w-0">
-										<p className="text-sm font-medium">{req.requesterName}</p>
+									</Link>
+									<Link href={`/profile/${req.requesterId}`} className="flex-1 min-w-0">
+										<p className="text-sm font-medium hover:underline">{req.requesterName}</p>
 										{req.requesterUsername && (
 											<p className="text-xs text-muted-foreground">@{req.requesterUsername}</p>
 										)}
-									</div>
+									</Link>
 									<div className="flex gap-1">
 										<Button
 											size="sm"
@@ -357,19 +363,19 @@ export function DiscoverClient({
 									key={friend.id}
 									className="flex items-center gap-3 px-4 py-2.5 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
 								>
-									<div className="relative overflow-visible">
+									<Link href={`/profile/${friend.id}`} className="relative overflow-visible shrink-0">
 										<Avatar className="size-8">
 											{friend.image && <AvatarImage src={friend.image} alt={friend.name} />}
 											<AvatarFallback>{getInitials(friend.name)}</AvatarFallback>
 										</Avatar>
 										<StatusDot status={getStatus(friend.id)} size="sm" />
-									</div>
-									<div className="flex-1 min-w-0">
-										<p className="text-sm font-medium">{friend.name}</p>
+									</Link>
+									<Link href={`/profile/${friend.id}`} className="flex-1 min-w-0">
+										<p className="text-sm font-medium hover:underline">{friend.name}</p>
 										{friend.username && (
 											<p className="text-xs text-muted-foreground">@{friend.username}</p>
 										)}
-									</div>
+									</Link>
 									<Button
 										size="sm"
 										variant="ghost"

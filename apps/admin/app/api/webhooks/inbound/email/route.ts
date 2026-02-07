@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { db } from "@jetbeans/db/client"
-import { eq, sql } from "@jetbeans/db/drizzle"
-import { inboxEmails, users, notifications, orders, shipmentTracking, shippingCarriers, workspaces } from "@jetbeans/db/schema"
+import { eq, and, sql } from "@jetbeans/db/drizzle"
+import { inboxEmails, users, notifications, orders, shipmentTracking, shippingCarriers, workspaces, workspaceMembers, workspaceIntegrations } from "@jetbeans/db/schema"
 import { pusherServer } from "@/lib/pusher-server"
 import { wsChannel } from "@/lib/pusher-channels"
 import { isShippingEmail, parseShippingEmail } from "@/lib/tracking/parser"
@@ -124,10 +124,44 @@ export async function POST(request: Request) {
 	}
 
 	try {
-		// Create inbox email
+		// Determine the 'to' address to route this email to the correct workspace
+		let toEmail: string | null = null
+		if ("type" in payload && payload.type === "email.received") {
+			toEmail = (payload as ResendInboundPayload).data.to?.[0] || null
+		} else if ("to" in payload) {
+			toEmail = (payload as GenericEmailPayload).to || null
+		}
+
+		// Look up workspace by matching 'to' address against configured Resend fromEmail
+		let workspace: { id: string } | undefined
+		if (toEmail) {
+			const [match] = await db
+				.select({ workspaceId: workspaceIntegrations.workspaceId })
+				.from(workspaceIntegrations)
+				.where(
+					and(
+						eq(workspaceIntegrations.provider, "resend"),
+						eq(workspaceIntegrations.isActive, true),
+						sql`${workspaceIntegrations.metadata}->>'fromEmail' = ${toEmail}`
+					)
+				)
+				.limit(1)
+			if (match) {
+				workspace = { id: match.workspaceId }
+			}
+		}
+
+		// Fallback: first workspace (for backwards compatibility)
+		if (!workspace) {
+			const [first] = await db.select({ id: workspaces.id }).from(workspaces).limit(1)
+			workspace = first
+		}
+
+		// Create inbox email (with workspace scope)
 		const [email] = await db
 			.insert(inboxEmails)
 			.values({
+				workspaceId: workspace?.id,
 				fromName,
 				fromEmail,
 				subject,
@@ -138,56 +172,57 @@ export async function POST(request: Request) {
 			})
 			.returning()
 
-		// Broadcast to admins via Pusher (workspace-scoped)
-		if (pusherServer) {
-			const [workspace] = await db.select({ id: workspaces.id }).from(workspaces).limit(1)
-			if (workspace) {
-				await pusherServer.trigger(wsChannel(workspace.id, "inbox"), "new-email", {
-					id: email.id,
-					fromName,
-					fromEmail,
-					subject,
-					body: body.slice(0, 200), // Preview only
-					receivedAt: email.receivedAt.toISOString(),
-					status: "unread",
-				})
-			}
+		// Broadcast to workspace via Pusher
+		if (pusherServer && workspace) {
+			await pusherServer.trigger(wsChannel(workspace.id, "inbox"), "new-email", {
+				id: email.id,
+				fromName,
+				fromEmail,
+				subject,
+				body: body.slice(0, 200), // Preview only
+				receivedAt: email.receivedAt.toISOString(),
+				status: "unread",
+			})
 		}
 
-		// Create notifications for all admin users
-		try {
-			const adminUsers = await db
-				.select({ id: users.id })
-				.from(users)
+		// Create notifications only for workspace members (not all users)
+		if (workspace) {
+			try {
+				const members = await db
+					.select({ userId: workspaceMembers.userId })
+					.from(workspaceMembers)
+					.where(eq(workspaceMembers.workspaceId, workspace.id))
 
-			for (const user of adminUsers) {
-				const emailLink = `/messages?email=${email.id}`
-				const [notification] = await db
-					.insert(notifications)
-					.values({
-						userId: user.id,
-						type: "inbox",
-						title: `New email from ${fromName}`,
-						body: subject,
-						link: emailLink,
-					})
-					.returning()
+				for (const member of members) {
+					const emailLink = `/messages?email=${email.id}`
+					const [notification] = await db
+						.insert(notifications)
+						.values({
+							userId: member.userId,
+							workspaceId: workspace.id,
+							type: "inbox",
+							title: `New email from ${fromName}`,
+							body: subject,
+							link: emailLink,
+						})
+						.returning()
 
-				// Push real-time notification to each user
-				if (pusherServer && notification) {
-					await pusherServer.trigger(`private-user-${user.id}`, "notification", {
-						id: notification.id,
-						type: "inbox",
-						title: `New email from ${fromName}`,
-						body: subject,
-						link: emailLink,
-						createdAt: notification.createdAt.toISOString(),
-						readAt: null,
-					})
+					// Push real-time notification to each workspace member
+					if (pusherServer && notification) {
+						await pusherServer.trigger(`private-user-${member.userId}`, "notification", {
+							id: notification.id,
+							type: "inbox",
+							title: `New email from ${fromName}`,
+							body: subject,
+							link: emailLink,
+							createdAt: notification.createdAt.toISOString(),
+							readAt: null,
+						})
+					}
 				}
+			} catch (notifError) {
+				console.error("[Inbound Email] Failed to create notifications:", notifError)
 			}
-		} catch (notifError) {
-			console.error("[Inbound Email] Failed to create notifications:", notifError)
 		}
 
 		// Check if this is a shipping email and process tracking

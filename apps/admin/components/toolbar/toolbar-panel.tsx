@@ -32,7 +32,7 @@ const WIDGETS: {
 ]
 
 export function ToolbarPanel() {
-	const { isOpen, activeWidget, openWidget } = useToolbar()
+	const { isOpen, isWidgetOpen, openWidget } = useToolbar()
 
 	return (
 		<AnimatePresence>
@@ -53,7 +53,7 @@ export function ToolbarPanel() {
 										size="icon"
 										className={cn(
 											"size-9 rounded-full transition-colors",
-											activeWidget === widget.id && "bg-primary text-primary-foreground hover:bg-primary/90"
+											widget.id && isWidgetOpen(widget.id) && "bg-primary text-primary-foreground hover:bg-primary/90"
 										)}
 										onClick={() => openWidget(widget.id)}
 									>

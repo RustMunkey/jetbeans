@@ -167,6 +167,11 @@ const data = {
         { title: "Customer Insights", url: "/analytics/customers" },
       ],
     },
+    {
+      title: "Scheduling",
+      url: "/scheduling",
+      icon: Calendar01Icon,
+    },
   ],
   navStore: [
     {

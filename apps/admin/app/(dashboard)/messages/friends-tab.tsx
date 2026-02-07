@@ -16,7 +16,7 @@ import {
 	getOrCreateConversation,
 } from "@/app/(dashboard)/discover/actions"
 import type { MessageAttachment } from "./types"
-import { uploadChatImage, fetchLinkPreview } from "./actions"
+import { uploadChatImage, fetchLinkPreview, broadcastTyping } from "./actions"
 
 // URL regex for detecting links in messages
 const URL_REGEX = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/g
@@ -225,6 +225,9 @@ export function FriendsTab({
 	const [isDragOver, setIsDragOver] = useState(false)
 	const [uploadingImage, setUploadingImage] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(true)
+	const [isTyping, setIsTyping] = useState(false)
+	const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+	const lastTypingBroadcast = useRef(0)
 	const messagesEndRef = useRef<HTMLDivElement>(null)
 	const messagesContainerRef = useRef<HTMLDivElement>(null)
 	const fileInputRef = useRef<HTMLInputElement>(null)
@@ -333,18 +336,32 @@ export function FriendsTab({
 				})
 				// Mark as read immediately
 				markDMsAsRead(data.conversationId)
-			} else {
-				// Play notification sound
-				const audio = new Audio("/sounds/message.mp3")
-				audio.volume = 0.5
-				audio.play().catch(() => {})
+				// Clear typing indicator when message arrives
+				setIsTyping(false)
+			}
+
+			// Play notification sound for all incoming messages
+			const audio = new Audio("/sounds/message.mp3")
+			audio.volume = 0.5
+			audio.play().catch(() => {})
+		}
+
+		// Typing indicator
+		const handleTyping = (data: { userId: string; userName: string }) => {
+			// Only show typing if it's from the selected conversation's other user
+			if (selectedConversation?.otherUser?.id === data.userId) {
+				setIsTyping(true)
+				if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+				typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 3000)
 			}
 		}
 
 		ch.bind("dm-received", handleDmReceived)
+		ch.bind("typing", handleTyping)
 
 		return () => {
 			ch.unbind("dm-received", handleDmReceived)
+			ch.unbind("typing", handleTyping)
 		}
 	}, [pusher, userId, selectedConversation?.id])
 
@@ -357,16 +374,27 @@ export function FriendsTab({
 		setIsAtBottom(atBottom)
 	}, [])
 
-	// Auto-scroll
+	// Auto-scroll on new messages (smooth) or initial load (instant)
+	const hasScrolledRef = useRef(false)
 	useEffect(() => {
-		if (isAtBottom) {
+		if (messages.length === 0) {
+			hasScrolledRef.current = false
+			return
+		}
+		if (!hasScrolledRef.current) {
+			// First load — instant scroll to bottom
+			messagesEndRef.current?.scrollIntoView({ behavior: "auto" })
+			setIsAtBottom(true)
+			hasScrolledRef.current = true
+		} else if (isAtBottom) {
+			// New messages while at bottom — smooth scroll
 			messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
 		}
 	}, [messages, isAtBottom])
 
-	// Scroll to bottom on conversation switch
+	// Reset scroll flag on conversation switch
 	useEffect(() => {
-		messagesEndRef.current?.scrollIntoView({ behavior: "auto" })
+		hasScrolledRef.current = false
 		setIsAtBottom(true)
 	}, [selectedConversation?.id])
 
@@ -498,6 +526,15 @@ export function FriendsTab({
 		}
 	}
 
+	function handleTypingBroadcast() {
+		const now = Date.now()
+		if (now - lastTypingBroadcast.current < 2000) return
+		lastTypingBroadcast.current = now
+		if (selectedConversation?.otherUser?.id) {
+			broadcastTyping(selectedConversation.otherUser.id).catch(() => {})
+		}
+	}
+
 	// Friends who don't have a conversation yet
 	const friendsWithoutConvo = friends.filter(
 		(f) => !conversations.some((c) => c.otherUser?.id === f.id)
@@ -568,18 +605,37 @@ export function FriendsTab({
 							</div>
 						</div>
 					) : (
-						messages.map((msg) => {
+						messages.map((msg, idx) => {
 							const isOwn = msg.senderId === userId
+
+							// Message grouping for DMs
+							const nextMsg = messages[idx + 1]
+							const prevMsg = messages[idx - 1]
+							const isSameSenderAsNext = nextMsg && nextMsg.senderId === msg.senderId
+							const isSameSenderAsPrev = prevMsg && prevMsg.senderId === msg.senderId
+							const isFirstInGroup = !isSameSenderAsPrev
+							const isLastInGroup = !isSameSenderAsNext
+
+							// Read receipt: show on last own message
+							const isLastOwnMessage = isOwn && messages.slice(idx + 1).every(m => m.senderId !== userId)
+							const lastOtherMessage = [...messages].reverse().find(m => m.senderId !== userId)
+							const otherHasRead = isLastOwnMessage && lastOtherMessage && lastOtherMessage.readAt !== null
 
 							return (
 								<div
 									key={msg.id}
 									className={`group flex gap-2.5 items-start rounded-lg ${isOwn ? "flex-row-reverse" : ""}`}
+									style={isSameSenderAsNext ? { marginBottom: "2px" } : undefined}
 								>
-									<Avatar className="h-9 w-9 shrink-0">
-										{msg.senderImage && <AvatarImage src={msg.senderImage} alt={msg.senderName || ""} />}
-										<AvatarFallback className="text-xs">{getInitials(msg.senderName || "?")}</AvatarFallback>
-									</Avatar>
+									{/* Avatar: only show on first message in group */}
+									{isFirstInGroup ? (
+										<Avatar className="h-9 w-9 shrink-0">
+											{msg.senderImage && <AvatarImage src={msg.senderImage} alt={msg.senderName || ""} />}
+											<AvatarFallback className="text-xs">{getInitials(msg.senderName || "?")}</AvatarFallback>
+										</Avatar>
+									) : (
+										<div className="w-9 shrink-0" />
+									)}
 									<div className={`max-w-[70%] flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
 										{/* Attachments */}
 										{msg.attachments && msg.attachments.length > 0 && (
@@ -631,15 +687,45 @@ export function FriendsTab({
 										{msg.body && getFirstUrl(msg.body) && (
 											<LinkPreview url={getFirstUrl(msg.body)!} />
 										)}
-										<div className={`flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground ${isOwn ? "flex-row-reverse" : ""}`}>
-											<span className="font-medium">{isOwn ? "You" : (msg.senderName || "").split(" ")[0]}</span>
-											<span className="text-muted-foreground/50">·</span>
-											<span>{timeAgo(msg.createdAt instanceof Date ? msg.createdAt.toISOString() : String(msg.createdAt))}</span>
-										</div>
+										{/* Name/timestamp: only on last message in a group */}
+										{isLastInGroup && (
+											<div className={`flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground ${isOwn ? "flex-row-reverse" : ""}`}>
+												<span className="font-medium">{isOwn ? "You" : (msg.senderName || "").split(" ")[0]}</span>
+												<span className="text-muted-foreground/50">·</span>
+												<span>{timeAgo(msg.createdAt instanceof Date ? msg.createdAt.toISOString() : String(msg.createdAt))}</span>
+												{isLastOwnMessage && otherHasRead && (
+													<>
+														<span className="text-muted-foreground/50">·</span>
+														<span className="flex items-center gap-0.5 text-primary/70">
+															<svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+																<path d="M2 8.5l3.5 3.5L14 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+															</svg>
+															Read
+														</span>
+													</>
+												)}
+											</div>
+										)}
 									</div>
 								</div>
 							)
 						})
+					)}
+					{/* Typing indicator */}
+					{isTyping && (
+						<div className="flex items-center gap-2 px-1">
+							<Avatar className="h-9 w-9 shrink-0">
+								{otherUser?.image && <AvatarImage src={otherUser.image} alt={otherUser.name || ""} />}
+								<AvatarFallback className="text-xs">{getInitials(otherUser?.name || "?")}</AvatarFallback>
+							</Avatar>
+							<div className="flex gap-1 items-center px-3 py-2 rounded-lg bg-muted">
+								<span className="flex gap-0.5">
+									<span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "0ms" }} />
+									<span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "150ms" }} />
+									<span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "300ms" }} />
+								</span>
+							</div>
+						</div>
 					)}
 					<div ref={messagesEndRef} />
 				</div>
@@ -695,7 +781,7 @@ export function FriendsTab({
 						</button>
 						<textarea
 							value={body}
-							onChange={(e) => setBody(e.target.value)}
+							onChange={(e) => { setBody(e.target.value); if (e.target.value.trim()) handleTypingBroadcast() }}
 							onKeyDown={handleKeyDown}
 							placeholder={isDragOver ? "Drop images here..." : `Message ${otherUser?.name || "friend"}...`}
 							className="flex-1 bg-transparent border-0 resize-none text-sm min-h-[24px] max-h-32 py-1 focus:outline-none placeholder:text-muted-foreground"

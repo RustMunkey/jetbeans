@@ -25,7 +25,9 @@ import { StatsWidget } from "./widgets/stats-widget"
 import { ConverterWidget } from "./widgets/converter-widget"
 import { BasicCalculator } from "./widgets/calculator-inline"
 
-const WIDGET_INFO: Record<Exclude<ToolbarWidget, null>, {
+type NonNullWidget = Exclude<ToolbarWidget, null>
+
+const WIDGET_INFO: Record<NonNullWidget, {
 	icon: typeof Calculator01Icon
 	label: string
 }> = {
@@ -35,6 +37,9 @@ const WIDGET_INFO: Record<Exclude<ToolbarWidget, null>, {
 	stats: { icon: ChartHistogramIcon, label: "Quick Stats" },
 	converter: { icon: ArrowDataTransferHorizontalIcon, label: "Converter" },
 }
+
+// Order for consistent stacking (rightmost = index 0)
+const WIDGET_ORDER: NonNullWidget[] = ["calculator", "music", "notes", "stats", "converter"]
 
 function MusicContent() {
 	const {
@@ -105,15 +110,21 @@ function MusicContent() {
 
 function WidgetPanel({
 	widget,
+	index,
 	onClose,
 }: {
-	widget: Exclude<ToolbarWidget, null>
+	widget: NonNullWidget
+	index: number
 	onClose: () => void
 }) {
 	const [isMinimized, setIsMinimized] = React.useState(false)
 	const dragControls = useDragControls()
 	const { open: rightSidebarOpen } = useRightSidebar()
 	const info = WIDGET_INFO[widget]
+
+	// Offset each widget panel so they stack side by side
+	const baseRight = rightSidebarOpen ? "21rem" : "5rem"
+	const offset = index * 19 // 19rem per widget (18rem width + 1rem gap)
 
 	if (isMinimized) {
 		return (
@@ -123,7 +134,8 @@ function WidgetPanel({
 				exit={{ scale: 0.8, opacity: 0 }}
 				drag
 				dragMomentum={false}
-				className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-full bg-background border shadow-lg px-3 py-2 cursor-grab active:cursor-grabbing"
+				className="fixed bottom-4 z-50 flex items-center gap-2 rounded-full bg-background border shadow-lg px-3 py-2 cursor-grab active:cursor-grabbing"
+				style={{ right: `calc(${baseRight} + ${offset}rem)` }}
 			>
 				<HugeiconsIcon icon={info.icon} size={14} className="text-muted-foreground" />
 				<span className="text-sm font-medium select-none">{info.label}</span>
@@ -146,10 +158,8 @@ function WidgetPanel({
 			dragMomentum={false}
 			dragControls={dragControls}
 			dragListener={false}
-			className={cn(
-				"fixed bottom-4 z-50 w-72 rounded-xl bg-background border shadow-xl overflow-hidden",
-				rightSidebarOpen ? "right-[21rem]" : "right-20"
-			)}
+			className="fixed bottom-4 z-50 w-72 rounded-xl bg-background border shadow-xl overflow-hidden"
+			style={{ right: `calc(${baseRight} + ${offset}rem)` }}
 		>
 			{/* Header - drag handle */}
 			<div
@@ -185,17 +195,21 @@ function WidgetPanel({
 }
 
 export function WidgetPanels() {
-	const { activeWidget, setActiveWidget } = useToolbar()
+	const { activeWidgets, closeWidget } = useToolbar()
+
+	// Sort widgets in consistent order for predictable positioning
+	const openWidgets = WIDGET_ORDER.filter((w) => activeWidgets.has(w))
 
 	return (
 		<AnimatePresence>
-			{activeWidget && (
+			{openWidgets.map((widget, index) => (
 				<WidgetPanel
-					key={activeWidget}
-					widget={activeWidget}
-					onClose={() => setActiveWidget(null)}
+					key={widget}
+					widget={widget}
+					index={index}
+					onClose={() => closeWidget(widget)}
 				/>
-			)}
+			))}
 		</AnimatePresence>
 	)
 }
