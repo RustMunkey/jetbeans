@@ -151,17 +151,20 @@ export async function POST(request: Request) {
 			}
 		}
 
-		// Fallback: first workspace (for backwards compatibility)
+		// No fallback — reject emails that don't match any workspace
 		if (!workspace) {
-			const [first] = await db.select({ id: workspaces.id }).from(workspaces).limit(1)
-			workspace = first
+			console.log("[Inbound Email] No workspace matched for 'to' address:", toEmail)
+			return NextResponse.json(
+				{ error: "No workspace configured for this email address" },
+				{ status: 404 }
+			)
 		}
 
-		// Create inbox email (with workspace scope)
+		// Create inbox email (workspace-scoped)
 		const [email] = await db
 			.insert(inboxEmails)
 			.values({
-				workspaceId: workspace?.id,
+				workspaceId: workspace.id,
 				fromName,
 				fromEmail,
 				subject,
