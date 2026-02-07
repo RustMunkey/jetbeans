@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { useCall } from "./call-provider"
 import { Button } from "@/components/ui/button"
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -13,7 +14,15 @@ import {
 	ArrowExpandIcon,
 	ArrowShrinkIcon,
 	Message01Icon,
+	Settings01Icon,
 } from "@hugeicons/core-free-icons"
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 
 type CallControlsProps = {
@@ -34,7 +43,17 @@ export function CallControls({ variant = "floating", className }: CallControlsPr
 		toggleVideo,
 		toggleScreenShare,
 		hangUp,
+		audioDevices,
+		videoDevices,
+		activeAudioDevice,
+		activeVideoDevice,
+		noiseSuppression,
+		switchAudioDevice,
+		switchVideoDevice,
+		setNoiseSuppression,
 	} = useCall()
+
+	const [settingsOpen, setSettingsOpen] = useState(false)
 
 	const buttonSize = variant === "fullscreen" ? "size-12" : "size-10"
 	const iconSize = variant === "fullscreen" ? 20 : 18
@@ -82,6 +101,72 @@ export function CallControls({ variant = "floating", className }: CallControlsPr
 				<HugeiconsIcon icon={ComputerIcon} size={iconSize} />
 				<span className="sr-only">{isScreenSharing ? "Stop sharing" : "Share screen"}</span>
 			</Button>
+
+			{/* Audio/Video Settings */}
+			<Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
+				<PopoverTrigger asChild>
+					<Button
+						variant="secondary"
+						size="icon"
+						className={cn("rounded-full", buttonSize)}
+						title="Audio & Video Settings"
+					>
+						<HugeiconsIcon icon={Settings01Icon} size={iconSize} />
+						<span className="sr-only">Settings</span>
+					</Button>
+				</PopoverTrigger>
+				<PopoverContent
+					side="top"
+					align="center"
+					className="w-72 p-4 space-y-4"
+				>
+					{/* Microphone */}
+					<div className="space-y-2">
+						<Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Microphone</Label>
+						<select
+							value={activeAudioDevice}
+							onChange={(e) => switchAudioDevice(e.target.value)}
+							className="w-full text-sm rounded-md border bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+						>
+							{audioDevices.length === 0 && <option value="">No microphones found</option>}
+							{audioDevices.map((d) => (
+								<option key={d.deviceId} value={d.deviceId}>
+									{d.label || `Microphone ${d.deviceId.slice(0, 8)}`}
+								</option>
+							))}
+						</select>
+					</div>
+
+					{/* Camera */}
+					<div className="space-y-2">
+						<Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Camera</Label>
+						<select
+							value={activeVideoDevice}
+							onChange={(e) => switchVideoDevice(e.target.value)}
+							className="w-full text-sm rounded-md border bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+						>
+							{videoDevices.length === 0 && <option value="">No cameras found</option>}
+							{videoDevices.map((d) => (
+								<option key={d.deviceId} value={d.deviceId}>
+									{d.label || `Camera ${d.deviceId.slice(0, 8)}`}
+								</option>
+							))}
+						</select>
+					</div>
+
+					{/* Noise Suppression */}
+					<div className="flex items-center justify-between">
+						<div>
+							<Label className="text-sm">Noise Suppression</Label>
+							<p className="text-xs text-muted-foreground">Reduce background noise</p>
+						</div>
+						<Switch
+							checked={noiseSuppression}
+							onCheckedChange={setNoiseSuppression}
+						/>
+					</div>
+				</PopoverContent>
+			</Popover>
 
 			{/* Chat toggle (only in fullscreen) */}
 			{viewMode === "fullscreen" && (

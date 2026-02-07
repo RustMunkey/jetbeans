@@ -29,6 +29,7 @@ import { RightSidebarProvider } from "@/components/ui/right-sidebar"
 import { AppRightSidebar } from "@/components/app-right-sidebar"
 import { NotificationProvider } from "@/components/notifications/notification-context"
 import { UserStatusProvider } from "@/components/user-status-provider"
+import { MessageSoundProvider } from "@/components/message-sound-provider"
 
 export default async function DashboardLayout({
   children,
@@ -122,6 +123,7 @@ export default async function DashboardLayout({
       pusherCluster={process.env.NEXT_PUBLIC_PUSHER_CLUSTER}
       workspaceId={activeWorkspace?.id ?? null}
     >
+      <MessageSoundProvider userId={session.user.id}>
       <UserStatusProvider>
       <CallProvider
         userId={session.user.id}
@@ -195,6 +197,7 @@ export default async function DashboardLayout({
         </MusicPlayerProvider>
       </CallProvider>
       </UserStatusProvider>
+      </MessageSoundProvider>
     </PusherProvider>
     </>
   )

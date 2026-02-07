@@ -114,6 +114,13 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 			newRoom = new lk.Room({
 				adaptiveStream: true,
 				dynacast: true,
+				reconnectPolicy: {
+					nextRetryDelayInMs: (context) => {
+						// Retry up to 5 times with increasing delays
+						if (context.retryCount > 5) return null // stop retrying
+						return Math.min(1000 * Math.pow(2, context.retryCount), 10000)
+					},
+				},
 			})
 
 			roomRef.current = newRoom
@@ -174,7 +181,7 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 				// Add connection timeout
 				const connectPromise = newRoom.connect(wsUrl!, token!)
 				const timeoutPromise = new Promise<never>((_, reject) =>
-					setTimeout(() => reject(new Error("Connection timeout after 15 seconds")), 15000)
+					setTimeout(() => reject(new Error("Connection timeout after 30 seconds")), 30000)
 				)
 
 				await Promise.race([connectPromise, timeoutPromise])
@@ -287,6 +294,71 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 		}
 	}, [])
 
+	// Audio device management
+	const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
+	const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([])
+	const [activeAudioDevice, setActiveAudioDevice] = useState<string>("")
+	const [activeVideoDevice, setActiveVideoDevice] = useState<string>("")
+	const [noiseSuppression, setNoiseSuppressionState] = useState(true)
+
+	// Enumerate devices
+	useEffect(() => {
+		async function loadDevices() {
+			try {
+				const devices = await navigator.mediaDevices.enumerateDevices()
+				setAudioDevices(devices.filter(d => d.kind === "audioinput"))
+				setVideoDevices(devices.filter(d => d.kind === "videoinput"))
+			} catch {}
+		}
+		loadDevices()
+		navigator.mediaDevices.addEventListener("devicechange", loadDevices)
+		return () => navigator.mediaDevices.removeEventListener("devicechange", loadDevices)
+	}, [])
+
+	const switchAudioDevice = useCallback(async (deviceId: string) => {
+		setActiveAudioDevice(deviceId)
+		if (roomRef.current) {
+			try {
+				await roomRef.current.switchActiveDevice("audioinput", deviceId)
+			} catch (err) {
+				console.error("[LiveKit] Failed to switch audio device:", err)
+			}
+		}
+	}, [])
+
+	const switchVideoDevice = useCallback(async (deviceId: string) => {
+		setActiveVideoDevice(deviceId)
+		if (roomRef.current) {
+			try {
+				await roomRef.current.switchActiveDevice("videoinput", deviceId)
+			} catch (err) {
+				console.error("[LiveKit] Failed to switch video device:", err)
+			}
+		}
+	}, [])
+
+	const setNoiseSuppression = useCallback(async (enabled: boolean) => {
+		setNoiseSuppressionState(enabled)
+		if (roomRef.current) {
+			const local = roomRef.current.localParticipant
+			const micPub = Array.from(local.audioTrackPublications.values()).find(
+				(p) => p.track
+			)
+			if (micPub?.track) {
+				const track = micPub.track.mediaStreamTrack
+				try {
+					await track.applyConstraints({
+						noiseSuppression: enabled,
+						echoCancellation: true,
+						autoGainControl: true,
+					})
+				} catch (err) {
+					console.error("[LiveKit] Failed to set noise suppression:", err)
+				}
+			}
+		}
+	}, [])
+
 	const disconnect = useCallback(() => {
 		if (roomRef.current) {
 			roomRef.current.disconnect()
@@ -306,5 +378,14 @@ export function useLiveKitRoom(token: string | null, wsUrl: string | null) {
 		toggleScreenShare,
 		setMediaIntents,
 		disconnect,
+		// Audio settings
+		audioDevices,
+		videoDevices,
+		activeAudioDevice,
+		activeVideoDevice,
+		noiseSuppression,
+		switchAudioDevice,
+		switchVideoDevice,
+		setNoiseSuppression,
 	}
 }

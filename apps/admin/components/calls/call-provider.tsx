@@ -58,6 +58,15 @@ type CallContextType = CallState & {
 	toggleScreenShare: () => Promise<void>
 	setViewMode: (mode: ViewMode) => void
 	toggleChat: () => void
+	// Audio settings
+	audioDevices: MediaDeviceInfo[]
+	videoDevices: MediaDeviceInfo[]
+	activeAudioDevice: string
+	activeVideoDevice: string
+	noiseSuppression: boolean
+	switchAudioDevice: (deviceId: string) => Promise<void>
+	switchVideoDevice: (deviceId: string) => Promise<void>
+	setNoiseSuppression: (enabled: boolean) => Promise<void>
 	// Backwards compat
 	isFullscreen: boolean
 	isMinimized: boolean
@@ -126,6 +135,14 @@ export function CallProvider({
 		toggleScreenShare,
 		setMediaIntents,
 		disconnect,
+		audioDevices,
+		videoDevices,
+		activeAudioDevice,
+		activeVideoDevice,
+		noiseSuppression,
+		switchAudioDevice,
+		switchVideoDevice,
+		setNoiseSuppression,
 	} = useLiveKitRoom(token, wsUrl)
 
 	const resetCallStateRef = useRef<() => void>(() => {})
@@ -294,6 +311,7 @@ export function CallProvider({
 
 	// Update status based on connection state and participants
 	// Auto-fullscreen when call connects
+	const connectingTimerRef = useRef<NodeJS.Timeout | null>(null)
 	useEffect(() => {
 		// Only transition to "connected" once LiveKit is connected AND there's at least one remote participant
 		const hasRemoteParticipants = participants.filter(p => !p.isLocal).length > 0
@@ -308,11 +326,35 @@ export function CallProvider({
 				clearTimeout(ringTimeout)
 				setRingTimeout(null)
 			}
+			// Clear connecting timeout
+			if (connectingTimerRef.current) {
+				clearTimeout(connectingTimerRef.current)
+				connectingTimerRef.current = null
+			}
 		}
+
+		// Start a timeout when we enter "connecting" — if no remote participant joins in 45s, fail
+		if (status === "connecting" && connectionState === ConnectionState.Connected && !hasRemoteParticipants && !connectingTimerRef.current) {
+			connectingTimerRef.current = setTimeout(() => {
+				if (statusRef.current === "connecting") {
+					console.error("[Call] Timed out waiting for remote participant")
+					resetCallState()
+				}
+				connectingTimerRef.current = null
+			}, 45000)
+		}
+
 		// Handle connection failure
 		if (connectionState === "failed" && (status === "connecting" || status === "ringing-outgoing")) {
 			console.error("[Call] LiveKit connection failed, resetting call state")
 			resetCallState()
+		}
+
+		return () => {
+			if (connectingTimerRef.current && status !== "connecting") {
+				clearTimeout(connectingTimerRef.current)
+				connectingTimerRef.current = null
+			}
 		}
 	}, [connectionState, status, participants, resetCallState, ringTimeout])
 
@@ -456,6 +498,15 @@ export function CallProvider({
 				toggleScreenShare,
 				setViewMode,
 				toggleChat,
+				// Audio settings
+				audioDevices,
+				videoDevices,
+				activeAudioDevice,
+				activeVideoDevice,
+				noiseSuppression,
+				switchAudioDevice,
+				switchVideoDevice,
+				setNoiseSuppression,
 				// Backwards compat
 				isFullscreen: viewMode === "fullscreen",
 				isMinimized: viewMode === "minimized",

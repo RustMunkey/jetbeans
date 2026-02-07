@@ -209,13 +209,27 @@ export async function initiateCall(data: {
 		}))
 	)
 
+	// Generate token for initiator FIRST (with roomCreate permission)
+	// This ensures the caller gets the token and can connect before the callee tries to join
+	console.log("[Call] Initiator connecting to room:", roomName, "user:", user.id, user.name)
+	const token = await createLiveKitToken(roomName, user.name || "User", user.id, true)
+	if (!token) {
+		throw new Error("Failed to generate call token")
+	}
+
+	const wsUrl = getLiveKitUrl()
+	if (!wsUrl) {
+		throw new Error("LiveKit URL not configured")
+	}
+
 	// Get participant info for the event
 	const participantUsers = await db
 		.select({ id: users.id, name: users.name, image: users.image })
 		.from(users)
 		.where(inArray(users.id, participantIds))
 
-	// Send incoming call event to all participants via Pusher
+	// Send incoming call event to all participants via Pusher AFTER token is ready
+	// The caller's client will immediately connect with the token, creating the room
 	if (pusherServer) {
 		const event: IncomingCallEvent = {
 			callId: call.id,
@@ -239,18 +253,6 @@ export async function initiateCall(data: {
 		for (const pid of participantIds) {
 			pusherServer.trigger(`private-user-${pid}`, "incoming-call", event).catch(console.error)
 		}
-	}
-
-	// Generate token for initiator (with roomCreate permission)
-	console.log("[Call] Initiator connecting to room:", roomName, "user:", user.id, user.name)
-	const token = await createLiveKitToken(roomName, user.name || "User", user.id, true)
-	if (!token) {
-		throw new Error("Failed to generate call token")
-	}
-
-	const wsUrl = getLiveKitUrl()
-	if (!wsUrl) {
-		throw new Error("LiveKit URL not configured")
 	}
 
 	console.log("[Call] Returning call data - roomName:", roomName, "wsUrl:", wsUrl)
@@ -339,7 +341,7 @@ export async function acceptCall(callId: string): Promise<{ token: string; wsUrl
 		}
 	}
 
-	// Generate token - allow roomCreate in case initiator hasn't connected yet (race condition fix)
+	// Generate fresh token for accepter (with roomCreate permission as fallback)
 	console.log("[Call] Accepter connecting to room:", call.roomName, "user:", user.id, user.name)
 	const token = await createLiveKitToken(call.roomName, user.name || "User", user.id, true)
 	if (!token) {
@@ -350,11 +352,6 @@ export async function acceptCall(callId: string): Promise<{ token: string; wsUrl
 	if (!wsUrl) {
 		throw new Error("LiveKit URL not configured")
 	}
-
-	// Debug: check what LiveKit knows about the room
-	console.log("[Call] Checking LiveKit server for room status...")
-	await listActiveRooms()
-	await listRoomParticipants(call.roomName)
 
 	console.log("[Call] Returning accept data - roomName:", call.roomName, "wsUrl:", wsUrl)
 	return { token, wsUrl, roomName: call.roomName }
