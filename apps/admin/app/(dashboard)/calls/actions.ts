@@ -247,6 +247,7 @@ export async function initiateCall(data: {
 				name: p.name || "Unknown",
 				image: p.image,
 			})),
+			sentAt: Date.now(),
 		}
 
 		// Non-blocking: send to all participants

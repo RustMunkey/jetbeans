@@ -90,11 +90,11 @@ export function CallControls({ variant = "floating", className }: CallControlsPr
 				<span className="sr-only">{localVideoEnabled ? "Camera off" : "Camera on"}</span>
 			</Button>
 
-			{/* Screen share */}
+			{/* Screen share — hidden on mobile */}
 			<Button
 				variant={isScreenSharing ? "default" : "secondary"}
 				size="icon"
-				className={cn("rounded-full", buttonSize)}
+				className={cn("rounded-full hidden md:inline-flex", buttonSize)}
 				onClick={toggleScreenShare}
 				title={isScreenSharing ? "Stop sharing" : "Share screen"}
 			>

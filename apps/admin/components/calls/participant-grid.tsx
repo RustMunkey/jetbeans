@@ -8,13 +8,18 @@ type ParticipantGridProps = {
 	participants: Participant[]
 	dominantSpeaker: string | null
 	className?: string
+	hideLocal?: boolean
 }
 
-export function ParticipantGrid({ participants, dominantSpeaker, className }: ParticipantGridProps) {
-	const count = participants.length
+export function ParticipantGrid({ participants, dominantSpeaker, className, hideLocal }: ParticipantGridProps) {
+	// Filter out local participant on mobile when chat is open
+	const visibleParticipants = hideLocal
+		? participants.filter((p) => !p.isLocal)
+		: participants
+	const count = visibleParticipants.length
 
 	// Check if anyone is screen sharing
-	const screenSharer = participants.find((p) => p.isScreenSharing)
+	const screenSharer = visibleParticipants.find((p) => p.isScreenSharing)
 
 	// If someone is screen sharing, show their screen prominently
 	if (screenSharer) {
@@ -32,7 +37,7 @@ export function ParticipantGrid({ participants, dominantSpeaker, className }: Pa
 
 				{/* Participants in a row at bottom */}
 				<div className="flex gap-2 h-24 shrink-0 overflow-x-auto">
-					{participants.map((p) => (
+					{visibleParticipants.map((p) => (
 						<ParticipantTile
 							key={p.identity}
 							participant={p}
@@ -48,7 +53,7 @@ export function ParticipantGrid({ participants, dominantSpeaker, className }: Pa
 	// 1-on-1 call: responsive layout
 	// Desktop: side by side (you left, them right)
 	// Mobile: stacked (them top, you bottom)
-	if (count === 2) {
+	if (!hideLocal && participants.length === 2) {
 		const local = participants.find((p) => p.isLocal)
 		const remote = participants.find((p) => !p.isLocal)
 
@@ -98,7 +103,7 @@ export function ParticipantGrid({ participants, dominantSpeaker, className }: Pa
 
 	return (
 		<div className={gridClass}>
-			{participants.map((p) => (
+			{visibleParticipants.map((p) => (
 				<ParticipantTile
 					key={p.identity}
 					participant={p}

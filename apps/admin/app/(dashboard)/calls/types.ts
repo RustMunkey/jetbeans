@@ -57,6 +57,7 @@ export type IncomingCallEvent = {
 		name: string
 		image: string | null
 	}>
+	sentAt: number // Unix timestamp ms — used to reject stale events
 }
 
 export type CallAcceptedEvent = {

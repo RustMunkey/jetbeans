@@ -183,6 +183,12 @@ export function CallProvider({
 			// Don't interrupt an active call
 			if (statusRef.current !== "idle") return
 
+			// Reject stale events (older than 30 seconds) — prevents ghost incoming calls
+			if (event.sentAt && Date.now() - event.sentAt > 30000) {
+				console.log("[Call] Ignoring stale incoming call event, age:", Date.now() - event.sentAt, "ms")
+				return
+			}
+
 			setIncomingCall(event)
 			setStatus("ringing-incoming")
 			setCallType(event.type)

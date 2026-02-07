@@ -37,15 +37,9 @@ export function ParticipantTile({
 		const videoEl = videoRef.current
 
 		if (!track || !videoEl) {
-			console.log("[ParticipantTile] No video track or element:", {
-				hasTrack: !!track,
-				hasEl: !!videoEl,
-				participantId: participant.identity
-			})
 			return
 		}
 
-		console.log("[ParticipantTile] Attaching video track for:", participant.name)
 		try {
 			track.attach(videoEl)
 		} catch (err) {
@@ -67,15 +61,9 @@ export function ParticipantTile({
 
 		if (participant.isLocal) return
 		if (!participant.audioTrack || !audioEl) {
-			console.log("[ParticipantTile] No audio track or element for remote:", {
-				hasTrack: !!participant.audioTrack,
-				hasEl: !!audioEl,
-				participantId: participant.identity
-			})
 			return
 		}
 
-		console.log("[ParticipantTile] Attaching audio track for:", participant.name)
 		try {
 			participant.audioTrack.attach(audioEl)
 		} catch (err) {
@@ -111,6 +99,7 @@ export function ParticipantTile({
 					playsInline
 					muted={participant.isLocal}
 					className="size-full object-cover"
+					style={participant.isLocal && !showScreenShare ? { transform: "scaleX(-1)" } : undefined}
 				/>
 			) : (
 				// Avatar fallback

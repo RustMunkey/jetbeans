@@ -20,6 +20,43 @@ import {
 	sendDirectMessage,
 } from "@/app/(dashboard)/discover/actions"
 import { sendTeamMessage } from "@/app/(dashboard)/messages/actions"
+import type { Participant } from "@/hooks/use-livekit-room"
+
+// Hidden audio renderer — keeps remote audio playing even in minimized/floating views
+function RemoteAudioRenderer({ participants }: { participants: Participant[] }) {
+	const remoteParticipants = participants.filter((p) => !p.isLocal)
+
+	return (
+		<div className="hidden">
+			{remoteParticipants.map((p) => (
+				<RemoteAudio key={p.identity} participant={p} />
+			))}
+		</div>
+	)
+}
+
+function RemoteAudio({ participant }: { participant: Participant }) {
+	const audioRef = useRef<HTMLAudioElement>(null)
+
+	useEffect(() => {
+		const audioEl = audioRef.current
+		if (!participant.audioTrack || !audioEl) return
+
+		try {
+			participant.audioTrack.attach(audioEl)
+		} catch (err) {
+			console.error("[RemoteAudio] Failed to attach audio:", err)
+		}
+
+		return () => {
+			try {
+				participant.audioTrack?.detach(audioEl)
+			} catch {}
+		}
+	}, [participant.identity, participant.audioTrack])
+
+	return <audio ref={audioRef} autoPlay />
+}
 
 // Self-preview component for connecting state
 function SelfPreview({ className, videoEnabled }: { className?: string; videoEnabled: boolean }) {
@@ -319,29 +356,33 @@ export function CallInterface() {
 	}
 
 	const isConnecting = connectionState !== ConnectionState.Connected
+	const remoteParticipants = participants.filter((p) => !p.isLocal)
 
-	// Minimized view (just a small pill)
+	// Minimized view (just a small pill) — RemoteAudioRenderer keeps audio playing
 	if (viewMode === "minimized") {
 		return (
-			<motion.div
-				initial={{ scale: 0.8, opacity: 0 }}
-				animate={{ scale: 1, opacity: 1 }}
-				className="fixed bottom-4 right-4 z-50"
-			>
-				<Button
-					onClick={() => setViewMode("floating")}
-					className="rounded-full px-4 py-2 bg-primary shadow-lg"
+			<>
+				<RemoteAudioRenderer participants={participants} />
+				<motion.div
+					initial={{ scale: 0.8, opacity: 0 }}
+					animate={{ scale: 1, opacity: 1 }}
+					className="fixed bottom-4 right-4 z-50"
 				>
-					<span className="flex items-center gap-2">
-						<span className="relative flex size-2">
-							<span className="animate-ping absolute inline-flex size-full rounded-full bg-green-400 opacity-75" />
-							<span className="relative inline-flex size-2 rounded-full bg-green-500" />
+					<Button
+						onClick={() => setViewMode("floating")}
+						className="rounded-full px-4 py-2 bg-primary shadow-lg"
+					>
+						<span className="flex items-center gap-2">
+							<span className="relative flex size-2">
+								<span className="animate-ping absolute inline-flex size-full rounded-full bg-green-400 opacity-75" />
+								<span className="relative inline-flex size-2 rounded-full bg-green-500" />
+							</span>
+							<span>{formatDuration(callDuration)}</span>
+							<span className="text-muted-foreground">&bull; {participants.length}</span>
 						</span>
-						<span>{formatDuration(callDuration)}</span>
-						<span className="text-muted-foreground">&bull; {participants.length}</span>
-					</span>
-				</Button>
-			</motion.div>
+					</Button>
+				</motion.div>
+			</>
 		)
 	}
 
@@ -372,6 +413,7 @@ export function CallInterface() {
 								participants={participants}
 								dominantSpeaker={dominantSpeaker}
 								className="size-full"
+								hideLocal={showChat}
 							/>
 						)}
 
@@ -403,7 +445,7 @@ export function CallInterface() {
 		)
 	}
 
-	// Floating view (PiP style)
+	// Floating view (PiP style) — only show remote participant(s)
 	return (
 		<AnimatePresence>
 			<motion.div
@@ -438,16 +480,20 @@ export function CallInterface() {
 					</div>
 				</div>
 
-				{/* Video area */}
+				{/* Video area — only remote participants */}
 				<div className="aspect-video bg-muted">
 					{isConnecting ? (
 						<SelfPreview videoEnabled={localVideoEnabled} />
-					) : (
+					) : remoteParticipants.length > 0 ? (
 						<ParticipantGrid
-							participants={participants}
+							participants={remoteParticipants}
 							dominantSpeaker={dominantSpeaker}
 							className="size-full"
 						/>
+					) : (
+						<div className="size-full flex items-center justify-center">
+							<p className="text-sm text-muted-foreground">Waiting for others...</p>
+						</div>
 					)}
 				</div>
 
