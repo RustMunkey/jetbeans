@@ -462,15 +462,17 @@ export function ChatTab({
 			hasScrolledRef.current = false
 			return
 		}
-		if (!hasScrolledRef.current) {
-			// First load — instant scroll to bottom
-			messagesEndRef.current?.scrollIntoView({ behavior: "auto" })
-			setIsAtBottom(true)
-			hasScrolledRef.current = true
-		} else if (isAtBottom) {
-			// New messages while at bottom — smooth scroll
-			messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-		}
+		requestAnimationFrame(() => {
+			if (!hasScrolledRef.current) {
+				// First load — instant scroll to bottom
+				messagesEndRef.current?.scrollIntoView({ behavior: "auto" })
+				setIsAtBottom(true)
+				hasScrolledRef.current = true
+			} else if (isAtBottom) {
+				// New messages while at bottom — smooth scroll
+				messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+			}
+		})
 	}, [messages, isAtBottom])
 
 	// Reset scroll flag on conversation switch

@@ -267,11 +267,7 @@ export async function acceptCall(callId: string): Promise<{ token: string; wsUrl
 		.where(eq(calls.id, callId))
 		.limit(1)
 
-	if (!call) {
-		throw new Error("Call not found")
-	}
-
-	if (call.status !== "ringing") {
+	if (!call || call.status !== "ringing") {
 		throw new Error("Call is no longer available")
 	}
 

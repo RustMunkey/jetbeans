@@ -258,14 +258,6 @@ export function FriendsTab({
 			try {
 				const msgs = await getDirectMessages(selectedConversation!.id)
 				setMessages(msgs as DirectMessage[])
-				// Mark as read
-				await markDMsAsRead(selectedConversation!.id)
-				// Update local unread count
-				setConversations((prev) =>
-					prev.map((c) =>
-						c.id === selectedConversation!.id ? { ...c, unreadCount: 0 } : c
-					)
-				)
 			} catch (err) {
 				console.error("Failed to load messages:", err)
 			} finally {
@@ -334,8 +326,6 @@ export function FriendsTab({
 						senderImage: data.message.senderImage,
 					}]
 				})
-				// Mark as read immediately
-				markDMsAsRead(data.conversationId)
 				// Clear typing indicator when message arrives
 				setIsTyping(false)
 			}
@@ -356,12 +346,25 @@ export function FriendsTab({
 			}
 		}
 
+		// Read receipt: sender gets notified when their messages are read
+		const handleDmRead = (data: { conversationId: string; messageIds: string[]; readBy: string }) => {
+			if (selectedConversation?.id === data.conversationId) {
+				setMessages((prev) =>
+					prev.map((m) =>
+						data.messageIds.includes(m.id) ? { ...m, readAt: new Date() } : m
+					)
+				)
+			}
+		}
+
 		ch.bind("dm-received", handleDmReceived)
 		ch.bind("typing", handleTyping)
+		ch.bind("dm-read", handleDmRead)
 
 		return () => {
 			ch.unbind("dm-received", handleDmReceived)
 			ch.unbind("typing", handleTyping)
+			ch.unbind("dm-read", handleDmRead)
 		}
 	}, [pusher, userId, selectedConversation?.id])
 
@@ -381,15 +384,18 @@ export function FriendsTab({
 			hasScrolledRef.current = false
 			return
 		}
-		if (!hasScrolledRef.current) {
-			// First load — instant scroll to bottom
-			messagesEndRef.current?.scrollIntoView({ behavior: "auto" })
-			setIsAtBottom(true)
-			hasScrolledRef.current = true
-		} else if (isAtBottom) {
-			// New messages while at bottom — smooth scroll
-			messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-		}
+		// Wait for DOM paint before scrolling
+		requestAnimationFrame(() => {
+			if (!hasScrolledRef.current) {
+				// First load — instant scroll to bottom
+				messagesEndRef.current?.scrollIntoView({ behavior: "auto" })
+				setIsAtBottom(true)
+				hasScrolledRef.current = true
+			} else if (isAtBottom) {
+				// New messages while at bottom — smooth scroll
+				messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+			}
+		})
 	}, [messages, isAtBottom])
 
 	// Reset scroll flag on conversation switch
@@ -397,6 +403,54 @@ export function FriendsTab({
 		hasScrolledRef.current = false
 		setIsAtBottom(true)
 	}, [selectedConversation?.id])
+
+	// IntersectionObserver: mark messages as read only when they're visible on screen
+	const readQueueRef = useRef<Set<string>>(new Set())
+	const flushTimerRef = useRef<NodeJS.Timeout | null>(null)
+	useEffect(() => {
+		const container = messagesContainerRef.current
+		if (!container || !selectedConversation) return
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				for (const entry of entries) {
+					if (entry.isIntersecting) {
+						const msgId = (entry.target as HTMLElement).dataset.messageId
+						if (msgId) {
+							readQueueRef.current.add(msgId)
+						}
+					}
+				}
+				// Debounce: flush read queue after 500ms of no new intersections
+				if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
+				flushTimerRef.current = setTimeout(() => {
+					const ids = Array.from(readQueueRef.current)
+					if (ids.length > 0 && selectedConversation) {
+						readQueueRef.current.clear()
+						markDMsAsRead(selectedConversation.id, ids)
+						// Update local unread count
+						setConversations((prev) =>
+							prev.map((c) =>
+								c.id === selectedConversation.id
+									? { ...c, unreadCount: Math.max(0, c.unreadCount - ids.length) }
+									: c
+							)
+						)
+					}
+				}, 500)
+			},
+			{ root: container, threshold: 0.5 }
+		)
+
+		// Observe all unread incoming messages
+		const unreadEls = container.querySelectorAll("[data-unread='true']")
+		unreadEls.forEach((el) => observer.observe(el))
+
+		return () => {
+			observer.disconnect()
+			if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
+		}
+	}, [messages, selectedConversation?.id])
 
 	async function handleStartConversation(friendId: string) {
 		try {
@@ -616,14 +670,18 @@ export function FriendsTab({
 							const isFirstInGroup = !isSameSenderAsPrev
 							const isLastInGroup = !isSameSenderAsNext
 
-							// Read receipt: show on last own message
+							// Read receipt: show on last own message if the other user has read up to it
 							const isLastOwnMessage = isOwn && messages.slice(idx + 1).every(m => m.senderId !== userId)
-							const lastOtherMessage = [...messages].reverse().find(m => m.senderId !== userId)
-							const otherHasRead = isLastOwnMessage && lastOtherMessage && lastOtherMessage.readAt !== null
+							// Find the last message from the other person that has readAt set
+							const otherHasRead = isLastOwnMessage && msg.readAt !== null
+							// Track unread incoming messages for IntersectionObserver
+							const isUnreadIncoming = !isOwn && msg.readAt === null
 
 							return (
 								<div
 									key={msg.id}
+									data-message-id={msg.id}
+									data-unread={isUnreadIncoming ? "true" : undefined}
 									className={`group flex gap-2.5 items-start rounded-lg ${isOwn ? "flex-row-reverse" : ""}`}
 									style={isSameSenderAsNext ? { marginBottom: "2px" } : undefined}
 								>

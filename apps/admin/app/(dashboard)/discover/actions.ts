@@ -566,19 +566,50 @@ export async function sendDirectMessage(conversationId: string, body: string, at
 	}
 }
 
-export async function markDMsAsRead(conversationId: string) {
+export async function markDMsAsRead(conversationId: string, messageIds?: string[]) {
 	const user = await getCurrentUser()
 
-	await db
-		.update(directMessages)
-		.set({ readAt: new Date() })
-		.where(
-			and(
-				eq(directMessages.conversationId, conversationId),
-				ne(directMessages.senderId, user.id),
-				sql`${directMessages.readAt} IS NULL`
+	if (messageIds && messageIds.length > 0) {
+		// Mark specific messages as read
+		await db
+			.update(directMessages)
+			.set({ readAt: new Date() })
+			.where(
+				and(
+					eq(directMessages.conversationId, conversationId),
+					ne(directMessages.senderId, user.id),
+					sql`${directMessages.readAt} IS NULL`,
+					inArray(directMessages.id, messageIds)
+				)
 			)
-		)
+
+		// Notify the sender that their messages were read
+		const [conv] = await db
+			.select()
+			.from(dmConversations)
+			.where(eq(dmConversations.id, conversationId))
+			.limit(1)
+		if (conv && pusherServer) {
+			const senderId = conv.participant1Id === user.id ? conv.participant2Id : conv.participant1Id
+			pusherServer.trigger(`private-user-${senderId}`, "dm-read", {
+				conversationId,
+				messageIds,
+				readBy: user.id,
+			}).catch(() => {})
+		}
+	} else {
+		// Legacy bulk mark (kept for backward compat)
+		await db
+			.update(directMessages)
+			.set({ readAt: new Date() })
+			.where(
+				and(
+					eq(directMessages.conversationId, conversationId),
+					ne(directMessages.senderId, user.id),
+					sql`${directMessages.readAt} IS NULL`
+				)
+			)
+	}
 }
 
 // ============ USER PROFILE ============
