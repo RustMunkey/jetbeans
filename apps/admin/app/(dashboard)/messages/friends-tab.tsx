@@ -286,6 +286,9 @@ export function FriendsTab({
 				createdAt: string
 			}
 		}) => {
+			// Ignore our own messages (we already have them via optimistic update)
+			if (data.message.senderId === userId) return
+
 			// Update conversations list
 			setConversations((prev) => {
 				const existing = prev.find((c) => c.id === data.conversationId)
@@ -330,10 +333,12 @@ export function FriendsTab({
 				setIsTyping(false)
 			}
 
-			// Play notification sound for all incoming messages
-			const audio = new Audio("/sounds/message.mp3")
-			audio.volume = 0.5
-			audio.play().catch(() => {})
+			// Play notification sound only if not viewing this conversation
+			if (selectedConversation?.id !== data.conversationId) {
+				const audio = new Audio("/sounds/message.mp3")
+				audio.volume = 0.5
+				audio.play().catch(() => {})
+			}
 		}
 
 		// Typing indicator

@@ -72,6 +72,7 @@ function SelfPreview({ className, videoEnabled }: { className?: string; videoEna
 					playsInline
 					muted
 					className="size-full object-cover"
+					style={{ transform: "scaleX(-1)" }}
 				/>
 			) : (
 				<div className="size-full flex items-center justify-center">

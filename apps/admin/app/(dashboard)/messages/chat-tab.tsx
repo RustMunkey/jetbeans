@@ -388,10 +388,15 @@ export function ChatTab({
 				return [...prev, data]
 			})
 
-			// Play notification sound for all incoming messages
-			const audio = new Audio("/sounds/message.mp3")
-			audio.volume = 0.5
-			audio.play().catch(() => {})
+			// Play notification sound only if not viewing this channel/DM
+			const current = activeRef.current
+			const isViewing = (current.type === "channel" && data.channel === current.id) ||
+				(current.type === "dm" && data.senderId === current.id)
+			if (!isViewing) {
+				const audio = new Audio("/sounds/message.mp3")
+				audio.volume = 0.5
+				audio.play().catch(() => {})
+			}
 		}
 
 		// Typing indicator
