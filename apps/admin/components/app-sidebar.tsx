@@ -330,6 +330,10 @@ const data = {
       items: [
         { title: "Blog Posts", url: "/content" },
         { title: "Pages", url: "/content/pages" },
+        { title: "FAQ", url: "/content/faq" },
+        { title: "Testimonials", url: "/content/testimonials" },
+        { title: "Stats", url: "/content/stats" },
+        { title: "Site Content", url: "/content/site-content" },
         { title: "Media Library", url: "/content/media" },
       ],
     },

@@ -43,3 +43,6 @@ export * from "./connected-sites";
 export * from "./api-keys";
 export * from "./direct-messages"
 export * from "./scheduling";
+export * from "./faq";
+export * from "./stats";
+export * from "./testimonials";

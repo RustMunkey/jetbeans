@@ -237,6 +237,181 @@ export async function updateSiteContent(key: string, value: string) {
 	}
 }
 
+// --- FAQ ---
+export async function getFaqItems() {
+	const workspace = await requireWorkspace()
+	return db
+		.select()
+		.from(schema.faq)
+		.where(eq(schema.faq.workspaceId, workspace.id))
+		.orderBy(schema.faq.sortOrder)
+}
+
+export async function createFaqItem(data: {
+	question: string
+	answer: string
+	category?: string
+	sortOrder?: number
+	isActive?: boolean
+	isFeatured?: boolean
+}) {
+	const workspace = await requireContentPermission()
+	const [item] = await db
+		.insert(schema.faq)
+		.values({
+			workspaceId: workspace.id,
+			question: data.question,
+			answer: data.answer,
+			category: data.category || "general",
+			sortOrder: data.sortOrder ?? 0,
+			isActive: data.isActive ?? true,
+			isFeatured: data.isFeatured ?? false,
+		})
+		.returning()
+	return item
+}
+
+export async function updateFaqItem(id: string, data: {
+	question?: string
+	answer?: string
+	category?: string
+	sortOrder?: number
+	isActive?: boolean
+	isFeatured?: boolean
+}) {
+	const workspace = await requireContentPermission()
+	const [item] = await db
+		.update(schema.faq)
+		.set({ ...data, updatedAt: new Date() })
+		.where(and(eq(schema.faq.id, id), eq(schema.faq.workspaceId, workspace.id)))
+		.returning()
+	return item
+}
+
+export async function deleteFaqItem(id: string) {
+	const workspace = await requireContentPermission()
+	await db.delete(schema.faq).where(and(eq(schema.faq.id, id), eq(schema.faq.workspaceId, workspace.id)))
+}
+
+// --- STATS ---
+export async function getStatsItems() {
+	const workspace = await requireWorkspace()
+	return db
+		.select()
+		.from(schema.stats)
+		.where(eq(schema.stats.workspaceId, workspace.id))
+		.orderBy(schema.stats.sortOrder)
+}
+
+export async function createStatsItem(data: {
+	title: string
+	value: string
+	description?: string
+	icon?: string
+	sortOrder?: number
+	isActive?: boolean
+}) {
+	const workspace = await requireContentPermission()
+	const [item] = await db
+		.insert(schema.stats)
+		.values({
+			workspaceId: workspace.id,
+			title: data.title,
+			value: data.value,
+			description: data.description || undefined,
+			icon: data.icon || undefined,
+			sortOrder: data.sortOrder ?? 0,
+			isActive: data.isActive ?? true,
+		})
+		.returning()
+	return item
+}
+
+export async function updateStatsItem(id: string, data: {
+	title?: string
+	value?: string
+	description?: string
+	icon?: string
+	sortOrder?: number
+	isActive?: boolean
+}) {
+	const workspace = await requireContentPermission()
+	const [item] = await db
+		.update(schema.stats)
+		.set({ ...data, updatedAt: new Date() })
+		.where(and(eq(schema.stats.id, id), eq(schema.stats.workspaceId, workspace.id)))
+		.returning()
+	return item
+}
+
+export async function deleteStatsItem(id: string) {
+	const workspace = await requireContentPermission()
+	await db.delete(schema.stats).where(and(eq(schema.stats.id, id), eq(schema.stats.workspaceId, workspace.id)))
+}
+
+// --- TESTIMONIALS ---
+export async function getTestimonials(params?: { status?: string }) {
+	const workspace = await requireWorkspace()
+	const conditions = [eq(schema.testimonials.workspaceId, workspace.id)]
+	if (params?.status && params.status !== "all") {
+		conditions.push(eq(schema.testimonials.status, params.status))
+	}
+	return db
+		.select()
+		.from(schema.testimonials)
+		.where(and(...conditions))
+		.orderBy(desc(schema.testimonials.createdAt))
+}
+
+export async function createTestimonial(data: {
+	reviewerName: string
+	reviewerEmail?: string
+	rating: number
+	title?: string
+	content: string
+	status?: string
+	isFeatured?: boolean
+}) {
+	const workspace = await requireContentPermission()
+	const [item] = await db
+		.insert(schema.testimonials)
+		.values({
+			workspaceId: workspace.id,
+			reviewerName: data.reviewerName,
+			reviewerEmail: data.reviewerEmail || undefined,
+			rating: data.rating,
+			title: data.title || undefined,
+			content: data.content,
+			status: data.status || "pending",
+			isFeatured: data.isFeatured ?? false,
+		})
+		.returning()
+	return item
+}
+
+export async function updateTestimonial(id: string, data: {
+	reviewerName?: string
+	reviewerEmail?: string
+	rating?: number
+	title?: string
+	content?: string
+	status?: string
+	isFeatured?: boolean
+}) {
+	const workspace = await requireContentPermission()
+	const [item] = await db
+		.update(schema.testimonials)
+		.set({ ...data, updatedAt: new Date() })
+		.where(and(eq(schema.testimonials.id, id), eq(schema.testimonials.workspaceId, workspace.id)))
+		.returning()
+	return item
+}
+
+export async function deleteTestimonial(id: string) {
+	const workspace = await requireContentPermission()
+	await db.delete(schema.testimonials).where(and(eq(schema.testimonials.id, id), eq(schema.testimonials.workspaceId, workspace.id)))
+}
+
 // --- MEDIA LIBRARY ---
 export async function getMediaItems(params?: { type?: string; folder?: string }) {
 	const workspace = await requireWorkspace()
